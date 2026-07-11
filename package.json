@@ -1,0 +1,13 @@
+{
+  "name": "keleo-language",
+  "version": "1.0.0",
+  "description": "Practice Language JSON Schema, semantic guidance, and validation tooling",
+  "private": true,
+  "scripts": {
+    "validate": "node validate/validate-schema.js"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}
