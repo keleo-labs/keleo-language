@@ -144,7 +144,7 @@
     },
     "PracticeElementAlias": {
       "type": "object",
-      "description": "Local name alias: aliasName is treated as an alternate string for (practiceElementType, practiceElementName) within the same Practice document (language.mmd). Not a PracticeElement subclass; embedded only under Practice.practiceElementAliases.",
+      "description": "Local name alias: aliasName is treated as an alternate string for (practiceElementType, practiceElementName) within the same document (language.mmd). Not a PracticeElement subclass; embedded under Practice.practiceElementAliases or PracticeBaseline.practiceElementAliases.",
       "required": ["practiceElementType", "practiceElementName", "aliasName"],
       "properties": {
         "practiceElementType": {
@@ -759,6 +759,11 @@
               "type": "array",
               "items": { "$ref": "#/$defs/Alpha" }
             },
+            "alphaInstances": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/AlphaInstanceName" },
+              "description": "Optional list of AlphaInstance names used to allow baselines to identify instances of concepts or areas of concern within the baseline."
+            },
             "activitySpaces": {
               "type": "array",
               "items": { "$ref": "#/$defs/ActivitySpace" }
@@ -804,6 +809,11 @@
                 "description": "Name of another PracticeBaseline (symbolic link; must match another PracticeBaseline.name in the registry)."
               },
               "description": "Optional array of other PracticeBaseline names this baseline depends on (0..* symbolic links; do not embed baseline objects)."
+            },
+            "practiceElementAliases": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/PracticeElementAlias" },
+              "description": "Optional local aliases for named elements in this baseline (0..*; language.mmd)."
             }
           }
         }

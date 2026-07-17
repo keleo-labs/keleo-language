@@ -471,6 +471,79 @@ class BaselineValidator:
 
         return not has_errors
 
+    def validate_aliases(self) -> bool:
+        """Validate practiceElementAliases if present"""
+        has_errors = False
+        aliases = self.baseline.get('practiceElementAliases', [])
+        if not aliases:
+            return True
+
+        element_index = {}
+        type_map = {
+            'Alpha': 'alphas',
+            'ActivitySpace': 'activitySpaces',
+            'Focus': 'focuses',
+            'Competency': 'competencies',
+            'NarrativeType': 'narrativeTypes',
+        }
+        for element_type, array_key in type_map.items():
+            for elem in self.baseline.get(array_key, []):
+                elem_name = elem.get('name')
+                if elem_name:
+                    element_index[(element_type, elem_name)] = True
+
+        if self.parent_baseline:
+            for element_type, array_key in type_map.items():
+                for elem in self.parent_baseline.get(array_key, []):
+                    elem_name = elem.get('name')
+                    if elem_name:
+                        element_index[(element_type, elem_name)] = True
+
+        seen = set()
+        for idx, alias in enumerate(aliases):
+            prefix = f"practiceElementAliases[{idx}]"
+            elem_type = alias.get('practiceElementType', '')
+            elem_name = alias.get('practiceElementName', '')
+
+            dup_key = (elem_type, elem_name)
+            if dup_key in seen:
+                self.errors.append({
+                    "category": "alias",
+                    "severity": "error",
+                    "path": prefix,
+                    "issue": f"Duplicate alias for ({elem_type}, {elem_name})",
+                    "expected": "Unique (practiceElementType, practiceElementName) pairs",
+                    "actual": f"({elem_type}, {elem_name})",
+                    "suggestion": "Remove duplicate alias entry"
+                })
+                has_errors = True
+            seen.add(dup_key)
+
+            if elem_type in type_map and (elem_type, elem_name) not in element_index:
+                self.errors.append({
+                    "category": "alias",
+                    "severity": "error",
+                    "path": f"{prefix}.practiceElementName",
+                    "issue": f"Alias references unknown {elem_type}: '{elem_name}'",
+                    "expected": f"Name of an existing {elem_type} in this baseline or parent",
+                    "actual": elem_name,
+                    "suggestion": f"Check spelling or define {elem_type} '{elem_name}'"
+                })
+                has_errors = True
+
+            if elem_type and elem_type not in type_map:
+                self.warnings.append({
+                    "category": "alias",
+                    "severity": "warning",
+                    "path": f"{prefix}.practiceElementType",
+                    "issue": f"Alias type '{elem_type}' not validated (only Alpha, ActivitySpace, Focus, Competency, NarrativeType are checked)",
+                    "expected": "One of: Alpha, ActivitySpace, Focus, Competency, NarrativeType",
+                    "actual": elem_type,
+                    "suggestion": "Verify the alias target exists manually"
+                })
+
+        return not has_errors
+
     def validate_universality(self) -> None:
         """Check for overly specific terminology (warnings only)"""
         # Patterns indicating vendor/tool-specific naming
@@ -510,6 +583,8 @@ class BaselineValidator:
         competencies_valid = self.validate_competencies()
         narrative_types_valid = self.validate_narrative_types()
 
+        aliases_valid = self.validate_aliases()
+
         # Universality is warnings only
         self.validate_universality()
 
@@ -520,7 +595,8 @@ class BaselineValidator:
             alphas_valid and
             activity_spaces_valid and
             competencies_valid and
-            narrative_types_valid
+            narrative_types_valid and
+            aliases_valid
         )
 
         # Build report
@@ -537,7 +613,8 @@ class BaselineValidator:
                 "alphas_valid": alphas_valid,
                 "activity_spaces_valid": activity_spaces_valid,
                 "competencies_valid": competencies_valid,
-                "narrative_types_valid": narrative_types_valid
+                "narrative_types_valid": narrative_types_valid,
+                "aliases_valid": aliases_valid
             }
         }
 
