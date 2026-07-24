@@ -289,6 +289,88 @@ class BaselineValidator:
 
         return not has_errors
 
+    def validate_redeclaration_compliance(self) -> bool:
+        """Check that redeclared alphas preserve parent baseline structure.
+
+        When a child baseline re-uses an alpha name from its parent, it must
+        preserve structural elements: state names, state sequence, and focusName.
+        Descriptions and checklists may be enriched with domain-specific content
+        (this is the purpose of redeclaration). Domain-specific state/alpha names
+        should use practiceElementAliases instead of renaming.
+        """
+        if not self.parent_baseline:
+            return True
+
+        has_errors = False
+        child_alphas = self.baseline.get('alphas', [])
+
+        for idx, child_alpha in enumerate(child_alphas):
+            child_name = child_alpha.get('name', f'<unnamed-{idx}>')
+            if child_name not in self.parent_alphas:
+                continue
+
+            parent_alpha = self.parent_alphas[child_name]
+            prefix = f"alphas[{idx}]"
+
+            if child_alpha.get("description") and parent_alpha.get("description"):
+                if child_alpha["description"] != parent_alpha["description"]:
+                    self.warnings.append({
+                        "category": "redeclaration",
+                        "severity": "warning",
+                        "path": f"{prefix}.description",
+                        "issue": f"Redeclared alpha '{child_name}' enriched parent description",
+                        "expected": parent_alpha["description"][:100],
+                        "actual": child_alpha["description"][:100],
+                        "suggestion": "Domain-specific description enrichment is acceptable for redeclared alphas"
+                    })
+
+            if child_alpha.get("focusName") and parent_alpha.get("focusName"):
+                if child_alpha["focusName"] != parent_alpha["focusName"]:
+                    self.errors.append({
+                        "category": "redeclaration",
+                        "severity": "error",
+                        "path": f"{prefix}.focusName",
+                        "issue": f"Redeclared alpha '{child_name}' changed focusName from '{parent_alpha['focusName']}' to '{child_alpha['focusName']}'",
+                        "expected": parent_alpha["focusName"],
+                        "actual": child_alpha["focusName"],
+                        "suggestion": "Preserve parent focusName exactly"
+                    })
+                    has_errors = True
+
+            parent_states = [s.get("name") for s in parent_alpha.get("states", [])]
+            child_states = [s.get("name") for s in child_alpha.get("states", [])]
+
+            if child_states != parent_states:
+                self.errors.append({
+                    "category": "redeclaration",
+                    "severity": "error",
+                    "path": f"{prefix}.states",
+                    "issue": f"Redeclared alpha '{child_name}' changed state names",
+                    "expected": str(parent_states),
+                    "actual": str(child_states),
+                    "suggestion": "Preserve parent state names exactly; use practiceElementAliases for domain-specific terminology"
+                })
+                has_errors = True
+            else:
+                parent_state_map = {s["name"]: s for s in parent_alpha.get("states", []) if s.get("name")}
+                for cs in child_alpha.get("states", []):
+                    ps = parent_state_map.get(cs.get("name"))
+                    if not ps:
+                        continue
+                    if cs.get("description") and ps.get("description"):
+                        if cs["description"] != ps["description"]:
+                            self.warnings.append({
+                                "category": "redeclaration",
+                                "severity": "warning",
+                                "path": f"{prefix}.states[{cs['name']}].description",
+                                "issue": f"Redeclared state '{child_name}.{cs['name']}' enriched description",
+                                "expected": ps["description"][:80],
+                                "actual": cs["description"][:80],
+                                "suggestion": "Domain-specific description enrichment is acceptable for redeclared states"
+                            })
+
+        return not has_errors
+
     def validate_activity_spaces(self) -> bool:
         """Validate baseline activitySpace structure"""
         has_errors = False
@@ -579,6 +661,7 @@ class BaselineValidator:
         schema_valid = self.validate_schema()
         structure_valid = self.validate_baseline_structure()
         alphas_valid = self.validate_alphas()
+        redeclaration_valid = self.validate_redeclaration_compliance()
         activity_spaces_valid = self.validate_activity_spaces()
         competencies_valid = self.validate_competencies()
         narrative_types_valid = self.validate_narrative_types()
@@ -591,6 +674,7 @@ class BaselineValidator:
         # Overall validity
         is_valid = (
             schema_valid and
+            redeclaration_valid and
             structure_valid and
             alphas_valid and
             activity_spaces_valid and
@@ -611,6 +695,7 @@ class BaselineValidator:
                 "schema_valid": schema_valid,
                 "structure_valid": structure_valid,
                 "alphas_valid": alphas_valid,
+                "redeclaration_valid": redeclaration_valid,
                 "activity_spaces_valid": activity_spaces_valid,
                 "competencies_valid": competencies_valid,
                 "narrative_types_valid": narrative_types_valid,

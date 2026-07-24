@@ -13,6 +13,7 @@
    - 4.3 [Redeclaration vs Specialization Decision Framework](#43-redeclaration-vs-specialization-decision-framework)
    - 4.4 [Adapting and Extending Practice Elements](#44-adapting-and-extending-practice-elements)
    - 4.5 [Practice Partitioning and Value-Driven Scoping](#45-practice-partitioning-and-value-driven-scoping)
+   - 4.6 [Alpha vs Work Product Decision Framework](#46-alpha-vs-work-product-decision-framework)
 5. [PracticeElement Foundations](#5-practiceelement-foundations)
    - 5.1 [PracticeElement, Tagging Taxonomy, and Narrative Anchors](#51-practiceelement-tagging-taxonomy-and-narrative-anchors)
    - 5.2 [Checklists and Dynamic State-Gating](#52-checklists-and-dynamic-state-gating)
@@ -472,6 +473,255 @@ When extending existing elements:
 ### 4.5 Practice Partitioning and Value-Driven Scoping
 
 When composing extension practices, authors must avoid "functional decomposition" (e.g., creating a generic "Testing Practice" or "Coding Practice" consisting only of flat task lists). Instead, a Practice must be scoped as a Value-Additive Unit addressing a discrete, cohesive area of concern (e.g., "Product Discovery" or "Zero-Trust Networking"). Authors should evaluate their methodology across four distinct perspectives: Business (commercial logic), Technology (system design), People (team RACI), and Process (operational workflows). If source material blends multiple distinct value-streams, it must be partitioned into separate, cohesive Practice documents, resolving cross-dependencies via the practiceDependencyNames array.
+
+### 4.6 Alpha vs Work Product Decision Framework
+
+When translating source methodology content into the Practice Language, authors must correctly classify each concept as either an Alpha (abstract concern) or a Work Product (tangible artifact). Misclassification is the most common ontological error in practice generation and fundamentally corrupts the evidence model. The fundamental decision question is: **"Am I tracking the health and progress of an abstract concern, or am I describing the developing maturity of a tangible artifact?"**
+
+**Alpha (Abstract Concern) — Model as Alpha When:**
+
+- The concept represents a domain of concern whose health or progress matters to the endeavor (e.g., "Plant Health," "Platform Adoption," "Stakeholder Alignment")
+- You cannot hand someone the concept — it is observed indirectly through evidence
+- States represent conceptual milestones in the concern's evolution (e.g., Identified → Understood → Monitored → Optimized)
+- Multiple different artifacts could provide evidence that this concern has reached a given state
+- Removing all documentation would not eliminate the concern itself — it would still exist as an abstract reality
+- The concept answers "what must go well?" rather than "what must we produce?"
+
+**Work Product (Tangible Artifact) — Model as Work Product When:**
+
+- The concept describes a specific type of content that a team produces — configuration files, documentation, dashboards, assessment records, source code, presentations, templates
+- You can point to a concrete deliverable — a file, a repository, a report, a dashboard
+- Levels of Detail represent the developing maturity of that content from skeletal to comprehensive (e.g., Observational Checklist → Quantitative Health Profile → Diagnostic Case File)
+- The concept answers "what must we deliver?" rather than "what must go well?"
+- The artifact serves as evidence for one or more alpha state achievements via the `contributesTo` relationship on each Level of Detail
+
+**The Litmus Test — Three Quick Checks:**
+
+1. **The Handoff Test**: Can you hand it to a colleague as a file, document, or deliverable? If yes → Work Product. If no → Alpha.
+2. **The Deletion Test**: If you deleted every document about it, would the concern still exist? If yes → Alpha. If no → Work Product.
+3. **The Evidence Test**: Does this thing *provide* evidence, or does it *require* evidence? Work Products provide evidence for alpha states. Alphas require evidence (from work products) to prove state achievement.
+
+**Decision Matrix:**
+
+| Source Concept | Can Hand Off? | Survives Deletion? | Provides or Requires Evidence? | Classification |
+| --- | --- | --- | --- | --- |
+| "The overall health of our security posture" | No | Yes | Requires evidence | Alpha |
+| "Security audit report documenting findings" | Yes | No | Provides evidence | Work Product |
+| "Architecture maturity across the platform" | No | Yes | Requires evidence | Alpha |
+| "Architecture document with diagrams and ADRs" | Yes | No | Provides evidence | Work Product |
+| "Plant health and development trajectory" | No | Yes | Requires evidence | Alpha |
+| "Plant health assessment record" | Yes | No | Provides evidence | Work Product |
+| "Adoption readiness of the platform" | No | Yes | Requires evidence | Alpha |
+| "Platform onboarding guide for developers" | Yes | No | Provides evidence | Work Product |
+
+**The Structural Bridge: evidencedBy and contributesTo**
+
+Alphas and Work Products are not independent — they form an evidence network. The Practice Language provides two complementary linkage mechanisms:
+
+1. **Work Product LOD → Alpha State** (`contributesTo` on LevelOfDetail): Each LOD declares which alpha states it advances. This is required by schema.
+2. **Alpha State Checklist → Work Product LOD** (`evidencedBy` on Checklist): Each alpha state checklist item can declare which work product at which LOD proves it is satisfied. This is optional but recommended.
+
+If you cannot articulate either direction of this relationship, the modeling is wrong. Every alpha state should be evidenced by at least one work product LOD, and every work product LOD should contribute to at least one alpha state. A "floating" work product that contributes to nothing, or an alpha state with no conceivable evidence, signals a classification error.
+
+**Example 1: Correct Separation (Platform Domain)**
+
+Source material describes "platform architecture" — the abstract concern of having a sound architecture, and the concrete document that captures architectural decisions.
+
+Alpha (abstract concern being tracked):
+
+```json
+{
+  "name": "Platform",
+  "states": [
+    {"name": "Architecture Selected", "seq": 1,
+     "checklist": [
+       {"name": "Architecture documented", "seq": 1,
+        "description": "Reference architecture created with technology decisions and rationale",
+        "evidencedBy": [
+          {"workProductName": "Architecture", "levelOfDetailName": "Outlined"}
+        ]}
+     ]},
+    {"name": "Provisioned", "seq": 3,
+     "checklist": [
+       {"name": "Architecture validated in production", "seq": 1,
+        "description": "Architecture proven through production deployment with validated scaling",
+        "evidencedBy": [
+          {"workProductName": "Architecture", "levelOfDetailName": "Validated"}
+        ]}
+     ]}
+  ]
+}
+```
+
+Work Product (tangible artifact providing evidence):
+
+```json
+{
+  "name": "Architecture",
+  "description": "Technical blueprint detailing platform infrastructure, capability domains, and integration patterns.",
+  "levelsOfDetail": [
+    {"name": "Outlined", "seq": 1,
+     "description": "High-level block diagram showing major capability domains and technology choices.",
+     "checklist": [
+       {"seq": 1, "name": "Component diagram created",
+        "description": "System components and their relationships visually documented"},
+       {"seq": 2, "name": "Technology decisions documented",
+        "description": "Each major technology choice explained with rationale"}
+     ],
+     "contributesTo": [{"alphaName": "Platform", "stateName": "Architecture Selected"}]},
+    {"name": "Detailed", "seq": 2,
+     "description": "Comprehensive architecture documenting all capability domains with integration patterns and API contracts.",
+     "checklist": [
+       {"seq": 1, "name": "Integration patterns specified",
+        "description": "API contracts, data flows, and integration approaches defined"},
+       {"seq": 2, "name": "Scaling strategy documented",
+        "description": "Horizontal and vertical scaling approaches with capacity projections"}
+     ],
+     "contributesTo": [{"alphaName": "Platform", "stateName": "Provisioned"}]},
+    {"name": "Validated", "seq": 3,
+     "description": "Architecture proven through production deployment with validated scaling, security, and DR characteristics.",
+     "checklist": [
+       {"seq": 1, "name": "Production performance validated",
+        "description": "Load testing confirms architecture meets scaling requirements"},
+       {"seq": 2, "name": "DR procedures tested",
+        "description": "Disaster recovery failover validated against RTO/RPO targets"}
+     ],
+     "contributesTo": [{"alphaName": "Platform", "stateName": "Hosting Assets"}]}
+  ]
+}
+```
+
+**Reasoning**: "Platform" is the abstract concern — you cannot hand someone a platform's architectural health. "Architecture" is the tangible document that provides evidence. The LOD names (Outlined → Detailed → Validated) describe the content's developing maturity. The alpha states (Architecture Selected → Provisioned → Hosting Assets) describe conceptual milestones of the platform concern. The `contributesTo` and `evidencedBy` relationships form the structural bridge between them.
+
+**Example 2: Correct Separation (Horticulture Domain)**
+
+Alpha (abstract concern):
+
+```json
+{
+  "name": "Plant Health & Development",
+  "states": [
+    {"name": "Identified", "seq": 1,
+     "checklist": [
+       {"name": "Plant inventory established", "seq": 1,
+        "description": "All plants catalogued with species and location data"}
+     ]},
+    {"name": "Monitored", "seq": 3,
+     "checklist": [
+       {"name": "Health assessment covers key indicators", "seq": 1,
+        "description": "Systematic evaluation of vitality, growth rate, pest pressure, and stress markers",
+        "evidencedBy": [
+          {"workProductName": "Plant Health Assessment Record",
+           "levelOfDetailName": "Observational Checklist"}
+        ]}
+     ]}
+  ]
+}
+```
+
+Work Product (tangible artifact):
+
+```json
+{
+  "name": "Plant Health Assessment Record",
+  "description": "Documented evaluation of plant vitality, growth patterns, and condition over time.",
+  "levelsOfDetail": [
+    {"name": "Observational Checklist", "seq": 1,
+     "description": "Visual inspection form recording symptom presence and basic condition.",
+     "checklist": [
+       {"seq": 1, "name": "Visual indicators recorded",
+        "description": "Leaf colour, wilting, pest damage, and growth abnormalities noted"}
+     ],
+     "contributesTo": [
+       {"alphaName": "Plant Health & Development", "stateName": "Monitored"}
+     ]},
+    {"name": "Quantitative Health Profile", "seq": 2,
+     "description": "Measured parameters with calibrated severity ratings and trend data.",
+     "checklist": [
+       {"seq": 1, "name": "Quantitative metrics captured",
+        "description": "Soil pH, moisture levels, growth measurements with instrument readings"}
+     ],
+     "contributesTo": [
+       {"alphaName": "Plant Health & Development", "stateName": "Optimized"}
+     ]}
+  ]
+}
+```
+
+**Reasoning**: "Plant Health & Development" is abstract — you cannot hand someone a plant's health trajectory. The "Plant Health Assessment Record" is the tangible document that evidences progress. LODs describe the document's developing maturity (visual checklist → quantitative profile). States describe the concern's conceptual milestones (Identified → Monitored → Optimized).
+
+**Example 3: Anti-Pattern — Alpha Whose States Read Like Document Versions (WRONG)**
+
+```json
+{
+  "name": "Security Policy",
+  "description": "Organization's security controls and compliance requirements.",
+  "states": [
+    {"name": "Drafted", "seq": 1, "checklist": []},
+    {"name": "Reviewed", "seq": 2, "checklist": []},
+    {"name": "Approved", "seq": 3, "checklist": []},
+    {"name": "Published", "seq": 4, "checklist": []},
+    {"name": "Enforced", "seq": 5, "checklist": []}
+  ]
+}
+```
+
+**Problem**: These states describe document lifecycle stages (Drafted → Reviewed → Approved → Published), not the health progression of an abstract concern. The litmus test: you can hand someone a security policy document. This should be a Work Product with LODs describing content maturity, not an Alpha.
+
+**Correct modeling**: Split into an Alpha "Security Posture" (abstract concern with states: Assessed → Defined → Implemented → Validated → Adaptive) and a Work Product "Security Policy Document" (tangible artifact with LODs: Policy Outline → Comprehensive Controls → Automated Compliance Checks).
+
+**Example 4: Anti-Pattern — Work Product Whose LODs Read Like Abstract Concern Progression (WRONG)**
+
+```json
+{
+  "name": "Team Effectiveness Report",
+  "levelsOfDetail": [
+    {"name": "Forming", "seq": 1,
+     "description": "Team is being assembled.",
+     "checklist": [], "contributesTo": []},
+    {"name": "Storming", "seq": 2,
+     "description": "Team is resolving conflicts.",
+     "checklist": [], "contributesTo": []},
+    {"name": "Performing", "seq": 3,
+     "description": "Team is delivering value.",
+     "checklist": [], "contributesTo": []}
+  ]
+}
+```
+
+**Problem**: These LODs describe the abstract concern of team maturity (Tuckman stages), not the maturity of a report's content. The litmus test: "Forming" describes the team's state, not the report's content quality. This conflates the Alpha concern (team health) with the Work Product (the report documenting it).
+
+**Correct modeling**: Alpha "Team" with states Formed → Collaborating → Performing. Work Product "Team Effectiveness Report" with LODs describing the report's developing content maturity: Summary Scorecard → Detailed Analysis → Trend Dashboard.
+
+**LOD Content Model and Naming Guidance:**
+
+LOD names must describe the maturity or sophistication of the artifact's content, not the progression of the abstract concern it evidences. Use the five-level rubric in `references/workproduct-assessment-rubric.csv` as a lens when designing LODs:
+
+| Rubric Level | LOD Content Character | Example LOD Names |
+| --- | --- | --- |
+| Level 1: Basic / Descriptive | High-level lists, basic descriptions, skeletal outlines | Outlined, Draft, Checklist, Backlog, Parameter Log |
+| Level 2: Defined / Logical | Detailed logical structures, documented frameworks, step-by-step plans | Detailed, Defined, Comprehensive, Modular, Scored Risk Matrix |
+| Level 3: Applied / Behavioural | Worked examples, scenario-based guides, behavioural walkthroughs | Applied, Scenario-Based, Validated, Tested Templates |
+| Level 4: Comprehensive / Automated | Automated tooling, interactive templates, executable artifacts | Automated, Interactive, Self-Service, Adaptive, Predictive Analytics |
+
+Not every work product requires four LODs — use what fits the source content (minimum 2 per schema). LOD names should be domain-appropriate for the artifact type, not generic labels. "Observational Checklist → Quantitative Health Profile → Diagnostic Case File" is good because each name tells you what the document actually contains at that maturity level.
+
+**Common Mistakes:**
+
+- Modeling a document or artifact as an Alpha because it feels "important" — importance does not determine classification, tangibility does
+- Writing Alpha states that describe document lifecycle stages (Drafted, Reviewed, Approved) instead of concern health milestones
+- Writing Work Product LODs that describe abstract concern progression instead of artifact content maturity
+- Creating a Work Product with no `contributesTo` links — a floating artifact that evidences nothing
+- Creating an Alpha whose states cannot be evidenced by any conceivable work product
+- Naming LODs with generic numbered labels ("Level 1", "Level 2") instead of content-descriptive names
+
+**Validation Enforcement:**
+
+- Phase 1 analysis must explicitly classify each source concept as Alpha or Work Product using the litmus test before proceeding to Phase 2
+- Phase 2 must validate that every LevelOfDetail has at least one `contributesTo` entry (required by schema)
+- Phase 2 should flag alpha state names that resemble document lifecycle terminology (drafted, reviewed, approved, published, versioned)
+- Phase 2 should flag LOD names that resemble abstract concern progression rather than content maturity descriptors
+- Cross-validation: every alpha state should be reachable via at least one work product LOD `contributesTo`; orphaned states indicate missing work products or incorrect classification
 
 ## 5 PracticeElement Foundations
 
@@ -1128,6 +1378,31 @@ A WorkProduct is the tangible artifact providing the empirical evidence necessar
 
 Every WorkProduct is defined by a progression sequence of LevelOfDetail objects (minimum of 2). Each level dictates specific quality gates, and achieving a specific level directly contributes to advancing parent Alphas via an AlphaContribution.
 
+**LevelOfDetail Naming and Content Maturity Progression:**
+
+LOD names must describe the maturity or sophistication of the artifact's content — what the artifact contains at each level. They must not describe the abstract concern the artifact evidences (see Section 4.6 for the full Alpha vs Work Product decision framework).
+
+Well-designed LOD names answer the question: "What does this document look like at this level of maturity?" Use the five-level rubric defined in `references/workproduct-assessment-rubric.csv` as the primary lens for designing LOD progression:
+
+- **Basic / Descriptive** (Rubric Level 1): The artifact exists in skeletal form — high-level lists, brief mentions, basic identification. Content is descriptive but lacks logical structure or analytical depth. Example LOD names: "Outlined", "Draft Reference", "Checklist", "Backlog", "Component List", "Parameter Log".
+- **Defined / Logical** (Rubric Level 2): The artifact presents structured, logical content — documented frameworks, step-by-step guides, detailed specifications, logical mappings. Example LOD names: "Detailed", "Defined", "Comprehensive Reference", "Prioritized Plan", "Scored Risk Matrix", "Modular".
+- **Applied / Behavioural** (Rubric Level 3): The artifact includes worked examples, scenario-based guidance, and behavioural context that demonstrates application to specific situations. Example LOD names: "Validated", "Scenario-Based", "Tested Templates", "Applied", "Performance-Validated".
+- **Comprehensive / Automated** (Rubric Level 4): The artifact incorporates automation, interactive tooling, or executable components that reduce manual effort. Example LOD names: "Automated", "Interactive", "Self-Service Platform", "Predictive Analytics Platform", "Adaptive Governance".
+
+**LOD Naming Principles:**
+
+1. **Content-descriptive, not concern-descriptive**: "Quantitative Health Profile" describes what the document contains. "Optimized" would describe the concern's health — wrong for an LOD name.
+2. **Domain-appropriate vocabulary**: "Observational Checklist" (horticulture), "Operator Configuration" (infrastructure), "Informal Guidelines" (governance) each use terms natural to the artifact's domain.
+3. **No generic numbered labels**: Use meaningful names, never "Level 1", "Level 2", or "LOD 1". The schema requires a descriptive name string, not a number prefix.
+4. **Progressive sophistication**: Each LOD name should convey greater content depth, analytical rigour, or automation than the previous level.
+
+**Structural Requirements:**
+
+- Each LevelOfDetail MUST include a `contributesTo` array with at least one AlphaContribution (`{alphaName, stateName}`) linking this maturity level to the alpha state(s) it advances (see Section 4.6 for the semantic rationale)
+- Each LevelOfDetail MUST include a `checklist` array (may be empty) defining quality gates for achieving that level
+- LOD checklists describe characteristics the artifact must exhibit at this maturity level, not steps to create it
+- The `seq` integer determines ordering; lower LODs represent less mature content
+
 ### 7.2 Artifact Instantiation and Concurrency
 
 The evidenceRequired property dictates the ingestion of a URI linking the logical JSON object to physical reality. Because enterprise execution is inherently parallelized, implementations must support branching metadata to allow tracking of experimental drafts without corrupting canonical Alpha calculations.
@@ -1407,7 +1682,52 @@ This comprehensive structure enables PatternViews to orchestrate methodology exe
 
 ## 10 Narrative Management
 
-Narratives provide a way for practices to include additional information and context about any PracticeElement. When used the narrative content **MUST** be kept succinct, providing information in a minimal outlined style. It should **NOT** replicate sections of the source content, instead it should provide a summary of that content, with **Citations** being used to direct the user to further reading. 
+Narratives provide a way for practices to include additional information and context about any PracticeElement. When used the narrative content **MUST** be kept succinct, providing information in a minimal outlined style. It should **NOT** replicate sections of the source content, instead it should provide a summary of that content, with **Citations** being used to direct the user to further reading.
+
+**Narrative Naming:**
+
+The `name` property of a Narrative must summarize what the narrative tells the reader, not what structural role the narrative plays. The `narrativeTypeName` already carries the structural role (e.g., "Hero's Journey", "STAR", "Practice Intent"). The `name` must convey the specific story or message so that a reader scanning a method with multiple practices can distinguish each narrative at a glance.
+
+**Anti-Pattern — Generic Role-Based Names (WRONG):**
+
+- "Practice Intent" — which practice? What does it intend?
+- "Overview Narrative" — overview of what?
+- "Hero's Journey for Platform" — exposes template mechanics
+
+**Correct — Content-Descriptive Names:**
+
+- "Accelerating Platform Adoption Through Self-Service Infrastructure"
+- "From Manual Provisioning to Automated Golden Paths"
+- "Transforming Developer Experience with Internal Platform Capabilities"
+
+Each name should be specific enough that reading it alone tells you the subject matter and perspective of the narrative. In a method with five practices, five narratives named "Practice Intent" are indistinguishable; five content-descriptive names create a scannable table of contents.
+
+**Narrative Context Self-Containment:**
+
+Users consume narratives as: **name**, **description**, and a sequence of **context** strings. The narrative element names (from the NarrativeType) are authoring scaffolding — they guide the writer but are **NOT displayed** to the reader. Each `context` value must therefore be self-contained: coherent and meaningful when read in sequence without any element headings.
+
+**The Self-Containment Test:** Read the narrative's name, description, and contexts in order as a continuous piece of prose. If any context is a non sequitur — a list of items, warnings, or steps that only makes sense under a heading like "Common Pitfalls" or "Prerequisites" — it fails the test.
+
+**Anti-Pattern — Heading-Dependent Context (WRONG):**
+
+> *Name:* VM Inventory Discovery and Compatibility Classification
+> *Description:* How to discover, classify, and assess source VMs for migration readiness.
+> *Context 1:* Install the MTV operator, create Provider CRs for each source platform...
+> *Context 2:* Create Provider CRs with platform-specific credentials...
+> *Context 3:* Failing to validate VMware VDDK version compatibility. Overlooking the 47-character VM naming constraint. Attempting to assess the entire estate at once.
+
+Context 3 is a bare list of mistakes — without the "Common Pitfalls" heading it reads as a non sequitur.
+
+**Correct — Self-Contained Context:**
+
+> *Context 3:* Common mistakes include failing to validate VMware VDDK version compatibility and NFC memory settings before assessment, overlooking the 47-character VM naming constraint for Kubernetes resources, and attempting to assess the entire VM estate at once rather than progressively by provider type.
+
+A single framing clause ("Common mistakes include...") makes the context readable as prose without any external heading.
+
+**Rules:**
+1. Each context must open with a framing sentence or clause that establishes what the paragraph is about
+2. Bare lists (gerund phrases, noun phrases, or sentence fragments without a lead-in) require a framing introduction
+3. The sequence of contexts must read as coherent prose: name → description → context 1 → context 2 → ... → context N
 
 ### 10.1 Narrative Tooling Synchronization and Execution Guidelines
 
@@ -1432,7 +1752,7 @@ The schema provides native support for bibliographic references through the Cita
 
 **Narrative Integration**: The Narrative object supports an optional citationNames array, enabling authors to explicitly link narrative contexts to their supporting literature. Each entry in citationNames must match the name property of a Citation object within the same practice or method scope. This symbolic linking allows operational tooling to generate properly formatted reference lists, validate citation integrity, and support advanced knowledge retrieval patterns.
 
-**Operational Guidance**: When authoring practices, citations should be declared for all external frameworks, research papers, standards documents, and authoritative sources that inform the practice definition. Citation names should use a consistent convention (e.g., author-year format or descriptive titles) to facilitate human comprehension. Tooling implementations must resolve citation references across the practice composition hierarchy, ensuring that narratives can reference citations from dependent practices or the baseline without duplication.
+**Operational Guidance**: When authoring practices, citations should be declared for all external frameworks, research papers, standards documents, and authoritative sources that inform the practice definition. Citation names should use represent the title of the cited work. Tooling implementations must resolve citation references across the practice composition hierarchy, ensuring that narratives can reference citations from dependent practices or the baseline without duplication.
 
 ## 11 Visual Assets and Practice Elements
 
