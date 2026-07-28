@@ -26,7 +26,7 @@
       "description": "Common identity and prose fields for named practice artifacts. tags optional: omit, structured buckets, or legacy string[].",
       "required": ["name", "description"],
       "properties": {
-        "kind": { "type": "string", "enum": ["practice", "method", "practiceBaseline", "practiceElementAlias", "workProduct", "workProductInstance", "alpha", "alphaInstance", "activitySpace", "activity", "persona", "personaGroup", "pattern", "patternView", "narrativeType", "citation"] },
+        "kind": { "type": "string", "enum": ["practice", "method", "practiceBaseline", "project", "practiceElementAlias", "workProduct", "workProductInstance", "alpha", "alphaInstance", "activitySpace", "activity", "persona", "personaGroup", "pattern", "patternView", "narrativeType", "citation", "acknowledgement"] },
         "name": { "type": "string" },
         "description": { "type": "string" },
         "tags": {
@@ -244,6 +244,11 @@
               "type": "array",
               "items": { "$ref": "#/$defs/WorkProductInstance" },
               "description": "Embedded work-product instance rows that evidence this AlphaInstance (same aggregate)."
+            },
+            "checklistStates": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ChecklistState" },
+              "description": "Optional checklist completion tracking for this alpha instance. Each entry records the state of a checklist item within the referenced Alpha State."
             }
           }
         }
@@ -297,6 +302,11 @@
             "levelOfDetailName": {
               "type": "string",
               "description": "Name of a LevelOfDetail under that work product (symbolic link; must match LevelOfDetail.name)."
+            },
+            "checklistStates": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ChecklistState" },
+              "description": "Optional checklist completion tracking for this work product instance. Each entry records the state of a checklist item within the referenced LevelOfDetail."
             }
           }
         }
@@ -463,6 +473,16 @@
             "narrativeTypeName": {
               "type": "string",
               "description": "Symbolic link to NarrativeType.name in the baseline (or practice overlay); patterns may hang a narrative spine (language.mmd)."
+            },
+            "alphaInstanceNames": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/AlphaInstanceName" },
+              "description": "Optional list of alpha instance declarations tracked by this pattern. Used in project plans to declare which alpha instances the pattern's views reference."
+            },
+            "workProductInstanceNames": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/WorkProductInstanceName" },
+              "description": "Optional list of work product instance declarations tracked by this pattern. Used in project plans to declare which work product instances the pattern's views reference."
             }
           }
         }
@@ -625,6 +645,21 @@
       ],
       "unevaluatedProperties": false
     },
+    "Acknowledgement": {
+      "allOf": [
+        { "$ref": "#/$defs/PracticeElement" },
+        {
+          "type": "object",
+          "properties": {            
+            "url": {
+              "type": "string",
+              "description": "Optional URL associated with the acknowledgement, for example contact email `mailto:xx` or hyperlink to a profile page"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
     "PatternView": {
       "allOf": [
         { "$ref": "#/$defs/PracticeElement" },
@@ -733,6 +768,118 @@
         }
       ]
     },
+    "PackageDependency": {
+      "type": "object",
+      "description": "A dependency on another .keleo package. Declared when this package contains documents that reference names (baselinePracticeName, practiceNames, practiceDependencyNames) provided by an external package.",
+      "required": ["packageName", "versionRange"],
+      "properties": {
+        "packageName": {
+          "type": "string",
+          "description": "Name of the required package (must match PackageIdentity.name of the dependency)."
+        },
+        "versionRange": {
+          "type": "string",
+          "description": "Semantic version range constraint (e.g., '>=1.0.0 <2.0.0', '^1.2.0', '1.x'). Consumers use this to select a compatible version from available packages."
+        },
+        "documentNames": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional explicit list of document names required from the dependency. When omitted, all documents from the dependency are available for resolution."
+        }
+      },
+      "additionalProperties": false
+    },
+    "PackageDocument": {
+      "type": "object",
+      "description": "An entry in the package document inventory. Maps a file path within the ZIP archive to its Practice Language document type and name.",
+      "required": ["path", "documentType", "documentName"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Relative path to the JSON file within the ZIP archive (e.g., 'documents/my-practice.json'). Must begin with 'documents/'.",
+          "pattern": "^documents/.+\\.json$"
+        },
+        "documentType": {
+          "type": "string",
+          "enum": ["practiceBaseline", "practice", "method", "project"],
+          "description": "The root type of the JSON document, matching the schema's root discrimination result."
+        },
+        "documentName": {
+          "type": "string",
+          "description": "The 'name' property of the root document. This is the identity key used for symbolic resolution (e.g., the name that appears in practiceNames, baselinePracticeName)."
+        },
+        "entryPoint": {
+          "type": "boolean",
+          "default": false,
+          "description": "True if this document is a primary entry point of the package. Entry points are the documents a consumer should resolve first."
+        }
+      },
+      "additionalProperties": false
+    },
+    "PackageIdentity": {
+      "type": "object",
+      "description": "Package identity and provenance metadata for a .keleo package.",
+      "required": ["name", "version", "description"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique package name using kebab-case convention (e.g., 'platform-engineering-method', 'devsecops-practice').",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "version": {
+          "type": "string",
+          "description": "Semantic version of the package (e.g., '1.0.0', '2.3.1').",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable summary of the package contents and purpose."
+        },
+        "authors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Package authors (may differ from individual document authors)."
+        },
+        "license": {
+          "type": "string",
+          "description": "Optional SPDX license identifier (e.g., 'Apache-2.0', 'CC-BY-4.0')."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Optional URL for the package homepage, repository, or registry listing."
+        }
+      },
+      "additionalProperties": false
+    },
+    "PackageManifest": {
+      "type": "object",
+      "description": "Root object of manifest.json within a .keleo package. Declares the package identity, document inventory, entry points, and external dependencies. Validated via language.schema.json#/$defs/PackageManifest.",
+      "required": ["schemaVersion", "package", "documents"],
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "description": "Version of the Practice Language schema this package targets. Consumers use this to determine compatibility before parsing documents.",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "package": {
+          "$ref": "#/$defs/PackageIdentity",
+          "description": "Identity and metadata for this package."
+        },
+        "documents": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/PackageDocument" },
+          "description": "Ordered inventory of all Practice Language JSON documents in this package."
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PackageDependency" },
+          "description": "Optional array of external package dependencies. Declared when documents in this package reference names provided by other packages."
+        }
+      },
+      "additionalProperties": false
+    },
     "PracticeBaselineShape": {
       "description": "PracticeElement + baseline arrays and metadata (no document-level unevaluatedProperties; compose into PracticeBaseline or Practice).",
       "allOf": [
@@ -786,6 +933,11 @@
               "type": "array",
               "description": "Bibliographic references defined in this baseline.",
               "items": { "$ref": "#/$defs/Citation" }
+            },
+            "acknowledgements": {
+              "type": "array",
+              "description": "Acknowledgements of people or institutions that have supported this work",
+              "items": {"$ref": "#/$defs/Acknowledgement"}
             },
             "assets": {
               "type": "array",
@@ -911,6 +1063,11 @@
               "items": { "$ref": "#/$defs/Citation" },
               "description": "Bibliographic references elaborated by this practice."
             },
+            "acknowledgements": {
+              "type": "array",
+              "description": "Acknowledgements of people or institutions that have supported this work",
+              "items": {"$ref": "#/$defs/Acknowledgement"}
+            },
             "assets": {
               "type": "array",
               "items": { "$ref": "#/$defs/Asset" },
@@ -1012,6 +1169,11 @@
               "items": { "$ref": "#/$defs/Citation" },
               "description": "Bibliographic references elaborated by this practice."
             },
+            "acknowledgements": {
+              "type": "array",
+              "description": "Acknowledgements of people or institutions that have supported this work",
+              "items": {"$ref": "#/$defs/Acknowledgement"}
+            },
             "assets": {
               "type": "array",
               "items": { "$ref": "#/$defs/Asset" },
@@ -1051,6 +1213,11 @@
               "items": { "$ref": "#/$defs/Citation" },
               "description": "Bibliographic references defined in this method (merged from baseline and practices)."
             },
+            "acknowledgements": {
+              "type": "array",
+              "description": "Acknowledgements of people or institutions that have supported this work",
+              "items": {"$ref": "#/$defs/Acknowledgement"}
+            },
             "assets": {
               "type": "array",
               "items": { "$ref": "#/$defs/Asset" },
@@ -1070,23 +1237,269 @@
         }
       ],
       "unevaluatedProperties": false
+    },
+    "Note": {
+      "type": "object",
+      "description": "Timestamped commentary for project tracking. Appears at multiple levels within a Project (top-level, plan, current, target, team, checklist states).",
+      "required": ["name", "timestamp", "content"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Short summary or title of the note."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO timestamp string recording when the note was created."
+        },
+        "content": {
+          "type": "string",
+          "description": "The note text."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChecklistState": {
+      "type": "object",
+      "description": "Tracks the completion status of an individual checklist item within a project context. Co-located on AlphaInstance or WorkProductInstance; the parent instance provides the alpha/state or workProduct/levelOfDetail context.",
+      "required": ["checklistName", "state"],
+      "properties": {
+        "checklistName": {
+          "type": "string",
+          "description": "Name of the specific Checklist item (must match a Checklist.name within the parent instance's referenced State or LevelOfDetail)."
+        },
+        "state": {
+          "type": "string",
+          "enum": ["complete", "not complete", "not required"],
+          "description": "Completion status. In current section: records actual completion. In target section: indicates whether the checklist item is required for this project's goals."
+        },
+        "evidenceUri": {
+          "type": "string",
+          "format": "uri",
+          "description": "Optional URI linking to external evidence supporting the checklist item's state (e.g. a document, test result, approval record, or audit artifact)."
+        },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Note" },
+          "description": "Optional notes recording observations or rationale for the checklist item's state."
+        }
+      },
+      "additionalProperties": false
+    },
+    "CommunicationChannel": {
+      "type": "object",
+      "description": "A team's preferred interaction point — the place other people should go to find or reach the team.",
+      "required": ["name", "address"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable label for the channel (e.g. 'Slack', 'Team Email', 'Weekly Sync', 'Backlog')."
+        },
+        "address": {
+          "type": "string",
+          "description": "The channel's address or location (e.g. '#platform-eng', 'platform@example.com', 'Tuesdays 10:00 UTC')."
+        }
+      },
+      "additionalProperties": false
+    },
+    "TeamMember": {
+      "type": "object",
+      "description": "Identifies a person on the project team, their role within the methodology, and how to contact them.",
+      "required": ["name", "personaName", "contact"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The individual's name."
+        },
+        "personaName": {
+          "type": "string",
+          "description": "Symbolic link to a Persona defined in the resolved practice/method scope, identifying their role."
+        },
+        "contact": {
+          "type": "string",
+          "description": "A contact address (e.g. email, chat handle, phone). Format is not constrained."
+        },
+        "started": {
+          "type": "string",
+          "description": "Optional ISO timestamp recording when this member joined the project."
+        },
+        "finished": {
+          "type": "string",
+          "description": "Optional ISO timestamp recording when this member left the project."
+        }
+      },
+      "additionalProperties": false
+    },
+    "TeamEntry": {
+      "type": "object",
+      "description": "Describes the project team. Inspired by the Team API concept from Team Topologies, making the team's purpose, membership, and communication preferences discoverable.",
+      "required": ["name", "description", "members"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The team's name (e.g. 'Platform Engineering', 'Security Governance')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Brief statement of the team's focus and purpose within this project."
+        },
+        "communicationChannels": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/CommunicationChannel" },
+          "description": "Optional array of communication channels describing how to interact with this team."
+        },
+        "members": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TeamMember" },
+          "description": "Array of team members with their roles and contact details."
+        },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Note" },
+          "description": "Optional notes for team-level observations, decisions, and changes over time."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProjectPlan": {
+      "type": "object",
+      "description": "The plan section of a Project. Contains an embedded Pattern defining the project's lifecycle plan, and a notes array for plan-level commentary.",
+      "required": ["pattern"],
+      "properties": {
+        "pattern": {
+          "$ref": "#/$defs/Pattern",
+          "description": "Embedded Pattern object defining the project's lifecycle plan. This is a new instance owned by the project, not a symbolic link. The Pattern's alphaInstanceNames and workProductInstanceNames declare tracked instances; its PatternViews define phased objectives."
+        },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Note" },
+          "description": "Optional notes for plan-level commentary, decisions, and rationale about the planning process itself."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProjectStateSection": {
+      "type": "object",
+      "description": "Shared structure for the current and target sections of a Project. Contains arrays of AlphaInstance and WorkProductInstance objects (which carry their own ChecklistState arrays) plus notes.",
+      "properties": {
+        "alphaInstances": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AlphaInstance" },
+          "description": "Alpha instances recording state (current assessment or target goal). Each instance may carry checklistStates for granular tracking."
+        },
+        "workProductInstances": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WorkProductInstance" },
+          "description": "Work product instances recording level of detail (current assessment or target goal). Each instance may carry checklistStates for granular tracking."
+        },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Note" },
+          "description": "Optional notes providing timestamped observations and commentary."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Project": {
+      "description": "An execution instance of a Practice or Method, tracking real-world progress against a plan. Contains team, plan, current state, and target state sections.",
+      "allOf": [
+        { "$ref": "#/$defs/PracticeElement" },
+        {
+          "type": "object",
+          "required": ["plan", "current", "target"],
+          "properties": {
+            "practiceName": {
+              "type": "string",
+              "description": "Symbolic link to a Practice by name. Exactly one of practiceName or methodName must be present."
+            },
+            "methodName": {
+              "type": "string",
+              "description": "Symbolic link to a Method by name. Exactly one of practiceName or methodName must be present."
+            },
+            "team": {
+              "$ref": "#/$defs/TeamEntry",
+              "description": "The project team — who is involved, what they do, and how to reach them."
+            },
+            "plan": {
+              "$ref": "#/$defs/ProjectPlan",
+              "description": "The project plan containing an embedded Pattern and plan-level notes."
+            },
+            "current": {
+              "$ref": "#/$defs/ProjectStateSection",
+              "description": "Currently assessed state of tracked alphas and work products."
+            },
+            "target": {
+              "$ref": "#/$defs/ProjectStateSection",
+              "description": "Desired/goal state for tracked alphas and work products."
+            },
+            "notes": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Note" },
+              "description": "Project-wide notes for observations, decisions, and commentary not specific to plan, current, target, or team."
+            },
+            "keywords": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "citations": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Citation" },
+              "description": "Bibliographic references relevant to this project."
+            },
+            "acknowledgements": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Acknowledgement" },
+              "description": "Acknowledgements of people or institutions that have supported this project."
+            },
+            "assets": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Asset" },
+              "description": "Optional array of visual assets for this project."
+            },
+            "authors": { "type": "array", "items": { "type": "string" } },
+            "createdAt": { "type": "string" },
+            "updatedAt": { "type": "string" },
+            "version": { "type": "string" }
+          },
+          "oneOf": [
+            {
+              "required": ["practiceName"],
+              "not": { "required": ["methodName"] }
+            },
+            {
+              "required": ["methodName"],
+              "not": { "required": ["practiceName"] }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
     }
   },
   "if": {
     "type": "object",
     "anyOf": [
-      { "required": ["practices"] },
-      { "required": ["practiceNames"] },
-      { "required": ["baselinePractice"] }
+      { "required": ["practiceName"] },
+      { "required": ["methodName"] }
     ]
   },
-  "then": { "$ref": "#/$defs/Method" },
+  "then": { "$ref": "#/$defs/Project" },
   "else": {
     "if": {
       "type": "object",
-      "required": ["baselinePracticeName"]
+      "anyOf": [
+        { "required": ["practices"] },
+        { "required": ["practiceNames"] },
+        { "required": ["baselinePractice"] }
+      ]
     },
-    "then": { "$ref": "#/$defs/Practice" },
-    "else": { "$ref": "#/$defs/PracticeBaseline" }
+    "then": { "$ref": "#/$defs/Method" },
+    "else": {
+      "if": {
+        "type": "object",
+        "required": ["baselinePracticeName"]
+      },
+      "then": { "$ref": "#/$defs/Practice" },
+      "else": { "$ref": "#/$defs/PracticeBaseline" }
+    }
   }
 }

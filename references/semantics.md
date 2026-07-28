@@ -9,11 +9,12 @@
    - 3.2 [Metadata and Provenance](#32-metadata-and-provenance)
 4. [Adapting and Composing Practices](#4-adapting-and-composing-practices)
    - 4.1 [Practice Dependencies](#41-practice-dependencies)
-   - 4.2 [Practice Aliasing and Strict Isolation](#42-practice-aliasing-and-strict-isolation)
-   - 4.3 [Redeclaration vs Specialization Decision Framework](#43-redeclaration-vs-specialization-decision-framework)
-   - 4.4 [Adapting and Extending Practice Elements](#44-adapting-and-extending-practice-elements)
-   - 4.5 [Practice Partitioning and Value-Driven Scoping](#45-practice-partitioning-and-value-driven-scoping)
-   - 4.6 [Alpha vs Work Product Decision Framework](#46-alpha-vs-work-product-decision-framework)
+   - 4.2 [Practice and Method Composition (Merge)](#42-practice-and-method-composition-merge)
+   - 4.3 [Practice Aliasing and Strict Isolation](#43-practice-aliasing-and-strict-isolation)
+   - 4.4 [Redeclaration vs Specialization Decision Framework](#44-redeclaration-vs-specialization-decision-framework)
+   - 4.5 [Adapting and Extending Practice Elements](#45-adapting-and-extending-practice-elements)
+   - 4.6 [Practice Partitioning and Value-Driven Scoping](#46-practice-partitioning-and-value-driven-scoping)
+   - 4.7 [Alpha vs Work Product Decision Framework](#47-alpha-vs-work-product-decision-framework)
 5. [PracticeElement Foundations](#5-practiceelement-foundations)
    - 5.1 [PracticeElement, Tagging Taxonomy, and Narrative Anchors](#51-practiceelement-tagging-taxonomy-and-narrative-anchors)
    - 5.2 [Checklists and Dynamic State-Gating](#52-checklists-and-dynamic-state-gating)
@@ -37,6 +38,7 @@
     - 10.1 [Narrative Tooling Synchronization and Execution Guidelines](#101-narrative-tooling-synchronization-and-execution-guidelines)
     - 10.2 [Cognitive Storytelling Frameworks](#102-cognitive-storytelling-frameworks)
     - 10.3 [Bibliographic Citations and Reference Management](#103-bibliographic-citations-and-reference-management)
+    - 10.4 [Acknowledgements and Attribution](#104-acknowledgements-and-attribution)
 11. [Visual Assets and Practice Elements](#11-visual-assets-and-practice-elements)
     - 11.1 [Asset Declaration](#111-asset-declaration)
     - 11.2 [Element-Level Asset References](#112-element-level-asset-references)
@@ -46,7 +48,14 @@
     - 11.6 [Semantic Guidance](#116-semantic-guidance)
     - 11.7 [Phase 2 Translation Guidance](#117-phase-2-translation-guidance)
     - 11.8 [Best Practices](#118-best-practices)
-12. [Conclusion](#12-conclusion)
+12. [Project Execution Tracking](#12-project-execution-tracking)
+    - 12.1 [Project Purpose and Root Discrimination](#121-project-purpose-and-root-discrimination)
+    - 12.2 [Team Structure and Team API Principles](#122-team-structure-and-team-api-principles)
+    - 12.3 [Plan Section and Pattern Ownership](#123-plan-section-and-pattern-ownership)
+    - 12.4 [Current and Target Sections](#124-current-and-target-sections)
+    - 12.5 [ChecklistState and Evidence Tracking](#125-checkliststate-and-evidence-tracking)
+    - 12.6 [Notes and Automated Journaling](#126-notes-and-automated-journaling)
+13. [Conclusion](#13-conclusion)
 
 ## 1 Introduction and Architectural Context
 
@@ -82,7 +91,15 @@ The schema is built for modularity, allowing practices to be adapted and combine
 
 The Practice object supports an array of practiceDependencyNames. This acts as a symbolic link to other required methodologies. Tooling must resolve these dependencies to allow organizations to build modular, composable methodologies where advanced practices inherit or require the successful validation of foundational ones.
 
-### 4.2 Practice Aliasing and Strict Isolation
+### 4.2 Practice and Method Composition (Merge)
+
+When a Method is composed or a Practice's dependencies are resolved, the system produces a single merged document by layering the baseline and extension practices in dependency order. This merge process is fundamental to how the Practice Language achieves modularity — practices are authored independently but consumed as a unified whole.
+
+The merge follows a strict hierarchy: the baseline seeds the accumulator, then each extension practice overlays in dependency-resolved order. Same-named elements are merged rather than duplicated, descriptions from earlier layers (especially the baseline) are preserved, and arrays are unioned using type-aware strategies (name-keyed merge for practice elements, deduplication for primitives, specialized merge for contributions and tags).
+
+For a complete specification of the merge algorithm — including element-level merge rules, array merge strategies, dependency resolution, and post-merge finalization — see [merge.md](merge.md).
+
+### 4.3 Practice Aliasing and Strict Isolation
 
 Because abstract naming conventions can obscure domain-specific adaptations, a practice or baseline practice can declare aliases via the PracticeElementAlias object. This defines a local name alias for an element type and target name, allowing frictionless alignment with user-specific taxonomy without destroying the structural integrity of the root elements. Baseline practices that adapt a parent baseline for a specific domain (e.g., Infrastructure Automation adapting Platform Adoption Essentials) use aliases to remap parent terminology to domain-appropriate terms while preserving structural references.
 
@@ -237,7 +254,7 @@ All structural references still use "Platform" and "Platform Value And Economics
 
 This strict isolation ensures that the Practice Language maintains referential integrity and composability while still accommodating diverse organizational vocabularies at the presentation layer.
 
-### 4.3 Redeclaration vs Specialization Decision Framework
+### 4.4 Redeclaration vs Specialization Decision Framework
 
 When extending a baseline practice with alpha-related content, authors must decide whether to redeclare (enrich) an existing baseline alpha or create a new specialized alpha. This decision profoundly affects practice composability, validation, and semantic coherence. The fundamental decision question is: **"Is this content generally applicable (universal to all uses of this alpha concept) or practice-specific (addressing a narrower subset)?"**
 
@@ -418,7 +435,7 @@ Module 00 analysis identifies that both Business and Technology perspectives enh
 - Phase 2 validates that all new alphas have contributesTo relationships
 - Practice composition tooling should warn when multiple redeclarations of the same baseline alpha are detected (should be merged)
 
-### 4.4 Adapting and Extending Practice Elements
+### 4.5 Adapting and Extending Practice Elements
 
 Practices can now adapt PracticeElements from dependent practices or the baselinePractice. The objective is to allow Practices to add new information to existing PracticeElements while maintaining core operational integrity.
 
@@ -470,11 +487,11 @@ When extending existing elements:
 
 **Alpha Redeclaration:** Alphas have States. These Alpha States **MUST NOT** be changed. However, the State checklists **CAN** be added to.
 
-### 4.5 Practice Partitioning and Value-Driven Scoping
+### 4.6 Practice Partitioning and Value-Driven Scoping
 
 When composing extension practices, authors must avoid "functional decomposition" (e.g., creating a generic "Testing Practice" or "Coding Practice" consisting only of flat task lists). Instead, a Practice must be scoped as a Value-Additive Unit addressing a discrete, cohesive area of concern (e.g., "Product Discovery" or "Zero-Trust Networking"). Authors should evaluate their methodology across four distinct perspectives: Business (commercial logic), Technology (system design), People (team RACI), and Process (operational workflows). If source material blends multiple distinct value-streams, it must be partitioned into separate, cohesive Practice documents, resolving cross-dependencies via the practiceDependencyNames array.
 
-### 4.6 Alpha vs Work Product Decision Framework
+### 4.7 Alpha vs Work Product Decision Framework
 
 When translating source methodology content into the Practice Language, authors must correctly classify each concept as either an Alpha (abstract concern) or a Work Product (tangible artifact). Misclassification is the most common ontological error in practice generation and fundamentally corrupts the evidence model. The fundamental decision question is: **"Am I tracking the health and progress of an abstract concern, or am I describing the developing maturity of a tangible artifact?"**
 
@@ -1754,6 +1771,76 @@ The schema provides native support for bibliographic references through the Cita
 
 **Operational Guidance**: When authoring practices, citations should be declared for all external frameworks, research papers, standards documents, and authoritative sources that inform the practice definition. Citation names should use represent the title of the cited work. Tooling implementations must resolve citation references across the practice composition hierarchy, ensuring that narratives can reference citations from dependent practices or the baseline without duplication.
 
+### 10.4 Acknowledgements and Attribution
+
+The schema provides the Acknowledgement type to recognise individuals, groups, or institutions that have contributed to or supported the development of a practice, baseline, or method. Acknowledgements are distinct from Citations — they attribute human contributions and support rather than referencing published works.
+
+**Acknowledgement Structure:**
+
+Each Acknowledgement extends PracticeElement (requiring `name` and `description`) and adds an optional `url` property:
+
+```json
+{
+  "name": "Jane Smith",
+  "description": "Subject matter expert who contributed domain analysis and review of the platform adoption states.",
+  "url": "mailto:jane.smith@example.com"
+}
+```
+
+**Field Definitions:**
+
+- **name** (required): The name of the person, group, or institution being acknowledged
+- **description** (required): A brief explanation of the contribution or support provided
+- **url** (optional): A contact or profile link — may be a `mailto:` URI, a personal website, or an organisational profile page
+
+**Acknowledgement Scope and Aggregation:**
+
+Acknowledgements can be declared at multiple levels of the methodology hierarchy:
+
+- **PracticeBaseline**: Acknowledge contributors to the foundational baseline (e.g., original framework authors, domain experts who shaped the core ontology)
+- **Practice**: Acknowledge contributors to the specific practice extension (e.g., practitioners who provided domain expertise, reviewers, or pilot teams)
+- **Method**: Acknowledge contributors at the method composition level, aggregating recognition across the baseline and constituent practices
+
+**Operational Guidance:**
+
+- Use acknowledgements to recognise substantive intellectual contributions, domain expertise, review efforts, or institutional support
+- The `name` property should identify the contributor clearly — use full names for individuals, official names for organisations
+- The `description` should briefly explain the nature of the contribution (e.g., "Provided security domain expertise during state model design" rather than simply "Helped with the project")
+- The `url` property supports various URI schemes: `mailto:` for email, `https://` for web profiles, or any other relevant link
+- Acknowledgements are presentation metadata — they do not participate in structural validation or cross-referencing like citations do
+
+**Example: Baseline Acknowledgements**
+
+```json
+{
+  "acknowledgements": [
+    {
+      "name": "Platform Engineering Working Group",
+      "description": "Collaborative working group that developed and validated the platform adoption state model through industry workshops."
+    },
+    {
+      "name": "Dr. Alex Chen",
+      "description": "Academic advisor who reviewed the ontological foundations and alpha-state progression semantics.",
+      "url": "https://university.edu/profiles/achen"
+    }
+  ]
+}
+```
+
+**Example: Method-Level Acknowledgements**
+
+```json
+{
+  "acknowledgements": [
+    {
+      "name": "Acme Corp Platform Team",
+      "description": "Pilot team whose real-world adoption experience validated and refined the pattern lifecycle.",
+      "url": "mailto:platform-team@acme.example.com"
+    }
+  ]
+}
+```
+
 ## 11 Visual Assets and Practice Elements
 
 Visual assets (diagrams, templates, icons) enhance practice comprehension and adoption. The Practice Language supports declarative asset references at both the practice/method level and individual element level.
@@ -1861,44 +1948,36 @@ Any practice element (Alpha, State, WorkProduct, LevelOfDetail, Activity, Patter
 
 Assets support multiple distribution models:
 
-1. **Bundle Distribution**: Practice JSON + `assets/` directory packaged together
+1. **Package Distribution**: Practice Language documents + `assets/` directory packaged as a `.keleo` archive
 2. **Single-File Distribution**: Small assets embedded as data URIs within JSON
 3. **Remote Hosting**: Assets hosted externally, referenced by URL
 4. **Font Characters**: Icon fonts loaded separately, referenced by family/character
 
-**Bundle Format:**
+**Package Format (`.keleo`):**
 
-Practices with assets are distributed as bundles (zip/tar archives):
+Practice Language documents with file-based assets are distributed as `.keleo` packages — ZIP archives (MIME type `application/vnd.keleo.package+zip`) with a defined internal structure and a `manifest.json` describing the package contents. A package can contain any root type (practices, baselines, methods, projects) and supports externalised practice distribution where the merge algorithm resolves symbolic name references from the package's document inventory.
 
-```text
-practice-name.bundle/
-├── practice-name.json          # Main JSON with assets array
-├── assets/
-│   ├── diagrams/
-│   │   ├── platform-states.svg
-│   │   └── value-stream-map.png
-│   ├── templates/
-│   │   └── architecture-doc-template.pdf
-│   └── icons/
-│       └── practice-icon.svg
-└── manifest.json               # Bundle metadata (version, created, etc.)
-```
+For the complete specification — including manifest schema, directory layout, validation rules, and package resolution — see [specifications/packaging.md](../specifications/packaging.md). The manifest schema is defined as `$defs/PackageManifest` in `language.schema.json`.
+
+**Package as Library:**
+
+When a Method uses `practiceNames` or `baselinePracticeName` string references, the merge algorithm requires a library lookup index (see [merge.md](merge.md), Section 2.3). A `.keleo` package serves as such a library: its manifest maps document names to file paths, enabling the merge algorithm to resolve names to document bodies without external configuration.
 
 **Asset Embedding (Alternative):**
 
-For practices requiring single-file distribution, small assets (icons, simple diagrams) can be embedded using data URIs in the `path` field:
+For documents requiring single-file distribution, small assets (icons, simple diagrams) can be embedded using data URIs in the `dataUri` field:
 
 ```json
 {
   "name": "practice-icon",
   "description": "Practice identity icon",
-  "path": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53...",
+  "dataUri": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53...",
   "mimeType": "image/svg+xml",
   "checksum": "sha256:abc123..."
 }
 ```
 
-This approach maintains single-file portability while supporting asset references. However, external files are recommended for:
+This approach maintains single-file portability while supporting asset references. However, file-based assets (packaged in a `.keleo` archive) are recommended for:
 
 - Assets larger than 10KB
 - Assets that change frequently
@@ -1943,6 +2022,106 @@ Document these as asset references in the mapping guide, with descriptions and p
 - **Minimize file sizes**: Compress images, optimize SVGs
 - **Document asset sources**: If diagrams use specific tools (draw.io, PlantUML), include source files
 
-## 12 Conclusion
+## 12 Project Execution Tracking
+
+The Practice Language defines practices, methods, and baselines as methodology specifications — they describe *what should be done*. The Project type bridges the gap to execution, providing a structure for tracking *what is being done* against those specifications. A Project is an execution instance of a Practice or Method, recording team composition, a tailored plan, the currently assessed state of tracked concerns and artifacts, and the desired target state.
+
+### 12.1 Project Purpose and Root Discrimination
+
+A Project is distinct from Practice, Method, and PracticeBaseline. While those types define methodology constructs, a Project tracks real-world progress against a selected methodology. It is identified at the root level by the presence of `practiceName` or `methodName` — properties unique to the Project type.
+
+**Root Discrimination:** The schema's if/then/else chain evaluates Project discrimination *before* the existing Method/Practice/PracticeBaseline checks. A document containing `practiceName` or `methodName` is validated as a Project; documents without these properties fall through to the existing discrimination logic.
+
+**Practice/Method Reference:** A Project MUST name exactly one Practice or Method via an exclusive-or constraint:
+
+- `practiceName` — symbolic link to a Practice (by name)
+- `methodName` — symbolic link to a Method (by name)
+
+Any system managing a Project would need to resolve all of the referenced Practice or Method's dependencies (including baseline and dependent practices) so the user operates against a single merged virtual practice. The resolution mechanism is a tooling concern, not a schema concern.
+
+**Metadata:** Projects carry the same provenance metadata as Practice and PracticeBaseline: `authors`, `createdAt`, `updatedAt`, `version`, and `keywords`. Projects may also include `citations`, `acknowledgements`, and `assets`.
+
+### 12.2 Team Structure and Team API Principles
+
+The Project's `team` property is inspired by the Team API concept from Team Topologies (Skelton & Pais). The Team API's core objective is to reduce cognitive load by making a team's purpose, membership, and communication preferences immediately discoverable. The Project schema distils this into three types:
+
+**TeamEntry** — describes the project team:
+
+- `name` and `description` establish the team's identity and purpose, answering "what does this team do and why does it exist?"
+- `members` lists the individuals on the team (array of TeamMember objects)
+- `communicationChannels` (optional) lists how to interact with the team (array of CommunicationChannel objects)
+- `notes` (optional) captures team-level observations, decisions, and changes over time
+
+**TeamMember** — identifies an individual team member:
+
+- `name` and `contact` make the person findable and reachable
+- `personaName` links the member to a Persona defined in the resolved practice/method scope, connecting real people to methodology-defined roles
+- `started` and `finished` (both optional) record when the member joined and left the project, supporting temporal membership tracking without overcomplicating the structure
+
+**CommunicationChannel** — a team interaction point:
+
+- `name` provides a human-readable label (e.g. "Slack", "Team Email", "Weekly Sync")
+- `address` provides the channel's location (e.g. "#platform-eng", "platform@example.com", "Tuesdays 10:00 UTC")
+
+**Validation:** All `personaName` entries in TeamMember objects must reference Personas defined in the resolved practice/method scope.
+
+### 12.3 Plan Section and Pattern Ownership
+
+The `plan` section establishes the project's lifecycle objectives. It contains an embedded Pattern (a new instance, not a symbolic link) and a notes array for plan-level commentary.
+
+**Pattern as Project-Owned Declaration:** The plan's Pattern is a full declaration using the existing Pattern type, owned by the project and freely modifiable by the user. As a new instance rather than a reference, users can add, remove, or reorder PatternViews, adjust alpha state targets, and extend the pattern with objectives specific to their project. The Pattern type is extended with optional `alphaInstanceNames` and `workProductInstanceNames` arrays, allowing the Pattern to explicitly declare which instances are being tracked.
+
+**Instance Declaration Vocabulary:** The Pattern's `alphaInstanceNames` array declares the alpha instances tracked by this project (e.g. "Platform Engineering Team" as an instance of the "Team" alpha). The `workProductInstanceNames` array declares the work product instances. These declarations provide the vocabulary that the Pattern's views reference when specifying phased objectives via AlphaInstance and WorkProductInstance objects.
+
+**Plan Notes:** The plan's `notes` array captures changes, updates, and rationale about the planning process itself — commentary that is about the plan rather than part of the plan content (which lives in the Pattern).
+
+**Tooling Guidance:** Systems supporting this schema should allow users to clone an existing Pattern from the resolved practice/method scope as a starting point for their plan. The cloned Pattern becomes an independent copy owned by the project. Tooling should ensure all tracked items are represented as AlphaInstanceName or WorkProductInstanceName declarations within the Pattern, defaulting instance names to names derived from the alpha/work product name when the user has not explicitly named them.
+
+### 12.4 Current and Target Sections
+
+The `current` and `target` sections share the same structure (ProjectStateSection) but serve different purposes:
+
+- **Current** records the presently assessed state of tracked alphas and work products — "where are we now?"
+- **Target** records the desired/goal state — "where do we want to be?"
+
+Both sections contain:
+
+- `alphaInstances` — array of AlphaInstance objects, each referencing an alpha and its assessed (or target) state. Each AlphaInstance may carry a `checklistStates` array for granular checklist tracking.
+- `workProductInstances` — array of WorkProductInstance objects, each referencing a work product and its assessed (or target) level of detail. Each WorkProductInstance may carry a `checklistStates` array.
+- `notes` — optional array of Note objects for timestamped observations and commentary
+
+The target section allows users to define objectives that may differ from the full pattern — for example, targeting a subset of alpha states or marking certain checklist items as not required.
+
+### 12.5 ChecklistState and Evidence Tracking
+
+ChecklistState tracks the completion status of individual checklist items within the project context. It provides a bridge between the practice-defined checklists (on Alpha States and WorkProduct LevelsOfDetail) and real-world execution.
+
+**Co-location:** ChecklistState objects live on AlphaInstance and WorkProductInstance via their optional `checklistStates` arrays. Because they are co-located on the parent instance, the parent context (alphaName + stateName, or workProductName + levelOfDetailName) already identifies which checklist the item belongs to. ChecklistState itself needs only `checklistName` to identify the specific item.
+
+**Structure:**
+
+- `checklistName` — must match a `Checklist.name` within the parent instance's referenced State or LevelOfDetail
+- `state` — enum: `"complete"`, `"not complete"`, `"not required"`
+- `evidenceUri` (optional) — URI linking to external evidence supporting the item's state (e.g. a document, test result, approval record, or audit artifact)
+- `notes` (optional) — array of Note objects for recording observations or rationale
+
+**Dual-Use Semantics:**
+
+- In the `current` section: `state` records actual completion — `"complete"` or `"not complete"`
+- In the `target` section: `state` indicates requirement — `"not required"` marks checklist items explicitly excluded from this project's goals, while `"complete"` marks items that must be achieved
+
+### 12.6 Notes and Automated Journaling
+
+The Note type provides timestamped commentary throughout the Project structure:
+
+- `name` — short summary or title
+- `timestamp` — ISO timestamp string (consistent with `createdAt`/`updatedAt` elsewhere in the schema)
+- `content` — the note text
+
+Notes appear at multiple levels: at the project top level, within `plan`, `current`, `target`, `team`, and on individual ChecklistState entries. This multi-level placement enables commentary to be captured at the appropriate level of specificity — from project-wide decisions down to rationale for a single checklist item's state.
+
+**Automated Journaling:** Systems implementing this schema may automatically record Notes based on user interactions and state changes (e.g. when a checklist item is marked complete, when an alpha instance transitions state, or when team membership changes). Automated notes should be clearly distinguishable from user-authored notes — tooling may use a naming convention or additional metadata to indicate provenance.
+
+## 13 Conclusion
 
 The transformation of organizational endeavors from static, document-driven processes to dynamic, state-driven ecosystems requires a highly rigorous operational architecture. The Practice Language JSON Schema provides the structural capacity to model extreme complexity across any domain. Maximizing its efficacy, however, demands profound semantic guidance. By enforcing strict ontological tagging taxonomies, embedding blocking failure logic and quantitative thresholds into validation checklists, and defining automated mathematical triggers for Alpha state transitions, enterprise architects eliminate process ambiguity. Furthermore, operationalizing the schema through strict physical Work Product URI linking, explicitly linked organizational Persona Groups, and programmatic root-level methodology discrimination ensures that the methodology aligns precisely with operational reality. By orchestrating these elements through conditional Pattern Views tethered to specific cognitive narrative frameworks, this semantic guidance framework transforms the JSON Schema from a mere structural validator into a prescriptive, highly actionable operational engine capable of driving modern hyperscale transformations.

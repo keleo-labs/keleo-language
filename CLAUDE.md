@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**keleo-language** is the canonical source of truth for the Practice Language JSON Schema and its semantic guidance. The Practice Language is a meta-model for describing practices, methods, and baselines derived from SEMAT Essence.
+**keleo-language** is the canonical source of truth for the Practice Language JSON Schema and its semantic guidance. The Practice Language is a meta-model for describing practices, methods, baselines, and projects derived from SEMAT Essence.
 
 This project is consumed by other keleo projects via symlinks:
 - **keleo-studio** — uses the schema for validation and rendering
@@ -16,6 +16,8 @@ keleo-language/
 ├── references/
 │   ├── semantics.md              # Semantic guidance for the schema
 │   └── domain-framework.md       # Enterprise analysis framework (referenced by semantics.md)
+├── specifications/
+│   └── projects.md               # Project type specification
 ├── validate/
 │   ├── validate-schema.js        # Node.js AJV schema validator
 │   ├── validate-practice.py      # Practice/Method validator (schema + baseline + integrity)
@@ -28,9 +30,10 @@ keleo-language/
 
 | File | Purpose |
 |------|---------|
-| `language.schema.json` | JSON Schema (Draft 2020-12) defining Practice, PracticeBaseline, and Method structures |
+| `language.schema.json` | JSON Schema (Draft 2020-12) defining Practice, PracticeBaseline, Method, and Project structures |
 | `references/semantics.md` | Operational architecture and semantic guidance — the "why" behind schema structures |
 | `references/domain-framework.md` | Four-perspective enterprise analysis framework used during practice authoring |
+| `specifications/projects.md` | Design specification for the Project type |
 
 ## Validation
 
