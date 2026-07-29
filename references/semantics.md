@@ -1207,7 +1207,9 @@ Beyond specialization (`contributesTo`), alphas can declare rich semantic relati
 ```json
 {
   "relationship": "string",
-  "alphaName": "string"
+  "alphaName": "string",
+  "direction": "outgoing | incoming | mutual",
+  "description": "string (optional)"
 }
 ```
 
@@ -1215,6 +1217,11 @@ Beyond specialization (`contributesTo`), alphas can declare rich semantic relati
 
 - **relationship**: The type of relationship (e.g., "depends on", "influences", "constrains", "validates", "precedes", "enables", "provides", "guides", "evidences", "funds", "impacts", "justifies", "demonstrates ROI for")
 - **alphaName**: Name of the related alpha in the same baseline (symbolic link; must match Alpha.name exactly)
+- **direction**: Explicit directionality enabling programmatic traversal without semantic interpretation of the relationship verb:
+  - `outgoing` — this alpha acts upon the target (e.g., A "depends on" B, A "constrains" B)
+  - `incoming` — the target acts upon this alpha (e.g., A "is governed by" B, A "is supported by" B)
+  - `mutual` — symmetric relationship in both directions (e.g., A "correlates with" B)
+- **description** (optional): Human-readable explanation of the relationship — why it exists and what it means in this domain context
 
 **Purpose and Use Cases:**
 
@@ -1229,42 +1236,47 @@ The `relatesTo` property captures non-hierarchical relationships that `contribut
 
 **Relationship Type Patterns:**
 
-The Practice Language uses domain-appropriate relationship verbs organized by pattern:
+The Practice Language uses domain-appropriate relationship verbs organized by pattern. The `direction` value indicates how the relationship reads from the declaring alpha's perspective:
 
 1. **Dependency Patterns**
-   - "depends on", "requires" - Technical or logical dependency
-   - "validated by", "evidenced by" - Proof or verification relationship
+   - "depends on", "requires" — `outgoing` (this alpha depends on the target)
+   - "validated by", "evidenced by" — `incoming` (the target validates this alpha)
 
 2. **Creation/Production Patterns**
-   - "produces", "delivers", "creates" - Outputs or artifacts
-   - "built by", "performed by" - Authorship or execution
+   - "produces", "delivers", "creates" — `outgoing` (this alpha produces the target)
+   - "built by", "performed by" — `incoming` (the target builds this alpha)
 
 3. **Guidance/Control Patterns**
-   - "guides", "drives", "directs" - Strategic influence
-   - "constrains", "governs", "enforces policies on" - Control mechanisms
+   - "guides", "drives", "directs" — `outgoing` (this alpha guides the target)
+   - "constrains", "governs", "enforces policies on" — `outgoing` (this alpha constrains the target)
+   - "governed by" — `incoming` (the target governs this alpha)
 
 4. **Information Flow Patterns**
-   - "provides", "communicates value to" - Data or knowledge transfer
-   - "provides feedback to" - Continuous improvement loops
+   - "provides", "communicates value to" — `outgoing` (this alpha provides to the target)
+   - "provides feedback to" — `outgoing`
 
 5. **Enabling Patterns**
-   - "enables", "facilitates", "supports" - Capability provision
-   - "enables access to", "exposes" - Interface or access
+   - "enables", "facilitates", "supports" — `outgoing` (this alpha enables the target)
+   - "enables access to", "exposes" — `outgoing`
 
 6. **Impact Patterns**
-   - "influences", "impacts" - Indirect effects
-   - "justifies", "demonstrates ROI for" - Business case relationships
+   - "influences", "impacts" — `outgoing` (this alpha influences the target)
+   - "justifies", "demonstrates ROI for" — `outgoing`
 
 7. **Consumption Patterns**
-   - "consumes", "hosts", "runs on" - Resource usage
-   - "realizes" - Value delivery
+   - "consumes", "hosts", "runs on" — `outgoing` (this alpha consumes/hosts the target)
+   - "realizes" — `outgoing`
+
+8. **Mutual Patterns**
+   - "correlates with", "interacts with" — `mutual` (symmetric relationship)
 
 **Validation Rules:**
 
 - The `relatesTo` array is optional (can be empty or omitted)
 - Every `alphaName` in a relationship must reference a valid alpha in the same baseline or practice
 - Relationship strings should use domain-appropriate verbs (no formal validation of relationship types)
-- Relationships are unidirectional—if bidirectional semantics are needed, both alphas must declare reciprocal relationships
+- Every relationship must declare a `direction` (`outgoing`, `incoming`, or `mutual`)
+- The `direction` must be consistent with the relationship verb — e.g., "depends on" should be `outgoing` (this alpha depends on the target), not `incoming`
 
 #### Example: Platform Adoption Kernel Relationships
 
@@ -1276,19 +1288,25 @@ The Practice Language uses domain-appropriate relationship verbs organized by pa
   "relatesTo": [
     {
       "relationship": "built by",
-      "alphaName": "Team"
+      "alphaName": "Team",
+      "direction": "incoming",
+      "description": "The platform is constructed and maintained by the team responsible for its delivery."
     },
     {
       "relationship": "hosts",
-      "alphaName": "Platform Asset"
+      "alphaName": "Platform Asset",
+      "direction": "outgoing",
+      "description": "The platform hosts individual platform assets such as services, tools, and infrastructure components."
     },
     {
       "relationship": "exposes",
-      "alphaName": "Platform Consumption Interface"
+      "alphaName": "Platform Consumption Interface",
+      "direction": "outgoing"
     },
     {
       "relationship": "governed by",
-      "alphaName": "Platform Governance"
+      "alphaName": "Platform Governance",
+      "direction": "incoming"
     }
   ],
   "states": [...]
@@ -1312,16 +1330,16 @@ The Practice Language uses domain-appropriate relationship verbs organized by pa
 
 The `relatesTo` property enables advanced capabilities:
 
-- **Dependency Analysis**: "What alphas does Platform depend on?" → filter relatesTo for dependency relationships
-- **Impact Analysis**: "What alphas are affected by Requirements?" → find all alphas that relate to Requirements
-- **Knowledge Graphs**: Each relationship becomes a semantic triple (`<Alpha> relationship <Alpha>`) for graph databases
+- **Dependency Analysis**: "What alphas does Platform depend on?" → filter relatesTo for `outgoing` dependency relationships
+- **Impact Analysis**: "What alphas are affected if Requirements change?" → find all alphas with `incoming` relationships referencing Requirements
+- **Knowledge Graphs**: Each relationship becomes a directed semantic triple (`<Alpha> relationship <Alpha>`) for graph databases, with `direction` determining edge orientation
 - **Workflow Automation**: "guides" and "produces" relationships inform activity sequencing
 - **Progress Tracking**: "evidenced by" relationships link abstract progress to concrete artifacts
 
 **Common Mistakes:**
 
 - Using `relatesTo` for specialization (use `contributesTo` instead)
-- Creating bidirectional relationships by duplicating the same relationship type (be intentional—relationships are directional)
+- Setting `direction` inconsistently with the relationship verb (e.g., "depends on" with `incoming` — the verb implies `outgoing`)
 - Using vague relationship types like "related to" instead of specific verbs
 - Referencing alphas from external practices without declaring practice dependencies
 - Conflating relationships with narrative context (relationships are structural, narratives are explanatory)

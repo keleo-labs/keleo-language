@@ -132,8 +132,8 @@
     },
     "AlphaRelationship": {
       "type": "object",
-      "description": "Named semantic relationship to another alpha. Provides rich relationship semantics beyond contribution/specialization (e.g., 'depends on', 'influences', 'constrains', 'validates').",
-      "required": ["relationship", "alphaName"],
+      "description": "Named semantic relationship to another alpha with explicit directionality. Provides rich relationship semantics beyond contribution/specialization (e.g., 'depends on', 'influences', 'constrains', 'validates').",
+      "required": ["relationship", "alphaName", "direction"],
       "properties": {
         "relationship": {
           "type": "string",
@@ -142,6 +142,15 @@
         "alphaName": {
           "type": "string",
           "description": "Name of the related Alpha in the same baseline (symbolic link; must match Alpha.name)."
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["outgoing", "incoming", "mutual"],
+          "description": "Directionality of the relationship. 'outgoing': this alpha acts upon the target (e.g., 'depends on', 'constrains'). 'incoming': the target acts upon this alpha (e.g., 'is supported by', 'is governed by'). 'mutual': symmetric relationship applying in both directions (e.g., 'correlates with')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable explanation of the relationship — why it exists and what it means in context."
         }
       },
       "additionalProperties": false
