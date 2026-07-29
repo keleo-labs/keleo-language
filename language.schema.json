@@ -104,6 +104,10 @@
             "checklist": {
               "type": "array",
               "items": { "$ref": "#/$defs/Checklist" }
+            },
+            "contributesToState": {
+              "type": "string",
+              "description": "Optional name of a State on the alpha referenced by this alpha's contributesTo property. Declares that reaching this state contributes to the named state on the parent alpha."
             }
           }
         }
@@ -138,6 +142,77 @@
         "alphaName": {
           "type": "string",
           "description": "Name of the related Alpha in the same baseline (symbolic link; must match Alpha.name)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "StateContribution": {
+      "type": "object",
+      "description": "Maps a contributing alpha's state to a target baseline alpha's state. Used in cross-baseline alpha bindings where the contributing alpha cannot declare contributesToState directly because it was authored independently of the target baseline.",
+      "required": ["fromState", "toState"],
+      "properties": {
+        "fromState": {
+          "type": "string",
+          "description": "Name of a State on the contributing alpha (symbolic link; must match State.name within the contributing alpha)."
+        },
+        "toState": {
+          "type": "string",
+          "description": "Name of a State on the target baseline alpha (symbolic link; must match State.name within the target alpha)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "BaselineAlphaReference": {
+      "type": "object",
+      "description": "Qualified reference to an alpha within a named baseline. Used in method-level alpha bindings to identify alphas across baseline boundaries.",
+      "required": ["baselineName", "alphaName"],
+      "properties": {
+        "baselineName": {
+          "type": "string",
+          "description": "Name of the PracticeBaseline containing the referenced alpha (symbolic link; must match a PracticeBaseline.name accessible to the method)."
+        },
+        "alphaName": {
+          "type": "string",
+          "description": "Name of an Alpha within the named baseline (symbolic link; must match Alpha.name in the specified baseline)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContributingAlpha": {
+      "type": "object",
+      "description": "An alpha from one baseline that contributes to an alpha in another baseline, with optional state-level mappings. When stateContributions is present, it declares specific state correspondences; when omitted, the contribution is declared at the alpha level only.",
+      "required": ["baselineName", "alphaName"],
+      "properties": {
+        "baselineName": {
+          "type": "string",
+          "description": "Name of the PracticeBaseline containing the contributing alpha (symbolic link; must match a PracticeBaseline.name accessible to the method)."
+        },
+        "alphaName": {
+          "type": "string",
+          "description": "Name of the contributing Alpha within the named baseline (symbolic link; must match Alpha.name in the specified baseline)."
+        },
+        "stateContributions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/StateContribution" },
+          "description": "Optional state-level mappings from contributing alpha states to target baseline alpha states. Only map states where there is a clear correspondence; gaps are expected and valid."
+        }
+      },
+      "additionalProperties": false
+    },
+    "AlphaBinding": {
+      "type": "object",
+      "description": "Declares that one or more alphas from contributing baselines contribute to a target baseline alpha. This relationship exists only at the method level — it emerges from the composition of practices from different baseline families, and does not exist within either family independently.",
+      "required": ["baselineAlpha", "contributingAlphas"],
+      "properties": {
+        "baselineAlpha": {
+          "$ref": "#/$defs/BaselineAlphaReference",
+          "description": "The target alpha that receives contributions. Typically a placeholder or management-level alpha in one baseline family."
+        },
+        "contributingAlphas": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/ContributingAlpha" },
+          "description": "One or more alphas from other baselines that contribute to the target baseline alpha."
         }
       },
       "additionalProperties": false
@@ -1222,6 +1297,11 @@
               "type": "array",
               "items": { "$ref": "#/$defs/Asset" },
               "description": "Optional array of visual assets for the entire method (shared across practices)"
+            },
+            "alphaBindings": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/AlphaBinding" },
+              "description": "Optional cross-baseline alpha contribution relationships that emerge from composing practices from different baseline families. Each binding declares that alphas from contributing baselines contribute to a target baseline alpha."
             }
           },
           "oneOf": [

@@ -15,6 +15,7 @@
    - 4.5 [Adapting and Extending Practice Elements](#45-adapting-and-extending-practice-elements)
    - 4.6 [Practice Partitioning and Value-Driven Scoping](#46-practice-partitioning-and-value-driven-scoping)
    - 4.7 [Alpha vs Work Product Decision Framework](#47-alpha-vs-work-product-decision-framework)
+   - 4.8 [Method-Level Alpha Bindings](#48-method-level-alpha-bindings)
 5. [PracticeElement Foundations](#5-practiceelement-foundations)
    - 5.1 [PracticeElement, Tagging Taxonomy, and Narrative Anchors](#51-practiceelement-tagging-taxonomy-and-narrative-anchors)
    - 5.2 [Checklists and Dynamic State-Gating](#52-checklists-and-dynamic-state-gating)
@@ -741,6 +742,86 @@ Not every work product requires four LODs — use what fits the source content (
 - Phase 2 should flag LOD names that resemble abstract concern progression rather than content maturity descriptors
 - Cross-validation: every alpha state should be reachable via at least one work product LOD `contributesTo`; orphaned states indicate missing work products or incorrect classification
 
+### 4.8 Method-Level Alpha Bindings
+
+Methods compose practices from orthogonal baseline families — for example, a project management family and a platform adoption family. These families are designed independently on separate baselines, with no knowledge of each other. When composed into a method, placeholder alphas in one family (e.g., "Deliverable" in project management) need to connect to concrete alphas in another (e.g., "Platform" and "Migration Path" in platform adoption).
+
+The `alphaBindings` property on Method declares these cross-baseline contribution relationships. Each binding says: **these alphas from contributing baselines contribute to this target baseline alpha.** The method is the right place for this declaration because it is the only construct that knows both baseline families.
+
+#### Structure
+
+An alpha binding has two parts:
+
+- **baselineAlpha** — a `BaselineAlphaReference` identifying the target alpha by baseline name and alpha name. This is the alpha that receives contributions (e.g., `"Deliverable"` in `"Project Management Essentials"`).
+- **contributingAlphas** — an array of `ContributingAlpha` entries, each identifying an alpha from another baseline that contributes to the target, with optional state-level mappings.
+
+```json
+{
+  "alphaBindings": [
+    {
+      "baselineAlpha": {
+        "baselineName": "Project Management Essentials",
+        "alphaName": "Deliverable"
+      },
+      "contributingAlphas": [
+        {
+          "baselineName": "Platform Adoption Essentials",
+          "alphaName": "Platform",
+          "stateContributions": [
+            { "fromState": "Operational", "toState": "Built" },
+            { "fromState": "Adopted", "toState": "Accepted" }
+          ]
+        },
+        {
+          "baselineName": "Platform Adoption Essentials",
+          "alphaName": "Migration Path"
+        }
+      ]
+    }
+  ]
+}
+```
+
+In this example, the method composes project management and platform adoption practices. The binding declares that "Platform" and "Migration Path" from the platform adoption baseline contribute to "Deliverable" from the project management baseline. "Platform" includes state-level mappings (reaching "Operational" contributes to "Built" on Deliverable; reaching "Adopted" contributes to "Accepted"). "Migration Path" contributes at the alpha level only — no state correspondence is declared.
+
+#### Two Levels of State Mapping
+
+State contribution mapping operates at two levels:
+
+1. **Within-baseline (`State.contributesToState`)** — When an alpha declares `contributesTo` within its own baseline or practice, individual states can declare `contributesToState` directly on the State object. The practice author declares the mapping at authoring time because the alpha knows its parent. See Section 6.2.
+
+2. **Cross-baseline (`ContributingAlpha.stateContributions`)** — When the contribution relationship is declared via an alpha binding, the contributing alpha was authored independently of the target. Its states cannot declare `contributesToState` because they didn't know about the target alpha. Instead, the method author declares state mappings in the binding itself via `stateContributions`.
+
+Both express the same concept — which states on a child alpha correspond to states on a parent alpha — but at different levels appropriate to their context.
+
+#### Design Principles
+
+- **Bind baselines, not practices.** Alpha bindings reference baseline names. All practices built on those baselines automatically inherit the linkage, keeping everything consistent without per-practice declarations.
+- **State mapping is optional.** Only map states where there is a clear correspondence. Not every state on a contributing alpha maps to a state on the target — gaps are expected and valid.
+- **Bindings are additive.** They declare new contribution edges that emerge from the composition. They do not replace existing `contributesTo` relationships within either baseline.
+- **Bindings are directional.** Contributing alphas contribute TO the target baseline alpha. Progress on the contributing alphas drives progress on the target.
+
+#### When to Use Alpha Bindings
+
+| Scenario | Mechanism |
+|----------|-----------|
+| Alpha specialization within a baseline | `Alpha.contributesTo` (string naming parent alpha) |
+| State mapping within a baseline | `State.contributesToState` (string naming parent state) |
+| Cross-baseline alpha contribution in a method | `AlphaBinding` on Method |
+| Cross-baseline state mapping in a method | `stateContributions` on `ContributingAlpha` |
+
+#### Relationship to Merge
+
+Alpha bindings are consumed **after** the merge algorithm produces the unified document. The merge layers baselines and practices in dependency order (Section 4.2). Alpha bindings provide additional contribution edges that tooling should inject into the merged result. The merge algorithm itself does not process bindings — they are post-merge metadata that tooling interprets when rendering or analysing the composed method.
+
+#### Validation Rules
+
+1. Each `baselineName` in a binding must reference a baseline accessible to the method — either the method's own baseline, a baseline it depends on via `baselinePracticeNames`, or a baseline of one of its composed practices.
+2. Each `alphaName` must exist within the referenced baseline.
+3. Each `fromState` in a `stateContributions` entry must be a valid state name within the contributing alpha.
+4. Each `toState` must be a valid state name within the target baseline alpha.
+5. The same contributing alpha (same baselineName + alphaName) should not appear in multiple bindings targeting the same baseline alpha.
+
 ## 5 PracticeElement Foundations
 
 Foundation elements provide the baseline from which all other methodology constructs inherit. They establish the universal properties required for identification, metadata classification, and sequential verification.
@@ -1281,6 +1362,28 @@ This alpha explicitly contributes to a governance-related baseline alpha, establ
 ### 6.2 State Progression and the Guidance Function
 
 A State is a discrete point of maturity governed by a sequence integer (seq) and validated through associated checklist items. The transition trigger programmatically evaluates the state of prerequisite Alphas before allowing progression, transforming the schema into a prescriptive engine that generates dynamic "to-do" lists of required Activities.
+
+#### State-Level Contribution Mapping (`contributesToState`)
+
+When an Alpha declares `contributesTo` (naming a parent alpha it specializes), its individual states can optionally declare which state on the parent alpha they contribute to via the `contributesToState` property. This makes state-level contribution a first-class concept within baselines and practices.
+
+```json
+{
+  "name": "Platform Capability",
+  "contributesTo": "Platform",
+  "states": [
+    { "name": "Identified", "seq": 1, "contributesToState": "Recognized", "checklist": [...] },
+    { "name": "Available", "seq": 2, "contributesToState": "Provisioned", "checklist": [...] },
+    { "name": "Operational", "seq": 3, "checklist": [...] }
+  ]
+}
+```
+
+In this example, the "Platform Capability" alpha contributes to the "Platform" alpha. Reaching the "Identified" state on Platform Capability contributes to the "Recognized" state on Platform. The "Operational" state has no mapping — not every state needs a correspondence, and gaps are expected.
+
+**Validation:** `contributesToState` is only meaningful when the owning Alpha has a `contributesTo` property set. The named state must exist on the target parent alpha.
+
+For cross-baseline state mapping (where the contributing alpha was authored independently of the target), see Section 4.8 (Method-Level Alpha Bindings).
 
 ### 6.3 Programmatic Transition Triggers and Alpha Rollups
 
