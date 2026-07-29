@@ -2347,37 +2347,37 @@ One of the key capabilities of the ChangeRequest is temporary merge preview — 
 
 This enables stakeholders to evaluate proposed changes in context before committing to them, particularly useful for changes that affect multiple interconnected elements.
 
-### 13.6 Downstream Impact and Propagation
+### 13.6 Name Changes and Downstream Accommodation
 
-When a ChangeRequest proposes changes to a baseline or practice that other documents depend on, the `downstreamImpacts` array provides advisory metadata about affected downstream documents. Each DownstreamImpact entry identifies:
+When a ChangeRequest renames elements, any practice or method that depends on the target document may reference the old names. The `nameChanges` array provides a lookup table of name changes that downstream dependents must accommodate. Each entry records:
 
-- **documentName**: The downstream document affected
-- **documentType**: Its root type (practiceBaseline, practice, method, project)
-- **description**: Human-readable explanation of the impact
-- **suggestedOperations**: Optional array of ChangeOperations that the downstream document would need
+- **elementType**: The type of element renamed (e.g., `"Alpha"`, `"ActivitySpace"`)
+- **fromName**: The previous name
+- **toName**: The new name
 
-Downstream impacts are advisory — they help dependent document authors understand what refactoring is needed when the upstream change is accepted. Tooling may:
-- Display impacts during review to inform the acceptance decision
-- Auto-generate new ChangeRequests for downstream documents from the suggestedOperations
-- Apply suggested operations in preview mode to show downstream effects
+This is not targeted at specific downstream documents — it applies to ALL dependents. Systems use it to:
+1. Scan dependent documents for references to the old names
+2. Identify which dependents are affected
+3. Surface those references to authors for updating, or auto-generate ChangeRequests for the affected documents
 
 ```json
 {
-  "documentName": "DevSecOps",
-  "documentType": "practice",
-  "description": "References the renamed ActivitySpace. Update activitySpaceName references or continue using the old name if a baseline alias is provided.",
-  "suggestedOperations": [
+  "nameChanges": [
     {
-      "operation": "modify",
-      "elementType": "Activity",
-      "elementName": "Implement Security Controls",
-      "modifications": {
-        "activitySpaceName": "Design and Build the Foundation"
-      }
+      "elementType": "ActivitySpace",
+      "fromName": "Architect and Build the Foundation",
+      "toName": "Design and Build the Foundation"
+    },
+    {
+      "elementType": "Alpha",
+      "fromName": "Platform Capability",
+      "toName": "Platform Service"
     }
   ]
 }
 ```
+
+**Relationship to RenameOperation:** A rename operation's `referenceUpdates` handle cascading references *within* the target document. The `nameChanges` array handles the *external* consequence — telling dependents what changed so they can update their own references.
 
 ### 13.7 Validation Rules
 
@@ -2390,7 +2390,7 @@ Downstream impacts are advisory — they help dependent document authors underst
 7. For `add` operations adding a PracticeElementAlias: the resulting alias must not duplicate an existing alias with the same composite key (practiceElementType + practiceElementName + aliasName)
 8. `supersedes` (if present) must reference the `changeId` of an existing ChangeRequest for the same `targetDocumentName`
 9. Status transitions must follow the defined lifecycle (Section 13.4)
-10. `downstreamImpacts` documentNames should reference real documents reachable via the packaging or library system
+10. `nameChanges` entries should correspond to rename operations within the same ChangeRequest
 
 ### 13.8 Change Sets
 
@@ -2595,25 +2595,6 @@ The following ChangeRequest proposes three changes to a Platform Adoption baseli
           }
         ]
       }
-    }
-  ],
-  "downstreamImpacts": [
-    {
-      "documentName": "DevSecOps",
-      "documentType": "practice",
-      "description": "The DevSecOps practice should consider referencing the new Supply Chain Security alpha in its activities and work products. No existing references break — this is an additive change.",
-      "suggestedOperations": [
-        {
-          "operation": "modify",
-          "elementType": "Activity",
-          "elementName": "Implement Security Controls",
-          "modifications": {
-            "contributesTo": [
-              { "alphaName": "Supply Chain Security", "stateName": "Controlled" }
-            ]
-          }
-        }
-      ]
     }
   ],
   "reviewNotes": [

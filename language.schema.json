@@ -1430,28 +1430,22 @@
         { "$ref": "#/$defs/RenameOperation" }
       ]
     },
-    "DownstreamImpact": {
+    "NameChange": {
       "type": "object",
-      "description": "Advisory metadata identifying a downstream document affected by this change request and what changes it would need. Helps dependent practice/method authors understand what refactoring is needed when the upstream change is accepted.",
-      "required": ["documentName", "documentType", "description"],
+      "description": "A name change that dependent practices and methods must accommodate. When a ChangeRequest renames an element, any downstream document that references the old name needs to update its references. Systems use this to scan dependent documents and identify necessary updates.",
+      "required": ["elementType", "fromName", "toName"],
       "properties": {
-        "documentName": {
+        "elementType": {
           "type": "string",
-          "description": "The name of the downstream document affected (matches the document's root name property)."
+          "description": "The type of element that was renamed (e.g., 'Alpha', 'ActivitySpace', 'WorkProduct'). Uses JSON storage names matching PracticeElementAlias.practiceElementType convention."
         },
-        "documentType": {
+        "fromName": {
           "type": "string",
-          "enum": ["practiceBaseline", "practice", "method", "project"],
-          "description": "The root type of the downstream document."
+          "description": "The previous name of the element."
         },
-        "description": {
+        "toName": {
           "type": "string",
-          "description": "Human-readable explanation of how this change affects the downstream document and what adaptation is needed."
-        },
-        "suggestedOperations": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/ChangeOperation" },
-          "description": "Optional array of suggested ChangeOperations that the downstream document would need to apply. These are advisory — the downstream author may choose different adaptations."
+          "description": "The new name of the element."
         }
       },
       "additionalProperties": false
@@ -1514,10 +1508,10 @@
           "minItems": 1,
           "description": "Ordered array of change operations. Applied in sequence — order matters. Must contain at least one operation."
         },
-        "downstreamImpacts": {
+        "nameChanges": {
           "type": "array",
-          "items": { "$ref": "#/$defs/DownstreamImpact" },
-          "description": "Optional advisory metadata identifying downstream documents affected by this change and what adaptations they would need."
+          "items": { "$ref": "#/$defs/NameChange" },
+          "description": "Optional array of name changes that dependent practices and methods must accommodate. Systems use this to scan downstream documents for references to the old names and identify where updates are needed."
         },
         "reviewNotes": {
           "type": "array",
