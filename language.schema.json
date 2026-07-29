@@ -1432,7 +1432,7 @@
     },
     "NameChange": {
       "type": "object",
-      "description": "A name change that dependent practices and methods must accommodate. When a ChangeRequest renames an element, any downstream document that references the old name needs to update its references. Systems use this to scan dependent documents and identify necessary updates.",
+      "description": "Records a single element name change. Read as: 'if you depend on the target document, the element formerly known as fromName is now called toName.' Dependents check their own references against this list and update accordingly.",
       "required": ["elementType", "fromName", "toName"],
       "properties": {
         "elementType": {
@@ -1511,7 +1511,7 @@
         "nameChanges": {
           "type": "array",
           "items": { "$ref": "#/$defs/NameChange" },
-          "description": "Optional array of name changes that dependent practices and methods must accommodate. Systems use this to scan downstream documents for references to the old names and identify where updates are needed."
+          "description": "Notice to dependents: if your practice or method depends on targetDocumentName, accommodate these name changes. Each entry lists an element's old and new name so dependents can find and update their own references."
         },
         "reviewNotes": {
           "type": "array",

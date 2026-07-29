@@ -2349,16 +2349,17 @@ This enables stakeholders to evaluate proposed changes in context before committ
 
 ### 13.6 Name Changes and Downstream Accommodation
 
-When a ChangeRequest renames elements, any practice or method that depends on the target document may reference the old names. The `nameChanges` array provides a lookup table of name changes that downstream dependents must accommodate. Each entry records:
+When a ChangeRequest renames elements, any practice or method that depends on the target document needs to know what changed. The `nameChanges` array serves as a notice to dependents:
+
+> **If you depend on `targetDocumentName`, accommodate the following name changes.**
+
+Each entry records:
 
 - **elementType**: The type of element renamed (e.g., `"Alpha"`, `"ActivitySpace"`)
 - **fromName**: The previous name
 - **toName**: The new name
 
-This is not targeted at specific downstream documents — it applies to ALL dependents. Systems use it to:
-1. Scan dependent documents for references to the old names
-2. Identify which dependents are affected
-3. Surface those references to authors for updating, or auto-generate ChangeRequests for the affected documents
+A dependent practice or method reads this list and checks its own references. For example, if a practice references an alpha called `"Platform Capability"` from the target document, and the nameChanges list says that alpha is now called `"Platform Service"`, the practice author knows to update their reference.
 
 ```json
 {
@@ -2377,7 +2378,9 @@ This is not targeted at specific downstream documents — it applies to ALL depe
 }
 ```
 
-**Relationship to RenameOperation:** A rename operation's `referenceUpdates` handle cascading references *within* the target document. The `nameChanges` array handles the *external* consequence — telling dependents what changed so they can update their own references.
+Read as: *"If your practice or method depends on this document, the ActivitySpace formerly called 'Architect and Build the Foundation' is now 'Design and Build the Foundation', and the Alpha formerly called 'Platform Capability' is now 'Platform Service'. Check your references and update accordingly."*
+
+**Relationship to RenameOperation:** A rename operation's `referenceUpdates` handle cascading references *within* the target document. The `nameChanges` array is the external-facing notice — it tells dependents what changed so they can update their own references independently.
 
 ### 13.7 Validation Rules
 
