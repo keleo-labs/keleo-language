@@ -250,16 +250,57 @@ class BaselineValidator:
                     })
                     has_errors = True
 
+                # Validate direction (required by schema)
+                direction = rel.get('direction')
+                if not direction:
+                    self.errors.append({
+                        "category": "schema",
+                        "severity": "error",
+                        "path": f"{prefix}.relatesTo[{rel_idx}].direction",
+                        "issue": "relatesTo entry missing required 'direction' field",
+                        "expected": "outgoing | incoming | mutual",
+                        "actual": "missing",
+                        "suggestion": "Add direction field: 'outgoing' (this alpha acts on target), 'incoming' (target acts on this), or 'mutual'"
+                    })
+                    has_errors = True
+                elif direction not in ('outgoing', 'incoming', 'mutual'):
+                    self.errors.append({
+                        "category": "schema",
+                        "severity": "error",
+                        "path": f"{prefix}.relatesTo[{rel_idx}].direction",
+                        "issue": f"Invalid direction value: {direction}",
+                        "expected": "outgoing | incoming | mutual",
+                        "actual": direction,
+                        "suggestion": "Use 'outgoing', 'incoming', or 'mutual'"
+                    })
+                    has_errors = True
+
+                # Warn on deprecated rationale field
+                if 'rationale' in rel:
+                    self.warnings.append({
+                        "category": "schema",
+                        "severity": "warning",
+                        "path": f"{prefix}.relatesTo[{rel_idx}].rationale",
+                        "issue": "relatesTo entry uses 'rationale' (not a schema field)",
+                        "expected": "description",
+                        "actual": "rationale",
+                        "suggestion": "Rename 'rationale' to 'description'"
+                    })
+
                 # Validate relationship type
                 relationship = rel.get('relationship')
-                valid_relationships = ['produces', 'governed by', 'uses']
+                valid_relationships = ['produces', 'governed by', 'uses', 'depends on',
+                                       'enables', 'constrains', 'guides', 'validates',
+                                       'provides', 'influences', 'hosts', 'consumes',
+                                       'built by', 'required by', 'supported by',
+                                       'correlates with', 'co-evolves with']
                 if relationship and relationship not in valid_relationships:
                     self.warnings.append({
                         "category": "baseline",
                         "severity": "warning",
                         "path": f"{prefix}.relatesTo[{rel_idx}].relationship",
                         "issue": f"Non-standard relationship type: {relationship}",
-                        "expected": "produces | governed by | uses",
+                        "expected": "Standard relationship verb (e.g., produces, depends on, enables, governed by)",
                         "actual": relationship,
                         "suggestion": "Use standard relationship types for consistency"
                     })
