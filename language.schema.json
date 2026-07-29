@@ -801,7 +801,7 @@
         },
         "documentType": {
           "type": "string",
-          "enum": ["practiceBaseline", "practice", "method", "project"],
+          "enum": ["practiceBaseline", "practice", "method", "project", "changeRequest"],
           "description": "The root type of the JSON document, matching the schema's root discrimination result."
         },
         "documentName": {
@@ -1238,9 +1238,26 @@
       ],
       "unevaluatedProperties": false
     },
+    "ResourceLink": {
+      "type": "object",
+      "description": "A named URI reference to an external resource. Used wherever an array of described links is needed (e.g., meeting transcripts, design documents, external dashboards).",
+      "required": ["name", "uri"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Short descriptive label for the linked resource (e.g., 'Sprint Review Transcript', 'Architecture Decision Record')."
+        },
+        "uri": {
+          "type": "string",
+          "format": "uri",
+          "description": "URI of the external resource."
+        }
+      },
+      "additionalProperties": false
+    },
     "Note": {
       "type": "object",
-      "description": "Timestamped commentary for project tracking. Appears at multiple levels within a Project (top-level, plan, current, target, team, checklist states).",
+      "description": "Timestamped commentary for project tracking. Notes are intended to be brief summaries; use the links array to reference longer documents such as meeting transcripts or detailed reports. Appears at multiple levels within a Project (top-level, plan, current, target, team, checklist states).",
       "required": ["name", "timestamp", "content"],
       "properties": {
         "name": {
@@ -1253,7 +1270,292 @@
         },
         "content": {
           "type": "string",
-          "description": "The note text."
+          "description": "The note text. Keep brief — use links for detailed supporting material."
+        },
+        "links": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ResourceLink" },
+          "description": "Optional array of external resource references providing supporting detail (e.g., meeting transcripts, design documents, external reports)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReferenceUpdate": {
+      "type": "object",
+      "description": "A single cascading reference update within a rename operation. Identifies a specific field on a specific element that must change from one value to another when the renamed element's name changes.",
+      "required": ["elementType", "elementName", "field", "fromValue", "toValue"],
+      "properties": {
+        "elementType": {
+          "type": "string",
+          "description": "The type of element containing the reference to update (e.g., 'Activity', 'WorkProduct', 'PatternView'). Uses JSON storage names matching PracticeElementAlias.practiceElementType convention."
+        },
+        "elementName": {
+          "type": "string",
+          "description": "The name of the element containing the reference field (must match the element's name property)."
+        },
+        "field": {
+          "type": "string",
+          "description": "The JSON property containing the reference to update (e.g., 'alphaName', 'activitySpaceName', 'focusName', 'contributesTo')."
+        },
+        "fromValue": {
+          "type": "string",
+          "description": "The current value that must be found in the field (the old name being renamed from)."
+        },
+        "toValue": {
+          "type": "string",
+          "description": "The replacement value (the new name being renamed to)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "AddOperation": {
+      "type": "object",
+      "description": "Add a new practice element to the target document. The element field contains the full element definition. Validation of the element's internal structure against its element type is a tooling concern.",
+      "required": ["operation", "elementType", "elementName", "element"],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "add"
+        },
+        "elementType": {
+          "type": "string",
+          "description": "The type of element being added (e.g., 'Alpha', 'WorkProduct', 'Activity', 'Persona', 'Pattern'). Uses JSON storage names matching PracticeElementAlias.practiceElementType convention."
+        },
+        "elementName": {
+          "type": "string",
+          "description": "The name of the new element (must match element.name if the element has a name property)."
+        },
+        "element": {
+          "type": "object",
+          "description": "The full element definition to add. Structure depends on elementType — validation against the specific element type schema is a tooling concern."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Optional explanation of why this element is being added."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ModifyOperation": {
+      "type": "object",
+      "description": "Modify properties of an existing practice element. The modifications field contains a partial overlay with override semantics — unlike the merge algorithm, descriptions CAN be changed. Only the fields present in the modifications object are affected; all other fields are preserved.",
+      "required": ["operation", "elementType", "elementName", "modifications"],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "modify"
+        },
+        "elementType": {
+          "type": "string",
+          "description": "The type of element being modified. Uses JSON storage names matching PracticeElementAlias.practiceElementType convention."
+        },
+        "elementName": {
+          "type": "string",
+          "description": "The name of the existing element to modify (must match an element in the target document)."
+        },
+        "modifications": {
+          "type": "object",
+          "description": "Partial overlay containing only the fields to change. Override semantics: provided scalar fields replace existing values. Array fields use the same union-by-name strategy as the merge algorithm. This explicitly differs from standard merge — descriptions CAN be changed here."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Optional explanation of why this modification is being proposed."
+        }
+      },
+      "additionalProperties": false
+    },
+    "RemoveOperation": {
+      "type": "object",
+      "description": "Remove an existing practice element from the target document. Tooling should validate that removal does not leave dangling references.",
+      "required": ["operation", "elementType", "elementName"],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "remove"
+        },
+        "elementType": {
+          "type": "string",
+          "description": "The type of element being removed. Uses JSON storage names matching PracticeElementAlias.practiceElementType convention."
+        },
+        "elementName": {
+          "type": "string",
+          "description": "The name of the existing element to remove (must match an element in the target document)."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Optional explanation of why this element is being removed."
+        }
+      },
+      "additionalProperties": false
+    },
+    "RenameOperation": {
+      "type": "object",
+      "description": "Rename an existing practice element. This is a disruptive operation that changes the identity key of an element. The referenceUpdates array MUST include all cascading reference changes within the target document's scope. Prefer AliasOperation when the original name can be preserved. Use rename only when the canonical name itself must change.",
+      "required": ["operation", "elementType", "elementName", "newName", "referenceUpdates"],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "rename"
+        },
+        "elementType": {
+          "type": "string",
+          "description": "The type of element being renamed. Uses JSON storage names matching PracticeElementAlias.practiceElementType convention."
+        },
+        "elementName": {
+          "type": "string",
+          "description": "The current name of the element to rename."
+        },
+        "newName": {
+          "type": "string",
+          "description": "The new name for the element."
+        },
+        "referenceUpdates": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ReferenceUpdate" },
+          "description": "All cascading reference updates required within the target document's scope. This array MUST be exhaustive — every structural reference to the old name must be listed. Tooling should validate completeness."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Optional explanation of why the rename is necessary (rather than using an alias)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "AliasOperation": {
+      "type": "object",
+      "description": "Add a PracticeElementAlias to the target document. This is the preferred alternative to rename — it adds a presentation-layer alias without changing the structural identity of the element. The alias follows the strict isolation rules defined in the semantics.",
+      "required": ["operation", "elementType", "elementName", "aliasName"],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "alias"
+        },
+        "elementType": {
+          "type": "string",
+          "description": "The type of element being aliased. Uses JSON storage names matching PracticeElementAlias.practiceElementType convention."
+        },
+        "elementName": {
+          "type": "string",
+          "description": "The canonical name of the element to alias (must match an element in the target document)."
+        },
+        "aliasName": {
+          "type": "string",
+          "description": "The alternative display name for the element."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Optional explanation of why this alias is being proposed."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChangeOperation": {
+      "description": "A single proposed change to a practice element. Discriminated by the 'operation' const field.",
+      "oneOf": [
+        { "$ref": "#/$defs/AddOperation" },
+        { "$ref": "#/$defs/ModifyOperation" },
+        { "$ref": "#/$defs/RemoveOperation" },
+        { "$ref": "#/$defs/RenameOperation" },
+        { "$ref": "#/$defs/AliasOperation" }
+      ]
+    },
+    "DownstreamImpact": {
+      "type": "object",
+      "description": "Advisory metadata identifying a downstream document affected by this change request and what changes it would need. Helps dependent practice/method authors understand what refactoring is needed when the upstream change is accepted.",
+      "required": ["documentName", "documentType", "description"],
+      "properties": {
+        "documentName": {
+          "type": "string",
+          "description": "The name of the downstream document affected (matches the document's root name property)."
+        },
+        "documentType": {
+          "type": "string",
+          "enum": ["practiceBaseline", "practice", "method", "project"],
+          "description": "The root type of the downstream document."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable explanation of how this change affects the downstream document and what adaptation is needed."
+        },
+        "suggestedOperations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ChangeOperation" },
+          "description": "Optional array of suggested ChangeOperations that the downstream document would need to apply. These are advisory — the downstream author may choose different adaptations."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChangeRequest": {
+      "type": "object",
+      "description": "A proposed set of changes to a Practice Language document (practice, baseline, or method). Functions as a pull-request-like mechanism — operations are grouped atomically, can be reviewed, and can be temporarily applied in merges for preview. ChangeRequest is a meta-document about changes, not a methodology element; its identity is changeId, not name.",
+      "required": [
+        "changeId",
+        "targetDocumentName",
+        "targetDocumentType",
+        "status",
+        "note",
+        "authors",
+        "createdAt",
+        "updatedAt",
+        "operations"
+      ],
+      "properties": {
+        "changeId": {
+          "type": "string",
+          "description": "Human-readable pseudo-UUID identifying this change request. Convention: author-slug + date + time in format 'author-YYYYMMDD-HHMMSS' (e.g., 'eseymour-20260729-143022'). Must be unique within the scope of the target document's lifecycle.",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*-[0-9]{8}-[0-9]{6}$"
+        },
+        "targetDocumentName": {
+          "type": "string",
+          "description": "The name of the document this change request targets (must match the target document's root name property)."
+        },
+        "targetDocumentType": {
+          "type": "string",
+          "enum": ["practiceBaseline", "practice", "method"],
+          "description": "The root type of the target document. Projects are excluded — change requests target methodology definitions, not execution instances."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "proposed", "accepted", "rejected", "withdrawn"],
+          "description": "Lifecycle status. draft: being authored. proposed: submitted for review. accepted: approved for application. rejected: declined. withdrawn: retracted by author."
+        },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "description": "A Note describing the change request — what it proposes, why, and relevant context. Use the note's links array to reference supporting materials."
+        },
+        "authors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Authors of this change request."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp when this change request was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of the most recent modification."
+        },
+        "operations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ChangeOperation" },
+          "minItems": 1,
+          "description": "Ordered array of change operations. Applied in sequence — order matters. Must contain at least one operation."
+        },
+        "downstreamImpacts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DownstreamImpact" },
+          "description": "Optional advisory metadata identifying downstream documents affected by this change and what adaptations they would need."
+        },
+        "reviewNotes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Note" },
+          "description": "Optional timestamped notes from the review process (reviewer comments, discussion outcomes, revision history)."
+        },
+        "supersedes": {
+          "type": "string",
+          "description": "Optional changeId of a previous ChangeRequest that this one replaces. Creates a revision chain for traceability."
         }
       },
       "additionalProperties": false
@@ -1477,29 +1779,36 @@
   },
   "if": {
     "type": "object",
-    "anyOf": [
-      { "required": ["practiceName"] },
-      { "required": ["methodName"] }
-    ]
+    "required": ["changeId"]
   },
-  "then": { "$ref": "#/$defs/Project" },
+  "then": { "$ref": "#/$defs/ChangeRequest" },
   "else": {
     "if": {
       "type": "object",
       "anyOf": [
-        { "required": ["practices"] },
-        { "required": ["practiceNames"] },
-        { "required": ["baselinePractice"] }
+        { "required": ["practiceName"] },
+        { "required": ["methodName"] }
       ]
     },
-    "then": { "$ref": "#/$defs/Method" },
+    "then": { "$ref": "#/$defs/Project" },
     "else": {
       "if": {
         "type": "object",
-        "required": ["baselinePracticeName"]
+        "anyOf": [
+          { "required": ["practices"] },
+          { "required": ["practiceNames"] },
+          { "required": ["baselinePractice"] }
+        ]
       },
-      "then": { "$ref": "#/$defs/Practice" },
-      "else": { "$ref": "#/$defs/PracticeBaseline" }
+      "then": { "$ref": "#/$defs/Method" },
+      "else": {
+        "if": {
+          "type": "object",
+          "required": ["baselinePracticeName"]
+        },
+        "then": { "$ref": "#/$defs/Practice" },
+        "else": { "$ref": "#/$defs/PracticeBaseline" }
+      }
     }
   }
 }
