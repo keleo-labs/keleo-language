@@ -55,8 +55,8 @@
     - 12.4 [Current and Target Sections](#124-current-and-target-sections)
     - 12.5 [ChecklistState and Evidence Tracking](#125-checkliststate-and-evidence-tracking)
     - 12.6 [Notes, Resource Links, and Automated Journaling](#126-notes-resource-links-and-automated-journaling)
-    - 12.7 [Change Requests](#127-change-requests)
-13. [Conclusion](#13-conclusion)
+13. [Change Requests](#13-change-requests)
+14. [Conclusion](#14-conclusion)
 
 ## 1 Introduction and Architectural Context
 
@@ -2153,11 +2153,11 @@ Notes appear at multiple levels: at the project top level, within `plan`, `curre
 
 **Automated Journaling:** Systems implementing this schema may automatically record Notes based on user interactions and state changes (e.g. when a checklist item is marked complete, when an alpha instance transitions state, or when team membership changes). Automated notes should be clearly distinguishable from user-authored notes — tooling may use a naming convention or additional metadata to indicate provenance.
 
-## 12.7 Change Requests
+## 13 Change Requests
 
 The ChangeRequest type provides a pull-request-like mechanism for proposing, reviewing, and applying changes to Practice Language documents (baselines, practices, and methods). It enables structured change management across the practice lifecycle — from initial proposal through review to acceptance or rejection.
 
-### 12.7.1 Purpose and Scope
+### 13.1 Purpose and Scope
 
 A ChangeRequest is a meta-document that describes a set of proposed changes to a target Practice Language document. It is NOT a practice element — it does not extend PracticeElement and its identity is `changeId`, not `name`. ChangeRequests target methodology definitions only (`practiceBaseline`, `practice`, `method`); Projects are execution instances and are not targets for change requests.
 
@@ -2167,7 +2167,7 @@ Key capabilities:
 - **Temporary preview**: Operations can be temporarily applied during method composition to preview the effect without committing changes
 - **Downstream propagation**: Advisory metadata identifies dependent documents that would need refactoring if the change is accepted
 
-### 12.7.2 Identity and Root Discrimination
+### 13.2 Identity and Root Discrimination
 
 The `changeId` property serves as the ChangeRequest's unique identifier and its root-level discriminating property. The schema's if/then/else chain checks for `changeId` first, before all other root types.
 
@@ -2190,7 +2190,7 @@ The schema enforces the pattern `^[a-z0-9]+(-[a-z0-9]+)*-[0-9]{8}-[0-9]{6}$`. Th
 
 When a rejected or withdrawn change request is revised, the author creates a new ChangeRequest with a new `changeId` and sets the `supersedes` property to the old `changeId`. This creates a traceable revision chain without mutating historical records.
 
-### 12.7.3 Operation Types and Semantics
+### 13.3 Operation Types and Semantics
 
 The `operations` array contains an ordered sequence of ChangeOperation objects. Each operation targets a specific element type and element name within the target document. Operations are applied in sequence — order matters (e.g., an add must precede any modify of the same element within one ChangeRequest).
 
@@ -2304,7 +2304,7 @@ Adds a PracticeElementAlias to the target document. This is the preferred altern
 }
 ```
 
-### 12.7.4 Status Lifecycle
+### 13.4 Status Lifecycle
 
 The `status` field tracks the ChangeRequest through its review lifecycle:
 
@@ -2326,7 +2326,7 @@ If a rejected or withdrawn ChangeRequest is revised, the author creates a new Ch
 
 The `reviewNotes` array captures timestamped commentary from the review process — reviewer feedback, discussion outcomes, and revision rationale. Each entry is a Note object with optional links to supporting materials.
 
-### 12.7.5 Temporary Merge Preview
+### 13.5 Temporary Merge Preview
 
 One of the key capabilities of the ChangeRequest is temporary merge preview — allowing end users to see what a practice, baseline, or method would look like with the proposed changes applied, without permanently committing those changes.
 
@@ -2344,7 +2344,7 @@ One of the key capabilities of the ChangeRequest is temporary merge preview — 
 
 This enables stakeholders to evaluate proposed changes in context before committing to them, particularly useful for changes that affect multiple interconnected elements.
 
-### 12.7.6 Downstream Impact and Propagation
+### 13.6 Downstream Impact and Propagation
 
 When a ChangeRequest proposes changes to a baseline or practice that other documents depend on, the `downstreamImpacts` array provides advisory metadata about affected downstream documents. Each DownstreamImpact entry identifies:
 
@@ -2376,7 +2376,7 @@ Downstream impacts are advisory — they help dependent document authors underst
 }
 ```
 
-### 12.7.7 Validation Rules
+### 13.7 Validation Rules
 
 1. `changeId` must match the pattern `^[a-z0-9]+(-[a-z0-9]+)*-[0-9]{8}-[0-9]{6}$` and be unique within the target document's lifecycle
 2. `targetDocumentName` must reference an existing document of the specified `targetDocumentType`
@@ -2386,16 +2386,16 @@ Downstream impacts are advisory — they help dependent document authors underst
 6. For `rename` operations: `referenceUpdates` must be exhaustive — every structural reference to the old name within the target document must be listed
 7. For `alias` operations: the resulting alias must not duplicate an existing alias with the same composite key (practiceElementType + practiceElementName + aliasName)
 8. `supersedes` (if present) must reference the `changeId` of an existing ChangeRequest for the same `targetDocumentName`
-9. Status transitions must follow the defined lifecycle (Section 12.7.4)
+9. Status transitions must follow the defined lifecycle (Section 13.4)
 10. `downstreamImpacts` documentNames should reference real documents reachable via the packaging or library system
 
-### 12.7.8 Packaging
+### 13.8 Packaging
 
 ChangeRequests can be included in .keleo packages by adding entries with `documentType: "changeRequest"` to the PackageDocument inventory. This enables distribution of proposed changes alongside the documents they target.
 
 A package might contain both the target document and one or more ChangeRequests for it, or a package might contain only ChangeRequests intended to be applied against documents from a dependency package.
 
-### 12.7.9 Complete Example
+### 13.9 Complete Example
 
 The following ChangeRequest proposes three changes to a Platform Adoption baseline: adding a supply chain security alpha, aliasing an activity space, and modifying an existing alpha's checklist:
 
@@ -2520,6 +2520,6 @@ The following ChangeRequest proposes three changes to a Platform Adoption baseli
 }
 ```
 
-## 13 Conclusion
+## 14 Conclusion
 
 The transformation of organizational endeavors from static, document-driven processes to dynamic, state-driven ecosystems requires a highly rigorous operational architecture. The Practice Language JSON Schema provides the structural capacity to model extreme complexity across any domain. Maximizing its efficacy, however, demands profound semantic guidance. By enforcing strict ontological tagging taxonomies, embedding blocking failure logic and quantitative thresholds into validation checklists, and defining automated mathematical triggers for Alpha state transitions, enterprise architects eliminate process ambiguity. Furthermore, operationalizing the schema through strict physical Work Product URI linking, explicitly linked organizational Persona Groups, and programmatic root-level methodology discrimination ensures that the methodology aligns precisely with operational reality. By orchestrating these elements through conditional Pattern Views tethered to specific cognitive narrative frameworks, this semantic guidance framework transforms the JSON Schema from a mere structural validator into a prescriptive, highly actionable operational engine capable of driving modern hyperscale transformations.
