@@ -1989,7 +1989,14 @@ Assets are declared in a top-level `assets` array on Practice, PracticeBaseline,
 
 ### 11.2 Element-Level Asset References
 
-Any practice element (Alpha, State, WorkProduct, LevelOfDetail, Activity, Pattern, etc.) can reference an asset via the `assetName` property. This creates a symbolic link to an asset in the top-level `assets` array.
+Any practice element (Alpha, State, WorkProduct, LevelOfDetail, Activity, Pattern, etc.) can reference assets via the `assetNames` property — an array of `AssetReference` objects. Each `AssetReference` contains an `assetName` (symbolic link to an `Asset.name` in the top-level `assets` array) and a `type` that classifies how the asset is used in context:
+
+- **`icon`**: UI markers, visual identity (alpha icons, competency badges, activity type indicators)
+- **`illustrative`**: Documentation diagrams, architecture visualizations, workflow charts
+- **`template`**: Reusable documents, forms, decision records
+- **`diagram`**: Technical architecture, state progression, pattern orchestration
+
+An element may reference multiple assets with different semantic types (e.g., an icon and a diagram for the same alpha).
 
 **Example**:
 ```json
@@ -1998,7 +2005,10 @@ Any practice element (Alpha, State, WorkProduct, LevelOfDetail, Activity, Patter
     {
       "name": "Platform",
       "description": "Platform infrastructure capability",
-      "assetName": "platform-state-diagram",
+      "assetNames": [
+        { "assetName": "platform-icon", "type": "icon" },
+        { "assetName": "platform-state-diagram", "type": "diagram" }
+      ],
       "states": [...]
     }
   ],
@@ -2006,7 +2016,10 @@ Any practice element (Alpha, State, WorkProduct, LevelOfDetail, Activity, Patter
     {
       "name": "Design Architecture",
       "description": "Create platform architecture",
-      "assetName": "architecture-template"
+      "assetNames": [
+        { "assetName": "design-activity-icon", "type": "icon" },
+        { "assetName": "architecture-template", "type": "template" }
+      ]
     }
   ],
   "assets": [
@@ -2109,14 +2122,14 @@ This approach maintains single-file portability while supporting asset reference
 ### 11.5 Validation Rules
 
 - Asset names must be unique within the practice
-- All `assetName` references must resolve to a defined asset in the `assets` array
+- All `assetName` values within `AssetReference` objects must resolve to a defined asset in the `assets` array
 - Asset paths must be relative (no absolute paths or URLs in the `path` field)
 - Checksums should be validated when loading the bundle
 - Missing asset files should generate validation warnings (not errors, to support partial bundles)
 
 ### 11.6 Semantic Guidance
 
-- **One asset per element**: Each element can reference one primary visual asset via `assetName`
+- **Multiple assets per element**: Each element can reference multiple assets via `assetNames` array, each with a semantic `type` classification
 - **Asset names must be unique**: Within a practice or method, asset names are unique identifiers
 - **Optional integrity verification**: `checksum` enables validation that downloaded/extracted assets match expected content
 - **Accessibility**: Include meaningful `description` fields to support alternative text for visual assets
@@ -2133,7 +2146,7 @@ When generating mapping guides, identify visual artifacts in source materials:
 - Example templates or screenshots
 - Process maps
 
-Document these as asset references in the mapping guide, with descriptions and proposed paths. Phase 3 JSON generation populates the `assets` array and links elements via `assetName`.
+Document these as asset references in the mapping guide, with descriptions and proposed paths. Phase 3 JSON generation populates the `assets` array and links elements via `assetNames` (array of `AssetReference` objects with `assetName` and `type`).
 
 ### 11.8 Best Practices
 
