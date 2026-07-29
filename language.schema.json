@@ -801,7 +801,7 @@
         },
         "documentType": {
           "type": "string",
-          "enum": ["practiceBaseline", "practice", "method", "project", "changeRequest"],
+          "enum": ["practiceBaseline", "practice", "method", "project", "changeRequest", "changeSet"],
           "description": "The root type of the JSON document, matching the schema's root discrimination result."
         },
         "documentName": {
@@ -1531,6 +1531,61 @@
       },
       "additionalProperties": false
     },
+    "ChangeSet": {
+      "type": "object",
+      "description": "A batch of ChangeRequests reviewed and applied together. Groups related changes that span one or more target documents into a single reviewable unit. Discriminated at root level by the presence of changeSetId.",
+      "required": [
+        "changeSetId",
+        "status",
+        "note",
+        "authors",
+        "createdAt",
+        "updatedAt",
+        "changeRequests"
+      ],
+      "properties": {
+        "changeSetId": {
+          "type": "string",
+          "description": "Human-readable pseudo-UUID identifying this change set. Same convention as changeId: author-slug + date + time (e.g., 'eseymour-20260729-150000').",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*-[0-9]{8}-[0-9]{6}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "proposed", "accepted", "rejected", "withdrawn"],
+          "description": "Lifecycle status of the entire set. When accepted, all contained ChangeRequests are accepted together; when rejected, all are rejected."
+        },
+        "note": {
+          "$ref": "#/$defs/Note",
+          "description": "A Note describing the overall change set — the cohesive rationale for grouping these changes together."
+        },
+        "authors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Authors of this change set."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp when this change set was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of the most recent modification."
+        },
+        "changeRequests": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ChangeRequest" },
+          "minItems": 1,
+          "description": "Ordered array of ChangeRequests in this batch. Applied in sequence. May target different documents."
+        },
+        "reviewNotes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Note" },
+          "description": "Optional timestamped notes from the review process covering the set as a whole."
+        }
+      },
+      "additionalProperties": false
+    },
     "ChecklistState": {
       "type": "object",
       "description": "Tracks the completion status of an individual checklist item within a project context. Co-located on AlphaInstance or WorkProductInstance; the parent instance provides the alpha/state or workProduct/levelOfDetail context.",
@@ -1750,35 +1805,42 @@
   },
   "if": {
     "type": "object",
-    "required": ["changeId"]
+    "required": ["changeSetId"]
   },
-  "then": { "$ref": "#/$defs/ChangeRequest" },
+  "then": { "$ref": "#/$defs/ChangeSet" },
   "else": {
     "if": {
       "type": "object",
-      "anyOf": [
-        { "required": ["practiceName"] },
-        { "required": ["methodName"] }
-      ]
+      "required": ["changeId"]
     },
-    "then": { "$ref": "#/$defs/Project" },
+    "then": { "$ref": "#/$defs/ChangeRequest" },
     "else": {
       "if": {
         "type": "object",
         "anyOf": [
-          { "required": ["practices"] },
-          { "required": ["practiceNames"] },
-          { "required": ["baselinePractice"] }
+          { "required": ["practiceName"] },
+          { "required": ["methodName"] }
         ]
       },
-      "then": { "$ref": "#/$defs/Method" },
+      "then": { "$ref": "#/$defs/Project" },
       "else": {
         "if": {
           "type": "object",
-          "required": ["baselinePracticeName"]
+          "anyOf": [
+            { "required": ["practices"] },
+            { "required": ["practiceNames"] },
+            { "required": ["baselinePractice"] }
+          ]
         },
-        "then": { "$ref": "#/$defs/Practice" },
-        "else": { "$ref": "#/$defs/PracticeBaseline" }
+        "then": { "$ref": "#/$defs/Method" },
+        "else": {
+          "if": {
+            "type": "object",
+            "required": ["baselinePracticeName"]
+          },
+          "then": { "$ref": "#/$defs/Practice" },
+          "else": { "$ref": "#/$defs/PracticeBaseline" }
+        }
       }
     }
   }

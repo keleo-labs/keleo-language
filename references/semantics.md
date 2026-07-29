@@ -2392,15 +2392,115 @@ Downstream impacts are advisory — they help dependent document authors underst
 9. Status transitions must follow the defined lifecycle (Section 13.4)
 10. `downstreamImpacts` documentNames should reference real documents reachable via the packaging or library system
 
-### 13.8 Packaging
+### 13.8 Change Sets
 
-ChangeRequests can be included in .keleo packages by adding entries with `documentType: "changeRequest"` to the PackageDocument inventory. This enables distribution of proposed changes alongside the documents they target.
+A ChangeSet batches multiple ChangeRequests into a single reviewable unit. This is useful when related changes span multiple target documents — for example, adding an alpha to a baseline and simultaneously updating dependent practices to reference it.
 
-A package might contain both the target document and one or more ChangeRequests for it, or a package might contain only ChangeRequests intended to be applied against documents from a dependency package.
+**Structure:**
 
-### 13.9 Complete Example
+- `changeSetId` — human-readable pseudo-UUID (same convention as changeId)
+- `status` — lifecycle status covering the entire batch (draft, proposed, accepted, rejected, withdrawn)
+- `note` — describes the cohesive rationale for grouping these changes together
+- `authors`, `createdAt`, `updatedAt` — provenance metadata
+- `changeRequests` — ordered array of ChangeRequest objects (at least one)
+- `reviewNotes` — optional review commentary for the set as a whole
 
-The following ChangeRequest proposes three changes to a Platform Adoption baseline: adding a supply chain security alpha, aliasing an activity space, and modifying an existing alpha's checklist:
+**Batch Semantics:**
+
+When a ChangeSet is accepted, all contained ChangeRequests are accepted together. When rejected, all are rejected. This ensures atomicity across documents — a baseline change and its corresponding practice updates are applied as a unit or not at all.
+
+Individual ChangeRequests within a ChangeSet retain their own `status` field for granular tracking during review, but the ChangeSet's `status` governs the overall outcome.
+
+**Root Discrimination:**
+
+A ChangeSet is discriminated at root level by the presence of `changeSetId` (checked before `changeId`). This means a document with `changeSetId` is always a ChangeSet, never a standalone ChangeRequest.
+
+**Example:**
+
+```json
+{
+  "changeSetId": "eseymour-20260729-150000",
+  "status": "proposed",
+  "note": {
+    "name": "Supply chain security across baseline and practices",
+    "timestamp": "2026-07-29T15:00:00Z",
+    "content": "Adds supply chain security to the baseline and updates DevSecOps practice to reference it."
+  },
+  "authors": ["E. Seymour"],
+  "createdAt": "2026-07-29T15:00:00Z",
+  "updatedAt": "2026-07-29T15:00:00Z",
+  "changeRequests": [
+    {
+      "changeId": "eseymour-20260729-150001",
+      "targetDocumentName": "Platform Adoption Kernel",
+      "targetDocumentType": "practiceBaseline",
+      "status": "proposed",
+      "note": {
+        "name": "Add supply chain security alpha",
+        "timestamp": "2026-07-29T15:00:01Z",
+        "content": "Adds a new alpha to the baseline."
+      },
+      "authors": ["E. Seymour"],
+      "createdAt": "2026-07-29T15:00:01Z",
+      "updatedAt": "2026-07-29T15:00:01Z",
+      "operations": [
+        {
+          "operation": "add",
+          "elementType": "Alpha",
+          "elementName": "Supply Chain Security",
+          "element": {
+            "name": "Supply Chain Security",
+            "description": "Software supply chain security posture.",
+            "focusName": "Solution",
+            "contributesTo": "Platform Governance",
+            "states": [
+              { "name": "Identified", "description": "Risks catalogued", "seq": 1, "checklist": [] },
+              { "name": "Controlled", "description": "Policies in place", "seq": 2, "checklist": [] },
+              { "name": "Verified", "description": "Validated end-to-end", "seq": 3, "checklist": [] }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "changeId": "eseymour-20260729-150002",
+      "targetDocumentName": "DevSecOps",
+      "targetDocumentType": "practice",
+      "status": "proposed",
+      "note": {
+        "name": "Reference new supply chain alpha",
+        "timestamp": "2026-07-29T15:00:02Z",
+        "content": "Updates the DevSecOps practice to reference the new baseline alpha."
+      },
+      "authors": ["E. Seymour"],
+      "createdAt": "2026-07-29T15:00:02Z",
+      "updatedAt": "2026-07-29T15:00:02Z",
+      "operations": [
+        {
+          "operation": "modify",
+          "elementType": "Activity",
+          "elementName": "Implement Security Controls",
+          "modifications": {
+            "contributesTo": [
+              { "alphaName": "Supply Chain Security", "stateName": "Controlled" }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### 13.9 Packaging
+
+ChangeRequests and ChangeSets can be included in .keleo packages by adding entries with `documentType: "changeRequest"` or `documentType: "changeSet"` to the PackageDocument inventory. This enables distribution of proposed changes alongside the documents they target.
+
+A package might contain both the target document and one or more ChangeRequests for it, or a package might contain only ChangeRequests intended to be applied against documents from a dependency package. ChangeSets that span multiple target documents are a natural fit for packages that bundle a baseline with its extension practices.
+
+### 13.10 Complete ChangeRequest Example
+
+The following ChangeRequest proposes three changes to a Platform Adoption baseline: adding a supply chain security alpha, adding an activity space alias, and modifying an existing alpha's checklist:
 
 ```json
 {
