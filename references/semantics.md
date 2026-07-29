@@ -2262,7 +2262,7 @@ Renames an existing practice element by changing its identity key (the `name` pr
 
 **The `referenceUpdates` array MUST be exhaustive** — it must list every structural reference to the old name within the target document's scope. Each ReferenceUpdate identifies the element containing the reference, the field, and the from/to values. Tooling should validate that no references to the old name remain after all updates are applied.
 
-**Prefer AliasOperation over RenameOperation.** Use rename only when the canonical name itself must change (e.g., the name is incorrect, misleading, or conflicts with another element). When the goal is simply to present a different term to users, an alias preserves structural integrity while providing user-friendly terminology.
+**Prefer adding a PracticeElementAlias (via an add operation) over renaming.** Use rename only when the canonical name itself must change (e.g., the name is incorrect, misleading, or conflicts with another element). When the goal is simply to present a different term to users, an alias preserves structural integrity while providing user-friendly terminology.
 
 ```json
 {
@@ -2290,17 +2290,21 @@ Renames an existing practice element by changing its identity key (the `name` pr
 }
 ```
 
-#### Alias Operation (Preferred)
+#### Adding Aliases (Preferred Over Rename)
 
-Adds a PracticeElementAlias to the target document. This is the preferred alternative to rename — it adds a presentation-layer alias without changing the structural identity of the element. The alias follows the strict isolation rules defined in Section 4.3: the aliasName is used only for presentation and NEVER appears in structural references.
+To add an alias, use an `add` operation with `elementType: "PracticeElementAlias"`. This adds a PracticeElementAlias to the target document's `practiceElementAliases` array — a presentation-layer alias without changing the structural identity of the element. The alias follows the strict isolation rules defined in Section 4.3: the aliasName is used only for presentation and NEVER appears in structural references.
 
 ```json
 {
-  "operation": "alias",
-  "elementType": "Alpha",
-  "elementName": "Platform",
-  "aliasName": "Developer Platform",
-  "rationale": "Organisation uses 'Developer Platform' to distinguish from infrastructure platforms."
+  "operation": "add",
+  "elementType": "PracticeElementAlias",
+  "elementName": "Platform → Developer Platform",
+  "rationale": "Organisation uses 'Developer Platform' to distinguish from infrastructure platforms.",
+  "element": {
+    "practiceElementType": "Alpha",
+    "practiceElementName": "Platform",
+    "aliasName": "Developer Platform"
+  }
 }
 ```
 
@@ -2334,11 +2338,10 @@ One of the key capabilities of the ChangeRequest is temporary merge preview — 
 
 1. Take the target document and a ChangeRequest with status `proposed` or `accepted`
 2. Apply the ChangeRequest's operations in sequence to produce a preview document:
-   - **add**: Insert the element into the appropriate array
+   - **add**: Insert the element into the appropriate array (including PracticeElementAlias additions into the practiceElementAliases array)
    - **modify**: Deep-overlay the modifications onto the matched element (override semantics)
    - **remove**: Remove the matched element from its array
    - **rename**: Change the element's name and apply all referenceUpdates
-   - **alias**: Append a PracticeElementAlias to the practiceElementAliases array
 3. If composing a method, run the standard merge algorithm on the preview document
 4. The preview is ephemeral — it is not persisted or committed
 
@@ -2384,7 +2387,7 @@ Downstream impacts are advisory — they help dependent document authors underst
 4. For `add` operations: `elementName` must not already exist in the target document for the given `elementType`
 5. For `modify`, `remove`, `rename` operations: `elementName` must exist in the target document for the given `elementType`
 6. For `rename` operations: `referenceUpdates` must be exhaustive — every structural reference to the old name within the target document must be listed
-7. For `alias` operations: the resulting alias must not duplicate an existing alias with the same composite key (practiceElementType + practiceElementName + aliasName)
+7. For `add` operations adding a PracticeElementAlias: the resulting alias must not duplicate an existing alias with the same composite key (practiceElementType + practiceElementName + aliasName)
 8. `supersedes` (if present) must reference the `changeId` of an existing ChangeRequest for the same `targetDocumentName`
 9. Status transitions must follow the defined lifecycle (Section 13.4)
 10. `downstreamImpacts` documentNames should reference real documents reachable via the packaging or library system
@@ -2463,11 +2466,15 @@ The following ChangeRequest proposes three changes to a Platform Adoption baseli
       }
     },
     {
-      "operation": "alias",
-      "elementType": "ActivitySpace",
-      "elementName": "Architect and Build the Foundation",
-      "aliasName": "Design and Build",
-      "rationale": "'Architect' is overloaded; alias preserves structural integrity while providing clearer terminology."
+      "operation": "add",
+      "elementType": "PracticeElementAlias",
+      "elementName": "Architect and Build the Foundation → Design and Build",
+      "rationale": "'Architect' is overloaded; alias preserves structural integrity while providing clearer terminology.",
+      "element": {
+        "practiceElementType": "ActivitySpace",
+        "practiceElementName": "Architect and Build the Foundation",
+        "aliasName": "Design and Build"
+      }
     },
     {
       "operation": "modify",

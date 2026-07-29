@@ -1390,7 +1390,7 @@
     },
     "RenameOperation": {
       "type": "object",
-      "description": "Rename an existing practice element. This is a disruptive operation that changes the identity key of an element. The referenceUpdates array MUST include all cascading reference changes within the target document's scope. Prefer AliasOperation when the original name can be preserved. Use rename only when the canonical name itself must change.",
+      "description": "Rename an existing practice element. This is a disruptive operation that changes the identity key of an element. The referenceUpdates array MUST include all cascading reference changes within the target document's scope. Prefer adding a PracticeElementAlias (via an add operation) when the original name can be preserved. Use rename only when the canonical name itself must change.",
       "required": ["operation", "elementType", "elementName", "newName", "referenceUpdates"],
       "properties": {
         "operation": {
@@ -1421,42 +1421,13 @@
       },
       "additionalProperties": false
     },
-    "AliasOperation": {
-      "type": "object",
-      "description": "Add a PracticeElementAlias to the target document. This is the preferred alternative to rename — it adds a presentation-layer alias without changing the structural identity of the element. The alias follows the strict isolation rules defined in the semantics.",
-      "required": ["operation", "elementType", "elementName", "aliasName"],
-      "properties": {
-        "operation": {
-          "type": "string",
-          "const": "alias"
-        },
-        "elementType": {
-          "type": "string",
-          "description": "The type of element being aliased. Uses JSON storage names matching PracticeElementAlias.practiceElementType convention."
-        },
-        "elementName": {
-          "type": "string",
-          "description": "The canonical name of the element to alias (must match an element in the target document)."
-        },
-        "aliasName": {
-          "type": "string",
-          "description": "The alternative display name for the element."
-        },
-        "rationale": {
-          "type": "string",
-          "description": "Optional explanation of why this alias is being proposed."
-        }
-      },
-      "additionalProperties": false
-    },
     "ChangeOperation": {
-      "description": "A single proposed change to a practice element. Discriminated by the 'operation' const field.",
+      "description": "A single proposed change to a practice element. Discriminated by the 'operation' const field. To add an alias, use an AddOperation with elementType 'PracticeElementAlias' and a PracticeElementAlias as the element.",
       "oneOf": [
         { "$ref": "#/$defs/AddOperation" },
         { "$ref": "#/$defs/ModifyOperation" },
         { "$ref": "#/$defs/RemoveOperation" },
-        { "$ref": "#/$defs/RenameOperation" },
-        { "$ref": "#/$defs/AliasOperation" }
+        { "$ref": "#/$defs/RenameOperation" }
       ]
     },
     "DownstreamImpact": {
