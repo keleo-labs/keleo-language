@@ -37,9 +37,10 @@
    - 6.11 [Alias Merging](#611-alias-merging)
    - 6.12 [Instance Declaration Merging](#612-instance-declaration-merging)
 7. [Post-Merge Finalization](#7-post-merge-finalization)
-   - 7.1 [Supporting Alpha Aggregation](#71-supporting-alpha-aggregation)
-   - 7.2 [Focus Name Propagation](#72-focus-name-propagation)
-   - 7.3 [Baseline Description Re-stamping](#73-baseline-description-re-stamping)
+   - 7.1 [Alpha Binding Resolution](#71-alpha-binding-resolution)
+   - 7.2 [Supporting Alpha Aggregation](#72-supporting-alpha-aggregation)
+   - 7.3 [Focus Name Propagation](#73-focus-name-propagation)
+   - 7.4 [Baseline Description Re-stamping](#74-baseline-description-re-stamping)
 8. [Source Provenance Tracking](#8-source-provenance-tracking)
 9. [Name Canonicalization](#9-name-canonicalization)
 10. [Practice Resolution Modes](#10-practice-resolution-modes)
@@ -332,13 +333,49 @@ Practice element aliases are deduplicated by composite key `practiceElementType 
 
 After all extension layers have been merged into the accumulator, several finalization passes run.
 
-### 7.1 Supporting Alpha Aggregation
+### 7.1 Alpha Binding Resolution
+
+When the source document is a Method with an `alphaBindings` array, the merge algorithm injects cross-baseline contribution relationships into the merged document. This step runs **before** supporting alpha aggregation (Section 7.2) so that the injected `contributesTo` properties are automatically picked up by the aggregation pass.
+
+For each `AlphaBinding` in the Method's `alphaBindings` array:
+
+1. **Resolve the target alpha.** Look up the `baselineAlpha` by matching `baselineName` and `alphaName` against the alphas in the merged document. If the target alpha is not found, emit a validation warning and skip this binding.
+
+2. **Inject `contributesTo` on each contributing alpha.** For each entry in `contributingAlphas`, find the contributing alpha in the merged document by matching `baselineName` and `alphaName`. Set the contributing alpha's `contributesTo` property to the target alpha's name. If the contributing alpha already has a `contributesTo` value (from its own baseline), emit a warning — method-level bindings should not override existing within-baseline contribution relationships.
+
+3. **Inject `contributesToState` on contributing alpha states.** For each `stateContributions` entry on the contributing alpha, find the state matching `fromState` within the contributing alpha's `states` array and set its `contributesToState` property to the `toState` value. If the state already has a `contributesToState` value, emit a warning and do not override.
+
+**Example:** Given a Method with this binding:
+
+```json
+{
+  "baselineAlpha": {
+    "baselineName": "Project Management Essentials",
+    "alphaName": "Deliverable"
+  },
+  "contributingAlphas": [
+    {
+      "baselineName": "Platform Adoption Essentials",
+      "alphaName": "Platform",
+      "stateContributions": [
+        { "fromState": "Operational", "toState": "Built" }
+      ]
+    }
+  ]
+}
+```
+
+After this step, the "Platform" alpha in the merged document will have `contributesTo: "Deliverable"`, and its "Operational" state will have `contributesToState: "Built"`.
+
+**Ordering dependency:** This step must run before Section 7.2 (Supporting Alpha Aggregation) because the aggregation pass walks all `contributesTo` declarations to build `supportingAlphas` arrays. By injecting `contributesTo` first, the "Deliverable" alpha will automatically gain "Platform" in its `supportingAlphas` array without additional logic.
+
+### 7.2 Supporting Alpha Aggregation
 
 Every alpha that declares a `contributesTo` relationship is automatically added to the target (parent) alpha's `supportingAlphas` array. This ensures that the parent alpha's rollup calculation can discover all its children without requiring explicit `supportingAlphas` declarations across multiple practices.
 
 The aggregation walks all alphas, collects `contributesTo → child name` mappings, and unions them into each parent's `supportingAlphas` array (deduplicating with any explicitly declared entries).
 
-### 7.2 Focus Name Propagation
+### 7.3 Focus Name Propagation
 
 Two passes resolve focus names on the merged document:
 
@@ -346,7 +383,7 @@ Two passes resolve focus names on the merged document:
 
 2. **Implicit focus placeholder finalization**: Any element still carrying an implicit/unresolved focus name after propagation is assigned a default placeholder value so that visualization tooling can render it in a catch-all swimlane.
 
-### 7.3 Baseline Description Re-stamping
+### 7.4 Baseline Description Re-stamping
 
 A final pass walks every element type (focuses, alphas, states, checklist items, activity spaces, activities, competencies, competency levels, narrative types, narrative elements, patterns, pattern views, work products, levels of detail, LOD checklist items, personas, and persona groups) and re-stamps the `description` from the original kernel baseline document onto any same-named element in the merged output.
 
