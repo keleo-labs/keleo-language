@@ -1407,19 +1407,21 @@ For cross-baseline state mapping (where the contributing alpha was authored inde
 
 The schema natively supports hierarchical alpha dependencies through the supportingAlphas property. Child alpha states roll up into parent alpha evaluations; a parent Alpha cannot successfully transition to a higher state unless its designated supportingAlphas have met their calculated prerequisite maturity levels.
 
-### **6.4 Abstract Concepts and Expected Instantiations**
+### **6.4 Abstract Concepts and Instantiation**
 
-While an Alpha defines the overarching abstract concept or area of concern, executing a methodology often requires defining anticipated occurrences of these concepts. To address this, the schema introduces the AlphaInstanceName class. This allows a Practice to describe an expected instance of the abstract concern, giving it structural relevance. Ideally, this expected instance should be contextualized using an embedded narrative to connect the concept to practical, real-world execution.
+While an Alpha defines an overarching abstract concept or area of concern, real-world execution requires working with specific occurrences of those concepts. The Practice Language supports this through two complementary instance types — AlphaInstanceName and AlphaInstance — whose meaning shifts depending on the context in which they appear.
 
-Practices can explicitly list these occurrences within the alphaInstances property array. To operationalize these concepts and monitor actual progression, the AlphaInstance object provides the tracking mechanism by mandating a distinct instanceName, referencing the baseline alphaName, declaring the target stateName, and explicitly defining the artifacts necessary to validate the instance utilizing the evidenceBy array.
+In a **Practice or Method**, instances provide guidance. They illustrate the kinds of instances that adopters should expect to create, suggest how abstract concepts decompose into concrete concerns, and direct users toward structuring their implementations. For example, a migration practice might declare "Database Migration", "Application Migration", and "Data Migration" as instances of a "Migration Plan" alpha — not to prescribe exactly these instances, but to show the shape of the work ahead. Narratives on these instances provide additional context to help adopters understand when and why each instance matters.
 
-### **6.5 Alpha Instance Semantics: Declaration vs Execution Tracking**
+In a **Project**, the same structures take on an operational role. Instances identify the specific, concrete things being tracked — "Q3 PostgreSQL Migration" rather than "Database Migration" — along with their current or target states and the evidence supporting progression.
 
-The Practice Language distinguishes between two distinct object types that serve different purposes in instance management. This separation ensures clarity between declaring what instances are expected and tracking their actual progression through patterns.
+### **6.5 Alpha Instance Semantics: Guidance vs Tracking**
 
-**AlphaInstanceName (Practice-Level Declaration)**
+The Practice Language uses two distinct object types for instance management. The AlphaInstanceName declares and describes instances, while the AlphaInstance records state progression. Their purpose depends on context: in practices they provide guidance; in projects they drive tracking.
 
-The AlphaInstanceName object serves as voluntary metadata, declaring "what instances do we expect to track?" These declarations reside in the Practice.alphaInstances array and provide structural context for anticipated occurrences of baseline alphas.
+**AlphaInstanceName**
+
+The AlphaInstanceName object declares and describes an instance of an alpha concept. These objects reside in the alphaInstances array of a Practice, Method, or Project.
 
 Structure:
 
@@ -1430,11 +1432,13 @@ Structure:
 - narratives: Optional contextual storytelling for this instance
 - tags: Optional classification metadata
 
-Purpose: AlphaInstanceName objects establish the vocabulary of instances that will appear in pattern tracking. They answer "what specific occurrences of this abstract concept do we anticipate?" For example, a practice might declare "Security Team" and "Platform Team" as distinct instances of the baseline "Team" alpha, each with different roles and progression paths. The optional links array connects the declared instance to external systems where the work is actually managed.
+In a **Practice or Method**, AlphaInstanceName objects provide guidance — they illustrate the kinds of instances adopters should anticipate and, through narratives and descriptions, explain why each matters. A practice might declare "Security Team" and "Platform Team" as instances of the "Team" alpha to show that different teams will have different roles and progression paths, without prescribing that adopters must use exactly these instances.
 
-**AlphaInstance (PatternView-Level Execution Tracking)**
+In a **Project**, AlphaInstanceName objects identify the specific, concrete instances being tracked in this execution context. The optional links array connects each instance to the external systems where it is actually managed.
 
-The AlphaInstance object tracks specific instance progression within a pattern phase. These objects reside in PatternView.alphaInstances arrays and represent the actual state of an instance at a particular point in the lifecycle.
+**AlphaInstance**
+
+The AlphaInstance object records the state of a specific instance at a point in the lifecycle. These objects appear in PatternView.alphaInstances arrays (within practices) and in Project current/target sections.
 
 Structure:
 
@@ -1444,27 +1448,37 @@ Structure:
 - evidenceBy: Array of WorkProductInstance objects proving the state achievement
 - links: Optional array of ExternalLink objects pointing to documents specific to this state. Typically omitted when the parent AlphaInstanceName links apply; use only when this particular state is tracked in a different document
 
-Purpose: AlphaInstance objects provide the execution tracking mechanism, answering "what state has this specific instance achieved, and what evidence proves it?" The evidenceBy array links to concrete work product artifacts, creating a traceable evidence chain from abstract concern through specific instance to tangible deliverable.
+In a **Practice**, AlphaInstance objects within pattern views illustrate the expected progression of example instances across phases — showing adopters what states to target and what evidence to gather at each stage of the lifecycle.
+
+In a **Project**, AlphaInstance objects in the current and target sections record the assessed or desired state of each tracked instance, answering "what state has this specific instance achieved, and what evidence proves it?" The evidenceBy array links to concrete work product artifacts, creating a traceable evidence chain from abstract concern through specific instance to tangible deliverable.
 
 **Comparison Table**
 
 
-| Aspect          | AlphaInstanceName                           | AlphaInstance                                      |
-| --------------- | ------------------------------------------- | -------------------------------------------------- |
-| Purpose         | Declare expected instances                  | Track instance progression                         |
-| Location        | Practice.alphaInstances                     | PatternView.alphaInstances                         |
-| Required Fields | instanceName, alphaName                     | instanceName, alphaName, stateName                 |
-| Optional Fields | description, narratives, tags, links        | evidenceBy (recommended), links                    |
-| Lifecycle       | Defined once in practice                    | Appears in each relevant pattern view              |
-| Validation      | instanceName must be unique within practice | instanceName must match declared AlphaInstanceName |
+| Aspect          | AlphaInstanceName                                          | AlphaInstance                                                     |
+| --------------- | ---------------------------------------------------------- | ----------------------------------------------------------------- |
+| Purpose         | Declare and describe instances (guidance or identification) | Record state progression (illustrative or assessed)               |
+| Location        | Practice/Method/Project alphaInstances                      | PatternView.alphaInstances, Project current/target                |
+| Required Fields | instanceName, alphaName                                    | instanceName, alphaName, stateName                                |
+| Optional Fields | description, narratives, tags, links                       | evidenceBy (recommended), links                                   |
+| In Practices    | Guidance — illustrates expected instance types              | Illustrative — shows target states per pattern phase              |
+| In Projects     | Identification — names the specific things being tracked    | Tracking — records current or target state with evidence          |
+| Validation      | instanceName must be unique within context                  | instanceName must match declared AlphaInstanceName                |
 
 
-**Usage Workflow**
+**Usage in Practices**
 
-1. **Declare in Practice:** Author identifies multiple concurrent instances of an alpha concept and declares them as AlphaInstanceName objects
-2. **Track in Pattern:** For each pattern phase (PatternView), author specifies which instances are relevant and their target states using AlphaInstance objects
-3. **Evidence Chain:** Each AlphaInstance's evidenceBy array links to WorkProductInstance objects that prove state achievement
+1. **Provide Guidance:** Author declares AlphaInstanceName objects that illustrate the kinds of instances adopters should expect — e.g., different team types, different risk categories, different migration streams
+2. **Show Progression:** Pattern views use AlphaInstance objects to illustrate how those example instances should progress through phases
+3. **Evidence Chain:** Each AlphaInstance's evidenceBy array shows what work product instances would evidence a given state
 4. **Validation:** Operational tooling validates that every AlphaInstance.instanceName matches a declared AlphaInstanceName.instanceName
+
+**Usage in Projects**
+
+1. **Identify Instances:** AlphaInstanceName objects name the specific real-world concerns being tracked in this project
+2. **Assess Current State:** The current section uses AlphaInstance objects to record where each instance stands today
+3. **Define Target State:** The target section uses AlphaInstance objects to define the desired end state
+4. **Track Evidence:** Each AlphaInstance's evidenceBy array links to concrete work product instances that prove state achievement
 
 **Example**
 
@@ -1516,7 +1530,7 @@ Pattern tracks progression:
 }
 ```
 
-This dual-level design enables practices to describe the landscape of expected instances while patterns orchestrate their specific progression through the methodology lifecycle.
+This design serves both guidance and execution: practices use instances to illustrate the kinds of concerns adopters will encounter and how they progress, while projects use the same structures to identify and track the specific real-world instances being managed.
 
 ## 7 Evidentiary Verification via Work Product Elements
 
@@ -1555,13 +1569,13 @@ Well-designed LOD names answer the question: "What does this document look like 
 
 The evidenceRequired property dictates the ingestion of a URI linking the logical JSON object to physical reality. Because enterprise execution is inherently parallelized, implementations must support branching metadata to allow tracking of experimental drafts without corrupting canonical Alpha calculations.
 
-### **7.3 Work Product Instance Semantics: Declaration vs Evidence Chains**
+### **7.3 Work Product Instance Semantics: Guidance vs Evidence Chains**
 
-The Practice Language distinguishes between declaring expected work product variants and using those variants as evidence in progression tracking. This parallel structure mirrors the alpha instance design, ensuring consistency across the schema.
+The Practice Language uses two distinct object types for work product instance management, mirroring the alpha instance design (Section 6.5). As with alpha instances, their purpose shifts depending on context: in practices they provide guidance about expected deliverables; in projects they identify and track specific artifacts.
 
-**WorkProductInstanceName (Practice-Level Declaration)**
+**WorkProductInstanceName**
 
-The WorkProductInstanceName object declares expected work product variants that will be created during methodology execution. These declarations reside in the Practice.workProductInstances array and provide structural context for anticipated deliverable variations.
+The WorkProductInstanceName object declares and describes an instance of a work product. These objects reside in the workProductInstances array of a Practice, Method, or Project.
 
 Structure:
 
@@ -1572,11 +1586,13 @@ Structure:
 - narratives: Optional contextual storytelling for this instance
 - tags: Optional classification metadata
 
-Purpose: WorkProductInstanceName objects establish the vocabulary of deliverable variants that will appear in evidence chains. They answer "what specific artifacts do we expect to produce?" For example, a practice might declare "Platform Architecture" and "Network Architecture" as distinct instances of a baseline "Architecture" work product, each addressing different architectural concerns. The optional links array connects the declared variant to external systems where the artifact is actually maintained.
+In a **Practice or Method**, WorkProductInstanceName objects illustrate the kinds of deliverable variants that adopters should expect to produce. A practice might declare "Platform Architecture" and "Network Architecture" as instances of a baseline "Architecture" work product to show that the abstract concept decomposes into distinct artifacts addressing different architectural concerns.
 
-**WorkProductInstance (Evidence-Level Execution)**
+In a **Project**, WorkProductInstanceName objects identify the specific, concrete artifacts being tracked in this execution context. The optional links array connects each instance to the external systems where the artifact is actually maintained.
 
-The WorkProductInstance object represents a specific artifact serving as evidence for alpha state achievement. These objects appear in evidence arrays (AlphaInstance.evidenceBy, AlphaContribution.evidenceBy) and link abstract progression to concrete deliverables.
+**WorkProductInstance**
+
+The WorkProductInstance object records a specific artifact's maturity level. These objects appear in evidence arrays (AlphaInstance.evidenceBy, AlphaContribution.evidenceBy) and in Project current/target sections, linking abstract progression to concrete deliverables.
 
 Structure:
 
@@ -1585,19 +1601,22 @@ Structure:
 - levelOfDetailName: The target maturity level this artifact has achieved
 - links: Optional array of ExternalLink objects pointing to documents specific to this level of detail. Typically omitted when the parent WorkProductInstanceName links apply; use only when this particular maturity level is tracked in a different document
 
-Purpose: WorkProductInstance objects create traceable evidence chains, answering "what artifact at what maturity level proves this progression?" The levelOfDetailName indicates how comprehensive or mature the artifact is, directly mapping to the work product's defined levels of detail.
+In a **Practice**, WorkProductInstance objects within evidence arrays illustrate what artifacts at what maturity levels would prove state achievement — showing adopters the expected evidence chain.
+
+In a **Project**, WorkProductInstance objects record the assessed or desired maturity of each tracked artifact, answering "what artifact at what maturity level proves this progression?" The levelOfDetailName indicates how comprehensive or mature the artifact is, directly mapping to the work product's defined levels of detail.
 
 **Comparison Table**
 
 
-| Aspect          | WorkProductInstanceName                     | WorkProductInstance                                  |
-| --------------- | ------------------------------------------- | ---------------------------------------------------- |
-| Purpose         | Declare expected variants                   | Provide evidence for progression                     |
-| Location        | Practice.workProductInstances               | evidenceBy arrays (AlphaInstance, AlphaContribution) |
-| Required Fields | instanceName, workProductName               | instanceName, workProductName, levelOfDetailName     |
-| Optional Fields | description, narratives, tags, links        | links                                                |
-| Lifecycle       | Defined once in practice                    | Appears in each relevant evidence chain              |
-| Validation      | instanceName must be unique within practice | workProductName must match defined work product      |
+| Aspect          | WorkProductInstanceName                                    | WorkProductInstance                                              |
+| --------------- | ---------------------------------------------------------- | ---------------------------------------------------------------- |
+| Purpose         | Declare and describe instances (guidance or identification) | Record maturity level (illustrative or assessed)                 |
+| Location        | Practice/Method/Project workProductInstances                | evidenceBy arrays, Project current/target                        |
+| Required Fields | instanceName, workProductName                              | instanceName, workProductName, levelOfDetailName                 |
+| Optional Fields | description, narratives, tags, links                       | links                                                            |
+| In Practices    | Guidance — illustrates expected deliverable variants        | Illustrative — shows what evidence proves state achievement      |
+| In Projects     | Identification — names the specific artifacts being tracked | Tracking — records current or target maturity with evidence      |
+| Validation      | instanceName must be unique within context                  | workProductName must match defined work product                  |
 
 
 **Usage in Evidence Chains**
@@ -1606,7 +1625,7 @@ WorkProductInstance objects form the foundation of the Practice Language's evide
 
 1. **Alpha State Evidence**: An AlphaContribution declares that achieving a work product at a specific level of detail enables an alpha to reach a particular state
 2. **Instance Evidence**: An AlphaInstance's evidenceBy array lists which specific work product instances (at which maturity levels) prove the instance has achieved its target state
-3. **Validation**: Operational tooling verifies that evidence chains are complete—every claimed state has corresponding work product evidence at appropriate maturity levels
+3. **Validation**: Operational tooling verifies that evidence chains are complete — every claimed state has corresponding work product evidence at appropriate maturity levels
 
 **Example**
 
@@ -1658,7 +1677,7 @@ Evidence chain proving alpha state:
 }
 ```
 
-This structure enables practices to describe both the landscape of expected deliverables (WorkProductInstanceName) and the specific evidence chains that prove progression (WorkProductInstance), maintaining traceability from abstract alpha states through to concrete artifacts at measurable maturity levels.
+This design serves both guidance and execution: practices use work product instances to illustrate the kinds of deliverables adopters will produce and how they evidence progression, while projects use the same structures to identify and track the specific artifacts being managed at measurable maturity levels.
 
 ## 8 Execution Boundaries and Organizational Roles
 
