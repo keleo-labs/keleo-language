@@ -1426,10 +1426,11 @@ Structure:
 - instanceName: Unique identifier for this instance (e.g., "Security Team", "Platform Team")
 - description: Brief explanation of what this instance represents
 - alphaName: References the baseline or practice-defined alpha being instantiated
+- links: Optional array of ExternalLink objects pointing to the primary document(s) used to track this instance (e.g., a Jira board, a Confluence page, a shared register)
 - narratives: Optional contextual storytelling for this instance
 - tags: Optional classification metadata
 
-Purpose: AlphaInstanceName objects establish the vocabulary of instances that will appear in pattern tracking. They answer "what specific occurrences of this abstract concept do we anticipate?" For example, a practice might declare "Security Team" and "Platform Team" as distinct instances of the baseline "Team" alpha, each with different roles and progression paths.
+Purpose: AlphaInstanceName objects establish the vocabulary of instances that will appear in pattern tracking. They answer "what specific occurrences of this abstract concept do we anticipate?" For example, a practice might declare "Security Team" and "Platform Team" as distinct instances of the baseline "Team" alpha, each with different roles and progression paths. The optional links array connects the declared instance to external systems where the work is actually managed.
 
 **AlphaInstance (PatternView-Level Execution Tracking)**
 
@@ -1441,6 +1442,7 @@ Structure:
 - alphaName: The baseline or practice alpha this instance represents
 - stateName: The target state for this instance in this phase
 - evidenceBy: Array of WorkProductInstance objects proving the state achievement
+- links: Optional array of ExternalLink objects pointing to documents specific to this state. Typically omitted when the parent AlphaInstanceName links apply; use only when this particular state is tracked in a different document
 
 Purpose: AlphaInstance objects provide the execution tracking mechanism, answering "what state has this specific instance achieved, and what evidence proves it?" The evidenceBy array links to concrete work product artifacts, creating a traceable evidence chain from abstract concern through specific instance to tangible deliverable.
 
@@ -1452,7 +1454,7 @@ Purpose: AlphaInstance objects provide the execution tracking mechanism, answeri
 | Purpose         | Declare expected instances                  | Track instance progression                         |
 | Location        | Practice.alphaInstances                     | PatternView.alphaInstances                         |
 | Required Fields | instanceName, alphaName                     | instanceName, alphaName, stateName                 |
-| Optional Fields | description, narratives, tags               | evidenceBy (recommended)                           |
+| Optional Fields | description, narratives, tags, links        | evidenceBy (recommended), links                    |
 | Lifecycle       | Defined once in practice                    | Appears in each relevant pattern view              |
 | Validation      | instanceName must be unique within practice | instanceName must match declared AlphaInstanceName |
 
@@ -1474,7 +1476,14 @@ Practice declares two team instances:
     {
       "instanceName": "Platform Engineering Team",
       "alphaName": "Team",
-      "description": "Core platform development and operations team"
+      "description": "Core platform development and operations team",
+      "links": [
+        {
+          "name": "Team Workspace",
+          "description": "Confluence space for the platform engineering team",
+          "uri": "https://wiki.example.com/spaces/platform-eng"
+        }
+      ]
     },
     {
       "instanceName": "Security Team", 
@@ -1559,10 +1568,11 @@ Structure:
 - instanceName: Unique identifier for this variant (e.g., "Security Requirements", "Platform Architecture")
 - description: Brief explanation of what this variant represents
 - workProductName: References the baseline or practice-defined work product being instantiated
+- links: Optional array of ExternalLink objects pointing to the primary document(s) used to track this work product (e.g., a shared document, repository, or wiki page)
 - narratives: Optional contextual storytelling for this instance
 - tags: Optional classification metadata
 
-Purpose: WorkProductInstanceName objects establish the vocabulary of deliverable variants that will appear in evidence chains. They answer "what specific artifacts do we expect to produce?" For example, a practice might declare "Platform Architecture" and "Network Architecture" as distinct instances of a baseline "Architecture" work product, each addressing different architectural concerns.
+Purpose: WorkProductInstanceName objects establish the vocabulary of deliverable variants that will appear in evidence chains. They answer "what specific artifacts do we expect to produce?" For example, a practice might declare "Platform Architecture" and "Network Architecture" as distinct instances of a baseline "Architecture" work product, each addressing different architectural concerns. The optional links array connects the declared variant to external systems where the artifact is actually maintained.
 
 **WorkProductInstance (Evidence-Level Execution)**
 
@@ -1573,6 +1583,7 @@ Structure:
 - instanceName: Identifier for the specific artifact (may or may not match a declared WorkProductInstanceName)
 - workProductName: The baseline or practice work product this represents
 - levelOfDetailName: The target maturity level this artifact has achieved
+- links: Optional array of ExternalLink objects pointing to documents specific to this level of detail. Typically omitted when the parent WorkProductInstanceName links apply; use only when this particular maturity level is tracked in a different document
 
 Purpose: WorkProductInstance objects create traceable evidence chains, answering "what artifact at what maturity level proves this progression?" The levelOfDetailName indicates how comprehensive or mature the artifact is, directly mapping to the work product's defined levels of detail.
 
@@ -1584,7 +1595,7 @@ Purpose: WorkProductInstance objects create traceable evidence chains, answering
 | Purpose         | Declare expected variants                   | Provide evidence for progression                     |
 | Location        | Practice.workProductInstances               | evidenceBy arrays (AlphaInstance, AlphaContribution) |
 | Required Fields | instanceName, workProductName               | instanceName, workProductName, levelOfDetailName     |
-| Optional Fields | description, narratives, tags               | (none - all fields required for evidence)            |
+| Optional Fields | description, narratives, tags, links        | links                                                |
 | Lifecycle       | Defined once in practice                    | Appears in each relevant evidence chain              |
 | Validation      | instanceName must be unique within practice | workProductName must match defined work product      |
 
@@ -1607,7 +1618,14 @@ Practice declares architecture variants:
     {
       "instanceName": "Platform Architecture",
       "workProductName": "Architecture",
-      "description": "Core platform technical architecture and design"
+      "description": "Core platform technical architecture and design",
+      "links": [
+        {
+          "name": "Architecture Document",
+          "description": "Living architecture decision record for the platform",
+          "uri": "https://wiki.example.com/platform/architecture"
+        }
+      ]
     },
     {
       "instanceName": "Security Architecture",
@@ -2284,6 +2302,19 @@ The ResourceLink type provides a reusable named-URI pair used wherever the schem
 ```
 
 Notes appear at multiple levels: at the project top level, within `plan`, `current`, `target`, `team`, and on individual ChecklistState entries. This multi-level placement enables commentary to be captured at the appropriate level of specificity — from project-wide decisions down to rationale for a single checklist item's state.
+
+**ExternalLink Structure:**
+
+The ExternalLink type connects instance declarations and instance tracking entries to external documents or systems. Unlike ResourceLink (which requires a URI), ExternalLink makes the URI optional — the link may identify a resource by name and description before a stable address exists.
+
+- `name` — short label identifying the linked resource (e.g., "Sprint Backlog", "Team Charter")
+- `description` — optional explanation of what this resource contains or why it is linked
+- `uri` — optional URI of the external resource, when available
+
+ExternalLink is used on instance types at two levels, mirroring the declaration-vs-tracking split described in Sections 6.5 and 7.3:
+
+- **AlphaInstanceName / WorkProductInstanceName** — links point to the primary document(s) used to track the instance (e.g., the board, register, or wiki page where ongoing work lives)
+- **AlphaInstance / WorkProductInstance** — links point to documents specific to a particular state or level of detail; typically omitted when the parent declaration's links apply, and used only when a specific state is tracked in a different document
 
 **Automated Journaling:** Systems implementing this schema may automatically record Notes based on user interactions and state changes (e.g. when a checklist item is marked complete, when an alpha instance transitions state, or when team membership changes). Automated notes should be clearly distinguishable from user-authored notes — tooling may use a naming convention or additional metadata to indicate provenance.
 

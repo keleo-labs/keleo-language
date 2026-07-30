@@ -303,6 +303,11 @@
             "alphaName": {
               "type": "string",
               "description": "Name of the Alpha this instance tracks (symbolic link; must match Alpha.name)."
+            },
+            "links": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ExternalLink" },
+              "description": "External documents used to track this alpha instance (e.g., the primary board, register, or tracking tool)."
             }
           }
         }
@@ -333,6 +338,11 @@
               "type": "array",
               "items": { "$ref": "#/$defs/ChecklistState" },
               "description": "Optional checklist completion tracking for this alpha instance. Each entry records the state of a checklist item within the referenced Alpha State."
+            },
+            "links": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ExternalLink" },
+              "description": "External documents specific to this state. Typically omitted when the parent AlphaInstanceName links apply; use only when this state is tracked in a different document."
             }
           }
         }
@@ -366,6 +376,11 @@
             "workProductName": {
               "type": "string",
               "description": "Name of a WorkProduct this instance grouping refers to (symbolic link; must match WorkProduct.name)."
+            },
+            "links": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ExternalLink" },
+              "description": "External documents used to track this work product instance (e.g., the primary document, repository, or tracking tool)."
             }
           }
         }
@@ -391,6 +406,11 @@
               "type": "array",
               "items": { "$ref": "#/$defs/ChecklistState" },
               "description": "Optional checklist completion tracking for this work product instance. Each entry records the state of a checklist item within the referenced LevelOfDetail."
+            },
+            "links": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ExternalLink" },
+              "description": "External documents specific to this level of detail. Typically omitted when the parent WorkProductInstanceName links apply; use only when this level of detail is tracked in a different document."
             }
           }
         }
@@ -1340,6 +1360,27 @@
           "type": "string",
           "format": "uri",
           "description": "URI of the external resource."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ExternalLink": {
+      "type": "object",
+      "description": "A reference to an external document or resource associated with an instance. Captures the name and purpose of the linked content, with an optional URI when the resource has a stable address.",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Short label identifying the linked resource (e.g., 'Sprint Backlog', 'Architecture Decision Record')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Explanation of what this resource contains or why it is linked."
+        },
+        "uri": {
+          "type": "string",
+          "format": "uri",
+          "description": "URI of the external resource, when available."
         }
       },
       "additionalProperties": false
