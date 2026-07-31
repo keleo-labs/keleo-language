@@ -128,7 +128,7 @@ ChecklistState tracks the completion status of an individual checklist item with
 
 - `checklistName` — the name of the specific Checklist item (must match a `Checklist.name` within the parent instance's referenced State or LevelOfDetail)
 - `state` — enum: `"complete"`, `"not complete"`, `"not required"`
-- `evidenceUri` — optional URI linking to external evidence supporting the checklist item's state (e.g. a document, test result, approval record, or audit artifact)
+- `evidence` — optional ExternalLink referencing external evidence supporting the checklist item's state (e.g. a document, test result, approval record, or audit artifact)
 - `notes` — optional array of Note objects for recording observations or rationale for the checklist item's state
 
 Because ChecklistState is co-located on an AlphaInstance or WorkProductInstance, the parent context (alphaName + stateName, or workProductName + levelOfDetailName) already identifies which Alpha/State or WorkProduct/LevelOfDetail the checklist belongs to. There is no need for separate `alphaName`/`workProductName`/`levelName` fields on ChecklistState itself.

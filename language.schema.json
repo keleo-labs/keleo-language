@@ -1347,23 +1347,6 @@
       ],
       "unevaluatedProperties": false
     },
-    "ResourceLink": {
-      "type": "object",
-      "description": "A named URI reference to an external resource. Used wherever an array of described links is needed (e.g., meeting transcripts, design documents, external dashboards).",
-      "required": ["name", "uri"],
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Short descriptive label for the linked resource (e.g., 'Sprint Review Transcript', 'Architecture Decision Record')."
-        },
-        "uri": {
-          "type": "string",
-          "format": "uri",
-          "description": "URI of the external resource."
-        }
-      },
-      "additionalProperties": false
-    },
     "ExternalLink": {
       "type": "object",
       "description": "A reference to an external document or resource associated with an instance. Captures the name and purpose of the linked content, with an optional URI when the resource has a stable address.",
@@ -1404,7 +1387,7 @@
         },
         "links": {
           "type": "array",
-          "items": { "$ref": "#/$defs/ResourceLink" },
+          "items": { "$ref": "#/$defs/ExternalLink" },
           "description": "Optional array of external resource references providing supporting detail (e.g., meeting transcripts, design documents, external reports)."
         }
       },
@@ -1724,10 +1707,9 @@
           "enum": ["complete", "not complete", "not required"],
           "description": "Completion status. In current section: records actual completion. In target section: indicates whether the checklist item is required for this project's goals."
         },
-        "evidenceUri": {
-          "type": "string",
-          "format": "uri",
-          "description": "Optional URI linking to external evidence supporting the checklist item's state (e.g. a document, test result, approval record, or audit artifact)."
+        "evidence": {
+          "$ref": "#/$defs/ExternalLink",
+          "description": "Optional reference to external evidence supporting the checklist item's state (e.g. a document, test result, approval record, or audit artifact)."
         },
         "notes": {
           "type": "array",

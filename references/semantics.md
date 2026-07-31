@@ -55,7 +55,7 @@
     - 12.3 [Plan Section and Pattern Ownership](#123-plan-section-and-pattern-ownership)
     - 12.4 [Current and Target Sections](#124-current-and-target-sections)
     - 12.5 [ChecklistState and Evidence Tracking](#125-checkliststate-and-evidence-tracking)
-    - 12.6 [Notes, Resource Links, and Automated Journaling](#126-notes-resource-links-and-automated-journaling)
+    - 12.6 [Notes, External Links, and Automated Journaling](#126-notes-external-links-and-automated-journaling)
 13. [Change Requests](#13-change-requests)
 14. [Conclusion](#14-conclusion)
 
@@ -2274,7 +2274,7 @@ ChecklistState tracks the completion status of individual checklist items within
 
 - `checklistName` — must match a `Checklist.name` within the parent instance's referenced State or LevelOfDetail
 - `state` — enum: `"complete"`, `"not complete"`, `"not required"`
-- `evidenceUri` (optional) — URI linking to external evidence supporting the item's state (e.g. a document, test result, approval record, or audit artifact)
+- `evidence` (optional) — an ExternalLink referencing external evidence supporting the item's state (e.g. a document, test result, approval record, or audit artifact)
 - `notes` (optional) — array of Note objects for recording observations or rationale
 
 **Dual-Use Semantics:**
@@ -2282,23 +2282,24 @@ ChecklistState tracks the completion status of individual checklist items within
 - In the `current` section: `state` records actual completion — `"complete"` or `"not complete"`
 - In the `target` section: `state` indicates requirement — `"not required"` marks checklist items explicitly excluded from this project's goals, while `"complete"` marks items that must be achieved
 
-### 12.6 Notes, Resource Links, and Automated Journaling
+### 12.6 Notes, External Links, and Automated Journaling
 
 The Note type provides timestamped commentary throughout the Project structure:
 
 - `name` — short summary or title
 - `timestamp` — ISO timestamp string (consistent with `createdAt`/`updatedAt` elsewhere in the schema)
 - `content` — the note text (keep brief — see guidance below)
-- `links` — optional array of ResourceLink objects referencing external resources
+- `links` — optional array of ExternalLink objects referencing external resources
 
 **Brevity Intent:** Notes are intended to be kept brief — a concise summary capturing the key decision, observation, or outcome. Detailed supporting material (meeting transcripts, lengthy analysis, design documents) should not be inlined into the `content` field. Instead, use the `links` array to reference those longer documents by URI. This keeps the project document lightweight and navigable while preserving full traceability to source material.
 
-**ResourceLink Structure:**
+**ExternalLink Structure:**
 
-The ResourceLink type provides a reusable named-URI pair used wherever the schema needs an array of described external references:
+The ExternalLink type provides a reusable reference to an external document or resource. It is used throughout the schema wherever an array of described external references is needed — on Notes, instance declarations, and instance tracking entries.
 
-- `name` — short descriptive label for the linked resource (e.g., "Sprint Review Transcript", "Architecture Decision Record", "Incident Post-Mortem")
-- `uri` — URI of the external resource
+- `name` — short label identifying the linked resource (e.g., "Sprint Backlog", "Architecture Decision Record", "Team Charter")
+- `description` — optional explanation of what this resource contains or why it is linked
+- `uri` — optional URI of the external resource, when available
 
 **Example: Note with Links**
 
@@ -2314,6 +2315,7 @@ The ResourceLink type provides a reusable named-URI pair used wherever the schem
     },
     {
       "name": "ADR-042: Event-Driven Messaging",
+      "description": "Architecture decision record for the event-driven messaging approach",
       "uri": "https://wiki.example.com/adrs/042-event-driven-messaging"
     }
   ]
@@ -2322,18 +2324,13 @@ The ResourceLink type provides a reusable named-URI pair used wherever the schem
 
 Notes appear at multiple levels: at the project top level, within `plan`, `current`, `target`, `team`, and on individual ChecklistState entries. This multi-level placement enables commentary to be captured at the appropriate level of specificity — from project-wide decisions down to rationale for a single checklist item's state.
 
-**ExternalLink Structure:**
-
-The ExternalLink type connects instance declarations and instance tracking entries to external documents or systems. Unlike ResourceLink (which requires a URI), ExternalLink makes the URI optional — the link may identify a resource by name and description before a stable address exists.
-
-- `name` — short label identifying the linked resource (e.g., "Sprint Backlog", "Team Charter")
-- `description` — optional explanation of what this resource contains or why it is linked
-- `uri` — optional URI of the external resource, when available
+**ExternalLink Usage Across Types:**
 
 ExternalLink is used on instance types at two levels, mirroring the declaration-vs-tracking split described in Sections 6.5 and 7.3:
 
 - **AlphaInstanceName / WorkProductInstanceName** — links point to the primary document(s) used to track the instance (e.g., the board, register, or wiki page where ongoing work lives)
 - **AlphaInstance / WorkProductInstance** — links point to documents specific to a particular state or level of detail; typically omitted when the parent declaration's links apply, and used only when a specific state is tracked in a different document
+- **Note** — links point to supporting material such as meeting transcripts, design documents, or external reports
 
 **Automated Journaling:** Systems implementing this schema may automatically record Notes based on user interactions and state changes (e.g. when a checklist item is marked complete, when an alpha instance transitions state, or when team membership changes). Automated notes should be clearly distinguishable from user-authored notes — tooling may use a naming convention or additional metadata to indicate provenance.
 
