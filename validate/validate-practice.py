@@ -27,10 +27,12 @@ except ImportError:
 class PracticeValidator:
     """Validates Practice/Method JSON against schema, baseline, and internal refs"""
 
-    def __init__(self, practice_file: Path, baseline_file: Path, schema_file: Path):
+    def __init__(self, practice_file: Path, baseline_file: Path, schema_file: Path,
+                 dependency_files: Optional[List[Path]] = None):
         self.practice_file = practice_file
         self.baseline_file = baseline_file
         self.schema_file = schema_file
+        self.dependency_files = dependency_files or []
         self.errors = []
         self.warnings = []
 
@@ -38,6 +40,7 @@ class PracticeValidator:
         self.practice = self._load_json(practice_file)
         self.baseline = self._load_json(baseline_file)
         self.schema = self._load_json(schema_file)
+        self.dependencies = [self._load_json(f) for f in self.dependency_files]
 
         # Build baseline indexes
         self.baseline_alphas = {}
@@ -47,6 +50,15 @@ class PracticeValidator:
         self.baseline_focuses = set()
 
         self._index_baseline()
+
+        # Build dependency indexes (from parent/dependency practice files)
+        self.dep_alphas = {}
+        self.dep_alpha_states = defaultdict(set)
+        self.dep_competencies = set()
+        self.dep_competency_levels = defaultdict(set)
+        self.dep_activity_spaces = set()
+
+        self._index_dependencies()
 
     def _load_json(self, file_path: Path) -> Dict:
         """Load and parse JSON file"""
@@ -81,6 +93,26 @@ class PracticeValidator:
         # Index activity spaces
         for asp in self.baseline.get('activitySpaces', []):
             self.baseline_activity_spaces.add(asp['name'])
+
+    def _index_dependencies(self):
+        """Build indexes of dependency practice elements for validation"""
+        for dep in self.dependencies:
+            # Index alphas and their states
+            for alpha in dep.get('alphas', []):
+                alpha_name = alpha['name']
+                self.dep_alphas[alpha_name] = alpha
+                for state in alpha.get('states', []):
+                    self.dep_alpha_states[alpha_name].add(state['name'])
+
+            # Index competencies and their levels
+            for comp in dep.get('competencies', []):
+                self.dep_competencies.add(comp['name'])
+                for level in comp.get('levels', []):
+                    self.dep_competency_levels[comp['name']].add(level['name'])
+
+            # Index activity spaces
+            for asp in dep.get('activitySpaces', []):
+                self.dep_activity_spaces.add(asp['name'])
 
     def validate_schema(self) -> bool:
         """Validate against JSON Schema"""
@@ -165,10 +197,12 @@ class PracticeValidator:
                 for state in alpha.get('states', []):
                     practice_alpha_states[alpha_name].add(state['name'])
 
-        # Merge baseline + practice alpha states
+        # Merge baseline + dependency + practice alpha states
         merged_alpha_states = defaultdict(set)
         for alpha_name in self.baseline_alpha_states:
             merged_alpha_states[alpha_name].update(self.baseline_alpha_states[alpha_name])
+        for alpha_name in self.dep_alpha_states:
+            merged_alpha_states[alpha_name].update(self.dep_alpha_states[alpha_name])
         for alpha_name in practice_alpha_states:
             merged_alpha_states[alpha_name].update(practice_alpha_states[alpha_name])
 
@@ -177,8 +211,9 @@ class PracticeValidator:
             prefix = f"practices[{practice_idx}]" if is_method else ""
 
             # Build allowed alphas for THIS practice
-            # Includes: baseline + practice-defined + cross-practice dependencies
+            # Includes: baseline + dependency + practice-defined + cross-practice dependencies
             allowed_alphas = set(self.baseline_alphas.keys())
+            allowed_alphas.update(self.dep_alphas.keys())
             allowed_alphas.update(practice_alphas.keys())
 
             # For cross-practice dependencies (via practiceDependencyNames),
@@ -208,8 +243,11 @@ class PracticeValidator:
         return not has_errors
 
     def _validate_competencies(self, practice: Dict, prefix: str) -> bool:
-        """Validate competency name references"""
+        """Validate competency name references against baseline and dependency practices"""
         has_errors = False
+
+        # Merge baseline + dependency competencies for validation
+        all_competencies = self.baseline_competencies | self.dep_competencies
 
         # Check activities
         for idx, activity in enumerate(practice.get('activities', [])):
@@ -217,13 +255,13 @@ class PracticeValidator:
 
             # requiredCompetencies (array of strings)
             for comp_idx, comp_name in enumerate(activity.get('requiredCompetencies', [])):
-                if comp_name not in self.baseline_competencies:
+                if comp_name not in all_competencies:
                     self.errors.append({
                         "category": "baseline",
                         "severity": "error",
                         "path": f"{path}.requiredCompetencies[{comp_idx}]",
                         "issue": f"Invalid competency name: '{comp_name}'",
-                        "expected": f"One of: {sorted(self.baseline_competencies)}",
+                        "expected": f"One of: {sorted(all_competencies)}",
                         "actual": comp_name,
                         "suggestion": self._suggest_competency(comp_name)
                     })
@@ -232,13 +270,13 @@ class PracticeValidator:
             # recommendedCompetencyLevels (array of {competencyName, competencyLevelName})
             for clr_idx, clr in enumerate(activity.get('recommendedCompetencyLevels', [])):
                 comp_name = clr.get('competencyName')
-                if comp_name and comp_name not in self.baseline_competencies:
+                if comp_name and comp_name not in all_competencies:
                     self.errors.append({
                         "category": "baseline",
                         "severity": "error",
                         "path": f"{path}.recommendedCompetencyLevels[{clr_idx}].competencyName",
                         "issue": f"Invalid competency name: '{comp_name}'",
-                        "expected": f"One of: {sorted(self.baseline_competencies)}",
+                        "expected": f"One of: {sorted(all_competencies)}",
                         "actual": comp_name,
                         "suggestion": self._suggest_competency(comp_name)
                     })
@@ -250,13 +288,13 @@ class PracticeValidator:
 
             for clr_idx, clr in enumerate(persona.get('competencies', [])):
                 comp_name = clr.get('competencyName')
-                if comp_name and comp_name not in self.baseline_competencies:
+                if comp_name and comp_name not in all_competencies:
                     self.errors.append({
                         "category": "baseline",
                         "severity": "error",
                         "path": f"{path}.competencies[{clr_idx}].competencyName",
                         "issue": f"Invalid competency name: '{comp_name}'",
-                        "expected": f"One of: {sorted(self.baseline_competencies)}",
+                        "expected": f"One of: {sorted(all_competencies)}",
                         "actual": comp_name,
                         "suggestion": self._suggest_competency(comp_name)
                     })
@@ -302,8 +340,8 @@ class PracticeValidator:
             path = f"{prefix}.alphas[{idx}]" if prefix else f"alphas[{idx}]"
             contributes_to = alpha.get('contributesTo')
 
-            # If not a baseline alpha, must have contributesTo
-            if alpha_name not in self.baseline_alphas:
+            # If not a baseline or dependency practice alpha, must have contributesTo
+            if alpha_name not in self.baseline_alphas and alpha_name not in self.dep_alphas:
                 if not contributes_to:
                     self.errors.append({
                         "category": "baseline",
@@ -506,14 +544,15 @@ class PracticeValidator:
 
             # Validate activitySpaceName reference if present
             asp_name = activity.get('activitySpaceName')
-            if asp_name and asp_name not in self.baseline_activity_spaces:
+            all_activity_spaces = self.baseline_activity_spaces | self.dep_activity_spaces
+            if asp_name and asp_name not in all_activity_spaces:
                 path = f"{prefix}.activities[{idx}].activitySpaceName" if prefix else f"activities[{idx}].activitySpaceName"
                 self.errors.append({
                     "category": "baseline",
                     "severity": "warning",
                     "path": path,
                     "issue": f"Unknown activity space: '{asp_name}'",
-                    "expected": f"One of baseline: {sorted(self.baseline_activity_spaces)}",
+                    "expected": f"One of: {sorted(all_activity_spaces)}",
                     "actual": asp_name,
                     "suggestion": "Verify activity space name or define it in practice"
                 })
@@ -552,6 +591,13 @@ class PracticeValidator:
             all_alphas.add(alpha['name'])
             for state in alpha.get('states', []):
                 all_alpha_states[alpha['name']].add(state['name'])
+
+        # Index dependency practice elements
+        for dep in self.dependencies:
+            for alpha in dep.get('alphas', []):
+                all_alphas.add(alpha['name'])
+                for state in alpha.get('states', []):
+                    all_alpha_states[alpha['name']].add(state['name'])
 
         # Index practice-defined elements
         for practice in practices:
@@ -667,6 +713,7 @@ class PracticeValidator:
             "practice_file": str(self.practice_file),
             "baseline_file": str(self.baseline_file),
             "schema_file": str(self.schema_file),
+            "dependency_files": [str(f) for f in self.dependency_files],
             "valid": len(self.errors) == 0,
             "error_count": len(self.errors),
             "warning_count": len(self.warnings),
@@ -700,11 +747,12 @@ class PracticeValidator:
                 if not contributes_to:
                     continue
 
-                # Get baseline parent alpha
-                if contributes_to not in self.baseline_alphas:
+                # Get parent alpha from baseline or dependency
+                all_parent_alphas = {**self.baseline_alphas, **self.dep_alphas}
+                if contributes_to not in all_parent_alphas:
                     continue  # Already flagged by baseline validation
 
-                parent_alpha = self.baseline_alphas[contributes_to]
+                parent_alpha = all_parent_alphas[contributes_to]
                 parent_states = [s['name'] for s in parent_alpha.get('states', [])]
                 child_states = [s['name'] for s in alpha.get('states', [])]
 
@@ -827,6 +875,9 @@ class PracticeValidator:
                 # Check if this alpha name exactly matches a baseline alpha name
                 is_baseline_alpha = alpha_name in self.baseline_alphas
 
+                # Check if this alpha name matches a dependency practice alpha
+                is_dep_alpha = alpha_name in self.dep_alphas
+
                 if is_baseline_alpha:
                     # This is a baseline alpha - should be REDECLARATION
                     if has_contributes_to:
@@ -872,9 +923,58 @@ class PracticeValidator:
                         })
                         has_errors = True
 
+                elif is_dep_alpha:
+                    # This is a dependency practice alpha - REDECLARATION of parent practice alpha
+                    # Should NOT have contributesTo (redeclaration enriches existing alpha)
+                    dep_alpha = self.dep_alphas[alpha_name]
+                    if has_contributes_to and not dep_alpha.get('contributesTo'):
+                        # Parent alpha has no contributesTo (baseline redeclaration),
+                        # so child should not add one
+                        contributes_to = alpha.get('contributesTo')
+                        self.errors.append({
+                            'category': 'baseline',
+                            'severity': 'error',
+                            'practice': practice_name,
+                            'path': path,
+                            'alpha': alpha_name,
+                            'issue': f'Alpha "{alpha_name}" exists in dependency practice but has contributesTo property',
+                            'expected': 'No contributesTo property (dependency practice alphas are redeclared, not specialized)',
+                            'actual': f'contributesTo: "{contributes_to}"',
+                            'suggestion': f'Remove contributesTo property. "{alpha_name}" should be a REDECLARATION (enrichment) of the dependency practice alpha.'
+                        })
+                        has_errors = True
+
+                    # Check if states match dependency practice alpha
+                    dep_state_names = {s['name'] for s in dep_alpha.get('states', [])}
+                    practice_state_names = {s['name'] for s in alpha.get('states', [])}
+
+                    if dep_state_names != practice_state_names:
+                        missing_states = dep_state_names - practice_state_names
+                        extra_states = practice_state_names - dep_state_names
+
+                        issue_parts = []
+                        if missing_states:
+                            issue_parts.append(f'missing dependency practice states: {sorted(missing_states)}')
+                        if extra_states:
+                            issue_parts.append(f'has extra states not in dependency practice: {sorted(extra_states)}')
+
+                        self.errors.append({
+                            'category': 'baseline',
+                            'severity': 'error',
+                            'practice': practice_name,
+                            'path': f'{path}.states',
+                            'alpha': alpha_name,
+                            'issue': f'Redeclared alpha "{alpha_name}" state mismatch: {"; ".join(issue_parts)}',
+                            'expected': f'Exact dependency practice states: {sorted(dep_state_names)}',
+                            'actual': f'Practice states: {sorted(practice_state_names)}',
+                            'suggestion': f'Redeclarations MUST preserve dependency practice state names exactly. Use states: {sorted(dep_state_names)}. You can only ADD checklists to existing states, not modify state names or add/remove states.'
+                        })
+                        has_errors = True
+
                 else:
                     # This is a new alpha - MUST have contributesTo
                     if not has_contributes_to:
+                        all_parent_alphas = sorted(set(self.baseline_alphas.keys()) | set(self.dep_alphas.keys()))
                         self.errors.append({
                             'category': 'baseline',
                             'severity': 'error',
@@ -882,9 +982,9 @@ class PracticeValidator:
                             'path': path,
                             'alpha': alpha_name,
                             'issue': f'New alpha "{alpha_name}" missing contributesTo property',
-                            'expected': 'contributesTo: "<BaselineAlphaName>"',
+                            'expected': 'contributesTo: "<ParentAlphaName>"',
                             'actual': 'No contributesTo property',
-                            'suggestion': f'Add contributesTo property pointing to a baseline alpha. All new alphas MUST contribute to a baseline alpha (NO FLOATING ALPHAS). Common mappings: infrastructure → "Platform", consumption interface → "Platform Consumption Interface", workloads → "Platform Asset", governance → "Platform Governance", risk/compliance → "Platform Risk And Compliance".'
+                            'suggestion': f'Add contributesTo property pointing to a baseline or dependency practice alpha. All new alphas MUST contribute to a parent alpha (NO FLOATING ALPHAS). Available: {all_parent_alphas}'
                         })
                         has_errors = True
 
@@ -894,19 +994,35 @@ class PracticeValidator:
 def main():
     """Main entry point"""
     if len(sys.argv) < 4:
-        print("Usage: validate-practice-json.py <practice.json> <baseline.json> <schema.json>", file=sys.stderr)
+        print("Usage: validate-practice-json.py <practice.json> <baseline.json> <schema.json> [dep1.json dep2.json ...]", file=sys.stderr)
         print("\nExample:", file=sys.stderr)
         print("  validate-practice-json.py practices/my-practice/my-practice.json \\", file=sys.stderr)
         print("                            deps/platform-adoption-kernel.json \\", file=sys.stderr)
         print("                            deps/language.schema.json", file=sys.stderr)
+        print("\nWith dependency practices:", file=sys.stderr)
+        print("  validate-practice-json.py practices/child/child.json \\", file=sys.stderr)
+        print("                            deps/baseline.json \\", file=sys.stderr)
+        print("                            deps/language.schema.json \\", file=sys.stderr)
+        print("                            practices/parent/_effective-parent.json", file=sys.stderr)
+        print("\nNote: If _effective-parent.json exists in the practice directory, it is", file=sys.stderr)
+        print("      auto-loaded as a dependency practice for validation.", file=sys.stderr)
         sys.exit(1)
 
     practice_file = Path(sys.argv[1])
     baseline_file = Path(sys.argv[2])
     schema_file = Path(sys.argv[3])
 
+    # Collect explicit dependency practice files from additional arguments
+    dependency_files = [Path(arg) for arg in sys.argv[4:]]
+
+    # Auto-discover _effective-parent.json in the practice directory
+    effective_parent = practice_file.parent / '_effective-parent.json'
+    if effective_parent.exists() and effective_parent not in dependency_files:
+        print(f"Auto-discovered dependency: {effective_parent}", file=sys.stderr)
+        dependency_files.append(effective_parent)
+
     # Validate
-    validator = PracticeValidator(practice_file, baseline_file, schema_file)
+    validator = PracticeValidator(practice_file, baseline_file, schema_file, dependency_files)
 
     # Run all validations
     print("Validating schema...", file=sys.stderr)
