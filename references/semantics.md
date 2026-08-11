@@ -19,6 +19,7 @@
 5. [PracticeElement Foundations](#5-practiceelement-foundations)
    - 5.1 [PracticeElement, Tagging Taxonomy, and Narrative Anchors](#51-practiceelement-tagging-taxonomy-and-narrative-anchors)
    - 5.2 [Checklists and Dynamic State-Gating](#52-checklists-and-dynamic-state-gating)
+   - 5.3 [Structured Guidance: The Gherkin-Inspired Test Model](#53-structured-guidance-the-gherkin-inspired-test-model)
 6. [The Alpha-State Trajectory and Dynamic Semantics](#6-the-alpha-state-trajectory-and-dynamic-semantics)
    - 6.1 [Defining Core Alphas and Baseline Isolation](#61-defining-core-alphas-and-baseline-isolation)
    - 6.2 [State Progression and the Guidance Function](#62-state-progression-and-the-guidance-function)
@@ -31,6 +32,7 @@
    - 7.3 [Work Product Instance Semantics: Declaration vs Evidence Chains](#73-work-product-instance-semantics-declaration-vs-evidence-chains)
 8. [Execution Boundaries and Organizational Roles](#8-execution-boundaries-and-organizational-roles)
    - 8.1 [Activity Spaces and Activities](#81-activity-spaces-and-activities)
+     - 8.1.1 [Gherkin-Inspired Structure on Activities](#811-gherkin-inspired-structure-on-activities)
    - 8.2 [Organizational Roles and Persona Definitions](#82-organizational-roles-and-persona-definitions)
 9. [Lifecycle Orchestration: Patterns and Phase Models](#9-lifecycle-orchestration-patterns-and-phase-models)
    - 9.1 [Pattern Orchestration and Narrative Hooks](#91-pattern-orchestration-and-narrative-hooks)
@@ -256,9 +258,9 @@ All structural references still use "Platform" and "Platform Value And Economics
 
 This strict isolation ensures that the Practice Language maintains referential integrity and composability while still accommodating diverse organizational vocabularies at the presentation layer.
 
-### 4.4 Redeclaration vs Specialization Decision Framework
+### 4.4 Redeclaration vs Specialization vs Variant Mapping Decision Framework
 
-When extending a baseline practice with alpha-related content, authors must decide whether to redeclare (enrich) an existing baseline alpha or create a new specialized alpha. This decision profoundly affects practice composability, validation, and semantic coherence. The fundamental decision question is: **"Is this content generally applicable (universal to all uses of this alpha concept) or practice-specific (addressing a narrower subset)?"**
+When extending a baseline practice with alpha-related content, authors must decide whether to redeclare (enrich) an existing baseline alpha, create a new specialized alpha, or create a variant mapping. This decision profoundly affects practice composability, validation, and semantic coherence. The fundamental decision question is: **"Is this content generally applicable (universal), a sub-concern with distinct progression (specialization), or a named variant of the same concept (variant mapping)?"**
 
 **Redeclaration (Enrichment) - Use When:**
 
@@ -278,16 +280,28 @@ When extending a baseline practice with alpha-related content, authors must deci
 - **CRITICAL**: The new alpha MUST declare a contributesTo relationship to a baseline alpha (see Section 6.1)
 - Examples: "Platform Capability" alpha (specialized progression) contributing to baseline "Platform" alpha, "Security Controls Framework" contributing to baseline governance alpha
 
+**Variant Mapping (mapsTo) - Use When:**
+
+- Source material describes a distinct named variant of a baseline concept that follows the same state progression
+- The concept IS-A type of the parent alpha (e.g., "AI-Ready Enterprise" IS a "Sales Play"), not a sub-part
+- The baseline state progression is appropriate—the variant uses the same milestones with domain-specific checklists
+- Multiple variants may exist in parallel, each standing in for the parent as an independent specialised version
+- On merge, variant alphas appear within the parent alpha (via the `variants` array), enabling UIs and renderers to present them as related types
+- **CRITICAL**: The new alpha MUST declare a `mapsTo` relationship to a parent alpha. `mapsTo` and `contributesTo` are mutually exclusive. States MUST match the target alpha exactly.
+- Examples: "AI-Ready Enterprise" mapsTo "Sales Play" (same lifecycle, AI-specific checklists), "AI Platform Domain" mapsTo "Technical Decision Point" (same progression, domain-specific verification)
+
 **Decision Matrix:**
 
 
-| Source Content                                    | Same States as Baseline? | Generally Applicable? | Scope                       | Approach                   |
-| ------------------------------------------------- | ------------------------ | --------------------- | --------------------------- | -------------------------- |
-| Adds verification criteria to existing states     | Yes                      | Yes                   | Universal enhancement       | Redeclaration              |
-| Maintains scope and objectives of baseline        | Yes                      | Yes                   | Universal                   | Redeclaration              |
-| Different state progression needed                | No                       | No                    | Practice-specific subset    | New Alpha (Specialization) |
-| Focused domain subset requiring distinct maturity | No                       | No                    | Specialized domain          | New Alpha (Specialization) |
-| Multi-perspective view of same concept            | Yes                      | Yes                   | Different analytical angles | Merged Redeclaration       |
+| Source Content                                    | Same States as Baseline? | Generally Applicable? | Scope                       | Approach                        |
+| ------------------------------------------------- | ------------------------ | --------------------- | --------------------------- | ------------------------------- |
+| Adds verification criteria to existing states     | Yes                      | Yes                   | Universal enhancement       | Redeclaration                   |
+| Maintains scope and objectives of baseline        | Yes                      | Yes                   | Universal                   | Redeclaration                   |
+| Different state progression needed                | No                       | No                    | Practice-specific subset    | New Alpha (Specialization)      |
+| Focused domain subset requiring distinct maturity | No                       | No                    | Specialized domain          | New Alpha (Specialization)      |
+| Multi-perspective view of same concept            | Yes                      | Yes                   | Different analytical angles | Merged Redeclaration            |
+| IS-A variant with same state progression          | Yes                      | No (domain-specific)  | Named variant of parent     | Variant Mapping (mapsTo)        |
+| Domain-specific lens on universal concept         | Yes                      | No (domain-specific)  | Specialized version         | Variant Mapping (mapsTo)        |
 
 
 **Concrete Examples:**
@@ -383,7 +397,7 @@ Author creates new alpha "Cloud Platform" for cloud-specific platform tracking w
 }
 ```
 
-**Problem**: This duplicates the baseline without adding value. The cloud-specific content should be added as checklists to a Platform redeclaration, not a separate alpha. This creates semantic fragmentation and validation confusion.
+**Problem**: This duplicates the baseline without adding value. The cloud-specific content should be added as checklists to a Platform redeclaration, not a separate alpha. This creates semantic fragmentation and validation confusion. Note: if "Cloud Platform" genuinely IS a Platform (same states, domain-specific checklists, distinct identity), use `mapsTo` instead — see Example 5.
 
 **Example 4: Multi-Perspective Merged Redeclaration**
 
@@ -423,18 +437,53 @@ Module 00 analysis identifies that both Business and Technology perspectives enh
 
 **Reasoning**: One merged redeclaration accommodates both perspectives rather than creating separate definitions. The checklists are tagged by perspective for clarity.
 
+**Example 5: Variant Mapping (Valid)**
+
+Source material describes a Sales Play variant for AI-Ready Enterprise that follows the same lifecycle as all Sales Plays but with domain-specific checklists:
+
+```json
+{
+  "name": "AI-Ready Enterprise",
+  "description": "Sales play focused on AI readiness transformation, guiding sellers through the standard sales play lifecycle with AI-specific verification criteria and domain expertise.",
+  "mapsTo": "Sales Play",
+  "focusName": "Value",
+  "states": [
+    {
+      "name": "Selected",
+      "description": "Sales play identified as appropriate for this opportunity",
+      "seq": 1,
+      "checklist": [
+        { "seq": 1, "name": "AI maturity assessed", "description": "Customer AI readiness and current capabilities evaluated" },
+        { "seq": 2, "name": "AI use cases identified", "description": "High-value AI application areas mapped to customer needs" }
+      ]
+    },
+    { "name": "Activated", "seq": 2, "checklist": ["..."] },
+    { "name": "Executing", "seq": 3, "checklist": ["..."] },
+    { "name": "Measured", "seq": 4, "checklist": ["..."] },
+    { "name": "Optimized", "seq": 5, "checklist": ["..."] }
+  ]
+}
+```
+
+**Reasoning**: AI-Ready Enterprise IS a Sales Play — it follows the same lifecycle (Selected → Activated → Executing → Measured → Optimized) with AI-specific checklists. Using `mapsTo` rather than `contributesTo` because: (a) it has the same state progression as its parent, (b) it is a distinct named variant, not a sub-concern feeding into the parent, and (c) on merge it should appear within the Sales Play alpha's `variants` array for UI rendering. This is different from specialization (which would have its own distinct states) and from redeclaration (which would keep the parent's name).
+
 **Common Mistakes:**
 
 - Creating specialized alphas when checklists would suffice
 - Using redeclaration when states need to differ (forcing awkward checklist-only tracking)
-- Forgetting contributesTo on new alphas (violating the floating alpha prohibition)
+- Forgetting contributesTo or mapsTo on new alphas (violating the floating alpha prohibition)
 - Creating multiple redeclarations of the same baseline alpha instead of merging perspectives
 - Changing baseline name or description during redeclaration (forbidden—breaks referential integrity)
+- Using `contributesTo` when the alpha has identical states as its parent and IS-A semantics apply (should be `mapsTo`)
+- Using `mapsTo` when the alpha needs a different state progression (should be `contributesTo`)
+- Setting both `mapsTo` and `contributesTo` on the same alpha (mutually exclusive)
 
 **Validation Enforcement:**
 
 - Phase 2 translation validates that redeclarations preserve baseline name, description, and state structure exactly
-- Phase 2 validates that all new alphas have contributesTo relationships
+- Phase 2 validates that all new alphas have contributesTo or mapsTo relationships
+- Phase 2 validates that `mapsTo` alphas have identical state names and sequences as their target alpha
+- Phase 2 validates that `mapsTo` and `contributesTo` are mutually exclusive on a given alpha
 - Practice composition tooling should warn when multiple redeclarations of the same baseline alpha are detected (should be merged)
 
 ### 4.5 Adapting and Extending Practice Elements
@@ -714,16 +763,18 @@ Work Product (tangible artifact):
 
 **LOD Content Model and Naming Guidance:**
 
-LOD names must describe the maturity or sophistication of the artifact's content, not the progression of the abstract concern it evidences. Use the five-level rubric in `references/workproduct-assessment-rubric.csv` as a lens when designing LODs:
+LOD names must describe the depth and fidelity of the artifact's content, not the progression of the abstract concern it evidences. The critical principle is that **every LOD covers the full scope of the work product — the difference between levels is depth and fidelity, not breadth**. A Level 1 document has the same table of contents as a Level 4 document; each section is simply briefer. Use the five-level rubric in `references/workproduct-assessment-rubric.csv` as a lens when designing LODs:
 
 | Rubric Level | LOD Content Character | Example LOD Names |
 | --- | --- | --- |
-| Level 1: Basic / Descriptive | High-level lists, basic descriptions, skeletal outlines | Outlined, Draft, Checklist, Backlog, Parameter Log |
-| Level 2: Defined / Logical | Detailed logical structures, documented frameworks, step-by-step plans | Detailed, Defined, Comprehensive, Modular, Scored Risk Matrix |
-| Level 3: Applied / Behavioural | Worked examples, scenario-based guides, behavioural walkthroughs | Applied, Scenario-Based, Validated, Tested Templates |
-| Level 4: Comprehensive / Automated | Automated tooling, interactive templates, executable artifacts | Automated, Interactive, Self-Service, Adaptive, Predictive Analytics |
+| Level 1: Summarised | Complete scope in brief form — concise statements, short bullet lists, one-paragraph overviews per topic | Outlined, Summary, Checklist, Brief, Overview |
+| Level 2: Structured | Complete scope with logical organisation — defined sections, relationships between concepts, supporting rationale | Detailed, Defined, Comprehensive, Framework, Blueprint |
+| Level 3: Elaborated | Complete scope with full explanatory depth — worked examples, evidence, scenarios, contextual guidance | Applied, Scenario-Based, Validated, Evidence-Based, Contextualised |
+| Level 4: Actionable | Complete scope with operational readiness — templates, decision frameworks, automation, calculators | Automated, Interactive, Self-Service, Executable, Toolkit |
 
-Not every work product requires four LODs — use what fits the source content (minimum 2 per schema). LOD names should be domain-appropriate for the artifact type, not generic labels. "Observational Checklist → Quantitative Health Profile → Diagnostic Case File" is good because each name tells you what the document actually contains at that maturity level.
+**Depth vs Breadth**: LODs must NOT be additive — where each level introduces new topics or perspectives absent from lower levels. That pattern makes LODs resemble alpha state progressions (a process) rather than content maturity (a depth dial). Instead, every level addresses the same complete set of concerns; what changes is how deeply each concern is treated. A Level 1 "Architecture" document briefly covers components, relationships, failure modes, and capacity. A Level 3 version covers the same topics with worked deployment examples, trade-off analysis, and contextualised scenarios.
+
+Not every work product requires four LODs — use what fits the source content (minimum 2 per schema). LOD names should be domain-appropriate for the artifact type, not generic labels. "Observational Checklist → Quantitative Health Profile → Diagnostic Case File" is good because each name tells you what the document actually contains at that depth level.
 
 **Common Mistakes:**
 
@@ -829,6 +880,8 @@ Foundation elements provide the baseline from which all other methodology constr
 ### 5.1 PracticeElement, Tagging Taxonomy, and Narrative Anchors
 
 The PracticeElement serves as the foundational root object, guaranteeing any instantiated element contains a unique name and a human-readable description. Crucially, it also introduces the narratives array as a universal property. By embedding narrative support at the root object level, the schema ensures that any methodology construct—from a micro-level Work Product to a macro-level Pattern—can be enriched with structured storytelling frameworks. To prevent semantic fragmentation, the schema implements an advanced tagging taxonomy utilizing the structured tags object, enforcing orthogonal data classification.
+
+PracticeElement also carries an optional `contributingPatternName` string for merge-time provenance. This property records which Pattern introduced or enriched the element during practice composition. It is populated automatically by the merge algorithm and must not be set in source practice authoring. While `sourcePracticeName` (set during merge on specific element types) identifies the practice that introduced an element, `contributingPatternName` provides finer-grained attribution to the specific pattern within that practice. Elements introduced outside any pattern context leave this property absent. See [merge.md Section 8.2](merge.md#82-pattern-level-provenance-contributingpatternname) for the full provenance rules.
 
 #### 5.1.1 Orthogonal Tagging Taxonomy
 
@@ -1006,7 +1059,9 @@ Checklists provide the operational verification layer that transforms abstract a
   "seq": integer,
   "name": "string",
   "description": "string",
-  "evidencedBy": [WorkProductContribution] (optional)
+  "evidencedBy": [WorkProductContribution] (optional),
+  "test": Test (optional),
+  "examples": [Test] (optional)
 }
 ```
 
@@ -1016,6 +1071,8 @@ Checklists provide the operational verification layer that transforms abstract a
 - **name**: String identifier for the checklist item (typically concise, 3-8 words)
 - **description**: String explaining what must be verified or achieved (1-2 sentences describing the operational truth)
 - **evidencedBy**: Optional array of WorkProductContribution objects linking this checklist to artifacts that provide evidence (see below)
+- **test**: Optional Test object providing structured Given/When/Then verification (see Section 5.3)
+- **examples**: Optional array of Test objects providing parameterized variations (see Section 5.3)
 
 **Two Checklist Contexts:**
 
@@ -1135,6 +1192,182 @@ The schema validation engine evaluates checklists using strict operational seman
 
 This structured approach transforms qualitative methodology guidance into quantitative, traceable verification criteria, enabling organizations to measure and validate their adoption progress objectively.
 
+### 5.3 Structured Guidance: The Gherkin-Inspired Test Model
+
+The Practice Language adapts concepts from the [Gherkin specification language](https://cucumber.io/docs/gherkin/) to provide structured practitioner guidance across the schema. In software engineering, Gherkin uses a business-readable, domain-specific language to define behaviour through Feature, Background, Scenario, Given/When/Then, and Scenario Outline constructs. The Practice Language repurposes these concepts — not for automated software testing, but for expressing practitioner-facing verification criteria and execution guidance in a structured, decomposable format.
+
+**Design rationale:** Flat name/description pairs on checklist items and activities are sufficient for simple cases, but as practices grow in complexity, practitioners need structured answers to three questions: *what must already be true?* (preconditions), *what action or event is relevant?* (triggers), and *what should be observable afterwards?* (outcomes). Gherkin's Given/When/Then pattern maps directly to these questions. The Practice Language introduces a `Test` type — a PracticeElement with `given`, `when`, and `then` arrays — as the unified vehicle for this structured guidance. The `Background` type captures shared prerequisites at a higher scope (state, level of detail, activity space).
+
+All Gherkin-inspired properties are optional. Existing elements with only name/description remain valid. Any combination of `background`, `test`, and `examples` can be used independently, supporting incremental adoption.
+
+#### 5.3.1 The Test Type
+
+The `Test` type extends `PracticeElement` via `allOf`, inheriting `name`, `description`, `tags`, `narratives`, and `assetNames`. It adds three optional string arrays:
+
+| Property | Type | Purpose |
+|---|---|---|
+| `given` | string[] | Preconditions that must be true before the scenario is relevant |
+| `when` | string[] | Action(s), event(s), or trigger(s) being evaluated |
+| `then` | string[] | Expected outcome(s) or observable result(s) |
+
+Because Test is a PracticeElement, every test scenario has its own `name` and `description`, making it a self-contained, identifiable unit. The same Test type is used in two roles:
+
+- **`test`** — an optional property on Checklist and Activity. Captures the primary verification or execution scenario for that element.
+- **`examples`** — an optional `Test[]` array on Checklist and Activity. Captures parameterized variations that illustrate how the parent element applies in different contexts (analogous to Gherkin's Scenario Outline).
+
+**And/But conjunctions:** Gherkin's `And` and `But` keywords are expressed as additional array entries. Prefix entries with "but" for negative conditions:
+
+```json
+{
+  "given": [
+    "the monitoring stack is deployed",
+    "the SLO framework has been agreed with stakeholders",
+    "but the legacy monitoring has not yet been decommissioned"
+  ]
+}
+```
+
+#### 5.3.2 Mapping: Gherkin Concepts to Practice Language
+
+| Gherkin Concept | Practice Language Equivalent | Where Used |
+|---|---|---|
+| Feature | State, LevelOfDetail, or Activity (name + description) | Already served by existing properties |
+| Background | `background` property (Background type) | State, LevelOfDetail, AlphaInstance, WorkProductInstance, ActivitySpaceCore |
+| Scenario | Checklist item or Activity (name + description) | Already served; Test adds structured decomposition |
+| Given | `test.given` (string[]) | Test on Checklist or Activity |
+| When | `test.when` (string[]) | Test on Checklist or Activity |
+| Then | `test.then` (string[]) | Test on Checklist or Activity |
+| And/But | Additional entries in given/when/then arrays | Natural extension via array items |
+| Scenario Outline | `examples` (Test[]) | Checklist or Activity |
+
+#### 5.3.3 Background: Shared Prerequisites
+
+The `background` property declares prerequisites that must hold before any child element (checklist item or activity) can be evaluated. It is available on five types:
+
+- **State**: practice-level prerequisites for an alpha state's checklists
+- **LevelOfDetail**: practice-level prerequisites for a work product level's checklists
+- **AlphaInstance**: project-specific prerequisites for a tracked alpha instance
+- **WorkProductInstance**: project-specific prerequisites for a tracked work product instance
+- **ActivitySpaceCore** (inherited by both ActivitySpace and Activity): prerequisites for execution — governance-level on ActivitySpace, activity-specific on Activity
+
+**Background Object Structure:**
+
+```json
+{
+  "given": ["string"],
+  "alphaStates": [AlphaContribution],
+  "workProductLevels": [WorkProductContribution],
+  "alphaInstanceStates": [AlphaInstanceStateReference],
+  "workProductInstanceLevels": [WorkProductInstanceLevelReference]
+}
+```
+
+All fields are optional. The five properties address different prerequisite scopes:
+
+- **given**: Natural-language preconditions (e.g., "the deployment pipeline is operational"). Use "but" prefix for negative conditions (e.g., "but the legacy system has not been decommissioned").
+- **alphaStates**: Abstract alpha states that must be achieved, referencing by alphaName + stateName. Complements sequential progression within the same alpha by declaring cross-alpha prerequisites.
+- **workProductLevels**: Abstract work product levels that must be achieved, referencing by workProductName + levelOfDetailName. Expresses the prerequisite direction of the LOD-to-State relationship (complementing the existing `contributesTo` which goes LOD→State).
+- **alphaInstanceStates**: Specific alpha instances that must have reached a named state, referencing by instanceName + stateName. Used when prerequisites are about concrete tracked instances.
+- **workProductInstanceLevels**: Specific work product instances that must have reached a named level, referencing by instanceName + levelOfDetailName. Used when prerequisites are about concrete tracked instances.
+
+**Two-Level Semantics:**
+
+At the practice level (State, LevelOfDetail), background defines what SHOULD hold — the template prerequisites for any project adopting this practice. At the instance level (AlphaInstance, WorkProductInstance), background records what APPLIES — the actual prerequisites relevant to a specific project context. When both exist, the instance-level background supplements the practice-level background (additive, not replacement). Tooling can merge them to produce a complete prerequisite picture for a given instance.
+
+**Example: State with Background**
+
+```json
+{
+  "name": "Operational",
+  "description": "The platform is serving production workloads reliably.",
+  "seq": 3,
+  "background": {
+    "given": [
+      "the platform has passed integration testing",
+      "production infrastructure is provisioned"
+    ],
+    "alphaStates": [
+      { "alphaName": "Platform Capability", "stateName": "Validated" }
+    ]
+  },
+  "checklist": [...]
+}
+```
+
+#### 5.3.4 Test and Examples on Checklist Items
+
+Individual checklist items can carry an optional `test` property (a Test object) and an optional `examples` array (Test[]).
+
+When `test` is absent, the checklist's own `name` and `description` continue to serve their current role as the complete outcome specification (full backward compatibility). When `test` is present, it provides structured verification detail — the checklist's name/description remain the concise label, while the test decomposes the verification into preconditions, triggers, and outcomes. The test's `given` supplements any background-level prerequisites on the parent state or level of detail.
+
+Examples serve as practitioner guidance — they illustrate how a general checklist item manifests in specific real-world scenarios. They do not replace the parent checklist's test scenario; they specialise it for concrete contexts.
+
+**Example: Checklist with Test and Examples**
+
+```json
+{
+  "name": "SLOs defined and monitored",
+  "description": "Service level objectives are defined and dashboards are actively monitored.",
+  "seq": 1,
+  "test": {
+    "name": "SLO verification",
+    "description": "Verify that SLOs are defined and alerts are operational.",
+    "given": ["the observability stack is deployed"],
+    "when": ["the platform team reviews the SLO dashboard"],
+    "then": [
+      "each critical service has at least one SLO defined",
+      "SLO burn-rate alerts fire within the agreed notification window",
+      "but no alert fatigue is observed from excessive low-priority notifications"
+    ]
+  },
+  "examples": [
+    {
+      "name": "API gateway SLO",
+      "description": "SLO verification for external-facing API gateway.",
+      "given": ["the API gateway handles external traffic"],
+      "when": ["a latency spike exceeds the p99 threshold"],
+      "then": ["an alert fires within 5 minutes", "the on-call engineer is paged"]
+    },
+    {
+      "name": "Data pipeline SLO",
+      "description": "SLO verification for nightly data pipeline.",
+      "given": ["the ETL pipeline runs on a nightly schedule"],
+      "when": ["the pipeline fails to complete within the SLO window"],
+      "then": ["a data freshness alert fires", "downstream consumers are notified"]
+    }
+  ]
+}
+```
+
+#### 5.3.5 Authoring Guidance
+
+The following guidance applies to all uses of Background, Test, and Examples — whether on checklist items (Section 5.3.4) or activities (Section 8.1.1).
+
+**When to use Background:**
+- When a state, level, or activity space has prerequisites that apply to ALL its children (not just one checklist item or activity)
+- When cross-alpha dependencies exist that cannot be expressed through sequential progression
+- When work product prerequisites clarify the context for evaluation or execution
+- At the instance level, when project-specific conditions supplement or specialise the practice-level background
+- On an ActivitySpace, when a governance-level prerequisite applies to all activities in the space (e.g., stakeholder recognition, strategic approval). Do not duplicate ActivitySpace-level prerequisites on individual activities.
+
+**When to use Test:**
+- When the existing name/description alone do not convey the full context (what must be true, what to do, what to observe)
+- When a checklist item or activity benefits from separating the precondition from the action from the outcome
+- On activities, `test.when` is particularly valuable because it captures the trigger that is otherwise implicit — describe decision points, events, or lifecycle moments that initiate the work
+- On activities, `test.then` should complement, not duplicate, the structural `contributesTo` and `worksOn` — use it for outcomes meaningful to practitioners but not captured by symbolic alpha/work-product references (e.g., "risk factors are documented" rather than restating "advances Opportunity to Determined")
+- Partial use is valid: a test can have `given` without `when` or `then`, or `then` without `given`
+
+**When to use Examples:**
+- When a checklist item or activity applies differently across contexts (e.g., different service types, team structures, deployment models, greenfield vs migration)
+- When concrete illustrations would help practitioners understand how to apply a general criterion
+- When the element is inherently parameterized (the same pattern with different values)
+- An element can have `examples` without a `test`, or a `test` without `examples`
+
+**When NOT to use these constructs:**
+- When the existing name/description adequately convey the criterion or intent
+- When adding structure would be purely ceremonial without improving practitioner understanding
+- Baseline checklists should remain minimal — the practice layer is the natural place for detailed Gherkin structure
+
 ## 6 The Alpha-State Trajectory and Dynamic Semantics
 
 The Alpha (Abstract-Level Progress Health Attribute) defines the essential elements of an endeavor requiring tracking and progression.
@@ -1147,19 +1380,19 @@ Every Alpha contains a mandatory array of states (minimum of 3) and is categoriz
 
 **THE CRITICAL RULE: NO FLOATING ALPHAS**
 
-When extending a baseline practice, all new alphas introduced in a practice extension MUST explicitly declare a contributesTo relationship pointing to a valid alpha. This is not a guideline—it is an absolute constraint enforced during Phase 2 validation. Alphas that lack this relationship are known as "floating alphas" and are strictly prohibited by the Practice Language semantics.
+When extending a baseline practice, all new alphas introduced in a practice extension MUST explicitly declare either a `contributesTo` or `mapsTo` relationship pointing to a valid alpha. This is not a guideline—it is an absolute constraint enforced during Phase 2 validation. Alphas that lack either relationship are known as "floating alphas" and are strictly prohibited by the Practice Language semantics. The two properties are mutually exclusive on a given alpha—use `contributesTo` for specialization (sub-concern with distinct state progression) and `mapsTo` for variant mapping (IS-A variant with identical state progression).
 
 **Why This Rule Exists:**
 
 - **Ensures Composability**: Practices can be combined and reused because all elements trace back to a common ontology
 - **Maintains Ontological Coherence**: Every practice-specific concept maps to a broader framework, preventing semantic fragmentation
-- **Enables Hierarchical Rollups**: Child alpha states can influence parent alpha progression calculations through the contributesTo relationship
+- **Enables Hierarchical Rollups**: Child alpha states can influence parent alpha progression calculations through the contributesTo relationship, or declare state equivalence through the mapsTo relationship
 - **Supports Validation**: Tooling can verify that practice extensions enhance rather than diverge from the baseline architecture
 - **Prevents Semantic Drift**: Organizations maintain consistency across multiple practices when all concepts anchor to shared alphas
 
-**Valid contributesTo Targets:**
+**Valid contributesTo / mapsTo Targets:**
 
-The contributesTo field can reference three types of alphas:
+Both `contributesTo` and `mapsTo` can reference three types of alphas:
 
 1. **Baseline Practice Alphas** (most common): Reference alphas defined in the baselinePractice
    - Example: `"contributesTo": "Platform"` (where "Platform" is a baseline alpha)
@@ -1192,15 +1425,17 @@ While specific alpha names vary by baselinePractice, typical baseline patterns i
 
 **Validation Rules:**
 
-1. **Baseline References**: The contributesTo value must be an exact, case-sensitive string match to a baseline alpha name
-2. **Practice-Local References**: The contributesTo value must reference another alpha defined in the SAME practice, and that alpha must have its own valid contributesTo chain
-3. **External Practice References**: The contributesTo value must reference an alpha from a practice declared in the `dependencies` array, and that practice must be available for resolution
+1. **Baseline References**: The `contributesTo` or `mapsTo` value must be an exact, case-sensitive string match to a baseline alpha name
+2. **Practice-Local References**: The value must reference another alpha defined in the SAME practice, and that alpha must have its own valid `contributesTo` or `mapsTo` chain
+3. **External Practice References**: The value must reference an alpha from a practice declared in the `dependencies` array, and that practice must be available for resolution
+4. **Mutual Exclusivity**: `contributesTo` and `mapsTo` are mutually exclusive—an alpha MUST NOT have both properties
+5. **State Matching for mapsTo**: A `mapsTo` alpha MUST have identical state names and sequences as its target alpha. It CAN have a different name, description, and checklists.
 
-**No Circular Dependencies**: Alpha A cannot contribute to Alpha B if Alpha B (or any alpha in B's contributesTo chain) contributes to Alpha A.
+**No Circular Dependencies**: Alpha A cannot contribute to Alpha B if Alpha B (or any alpha in B's `contributesTo`/`mapsTo` chain) contributes/maps to Alpha A.
 
 #### **Semantic Relationships: The relatesTo Property**
 
-Beyond specialization (`contributesTo`), alphas can declare rich semantic relationships via the optional `relatesTo` array. This property enables the Practice Language to capture domain-specific dependencies, influences, constraints, and other interactions between alphas that are not hierarchical in nature.
+Beyond specialization (`contributesTo`) and variant mapping (`mapsTo`), alphas can declare rich semantic relationships via the optional `relatesTo` array. This property enables the Practice Language to capture domain-specific dependencies, influences, constraints, and other interactions between alphas that are not hierarchical in nature.
 
 **AlphaRelationship Structure:**
 
@@ -1383,7 +1618,7 @@ A State is a discrete point of maturity governed by a sequence integer (seq) and
 
 #### State-Level Contribution Mapping (`contributesToState`)
 
-When an Alpha declares `contributesTo` (naming a parent alpha it specializes), its individual states can optionally declare which state on the parent alpha they contribute to via the `contributesToState` property. This makes state-level contribution a first-class concept within baselines and practices.
+When an Alpha declares `contributesTo` or `mapsTo` (naming a parent alpha it specializes or maps to), its individual states can optionally declare which state on the parent alpha they correspond to via the `contributesToState` property. This makes state-level mapping a first-class concept within baselines and practices.
 
 ```json
 {
@@ -1399,7 +1634,16 @@ When an Alpha declares `contributesTo` (naming a parent alpha it specializes), i
 
 In this example, the "Platform Capability" alpha contributes to the "Platform" alpha. Reaching the "Identified" state on Platform Capability contributes to the "Recognized" state on Platform. The "Operational" state has no mapping — not every state needs a correspondence, and gaps are expected.
 
-**Validation:** `contributesToState` is only meaningful when the owning Alpha has a `contributesTo` property set. The named state must exist on the target parent alpha.
+**Validation:** `contributesToState` is only meaningful when the owning Alpha has a `contributesTo` or `mapsTo` property set. The named state must exist on the target parent alpha.
+
+#### State-Level Mapping in `mapsTo` Context
+
+When an Alpha declares `mapsTo` (naming a parent alpha it is a variant of), `contributesToState` takes on **equivalence** semantics rather than **contribution** semantics:
+
+- In `contributesTo` context: "reaching this state contributes evidence toward the named parent state" — one of potentially many inputs to the parent's progression
+- In `mapsTo` context: "this state IS the named parent state, expressed through this variant's lens" — a direct 1:1 equivalence
+
+Because `mapsTo` requires identical state names, the mapping is typically the identity (each state maps to its identically-named counterpart on the parent). Explicit `contributesToState` declarations can be omitted when state names match — tooling can infer the mapping — but explicit declaration is recommended for clarity.
 
 For cross-baseline state mapping (where the contributing alpha was authored independently of the target), see Section 4.8 (Method-Level Alpha Bindings).
 
@@ -1687,6 +1931,72 @@ This design serves both guidance and execution: practices use work product insta
 - **Activity**: Extends the Activity Space, providing specific actionable swimlanes. It works on specific artifacts (worksOn) and defines strict recommendedCompetencyLevels.
 
 **Baseline Isolation Rules**: Practice authors should avoid creating new ActivitySpaces in extension practices. Instead, new tactical Activities should strictly map to existing overarching corporate governance boundaries by utilizing the activitySpaceName property to reference a baseline ActivitySpace.
+
+#### 8.1.1 Gherkin-Inspired Structure on Activities
+
+Activities and ActivitySpaces use the same Gherkin-inspired Test model described in Section 5.3, adapted for execution context rather than verification. While states and checklists answer "what must be true?", activities answer "what work should be done, when, and with what expected outcomes?" See Section 5.3.5 for consolidated authoring guidance covering both checklists and activities.
+
+**Background on ActivitySpaceCore:**
+
+Both ActivitySpace and Activity inherit an optional `background` property (via ActivitySpaceCore). On an ActivitySpace, `background` declares governance-level prerequisites that apply to all activities in the space. On an Activity, `background` declares activity-specific prerequisites. The Background type is the same as described in Section 5.3.3.
+
+```json
+{
+  "name": "Assess Business Value",
+  "description": "Conduct business analysis to quantify ROI.",
+  "background": {
+    "given": ["executive sponsorship has been secured"],
+    "alphaStates": [
+      { "alphaName": "Stakeholders", "stateName": "Recognized" }
+    ]
+  }
+}
+```
+
+**Test and Examples on Activity:**
+
+Activities support an optional `test` property and an optional `examples` array — the same Test type used on Checklist items (Section 5.3.4). The key semantic differences from checklist usage:
+
+- **test.when** captures the *trigger* that initiates work — a decision point, event, or lifecycle moment. This is distinct from `contributesTo` (which says what the activity advances, not when it starts).
+- **test.then** complements the structural `contributesTo` (alpha state advancement) and `worksOn` (work product linkage) with human-readable narrative outcomes. It should not restate what the symbolic references already express.
+
+**Example: Activity with Test and Examples**
+
+```json
+{
+  "name": "Conduct ROI Analysis",
+  "description": "Quantify expected return on platform investment.",
+  "test": {
+    "name": "ROI analysis execution",
+    "description": "Verify that a comprehensive ROI analysis is produced.",
+    "given": [
+      "cost data from comparable implementations is available",
+      "but vendor pricing has not been finalized"
+    ],
+    "when": ["the investment committee requests a business case"],
+    "then": [
+      "a quantified ROI projection exists with 3-year horizon",
+      "risk factors are documented with mitigation strategies"
+    ]
+  },
+  "examples": [
+    {
+      "name": "Greenfield platform investment",
+      "description": "ROI analysis when no prior platform exists.",
+      "given": ["no existing platform exists"],
+      "when": ["the CTO approves the platform initiative"],
+      "then": ["TCO comparison includes build vs buy analysis"]
+    },
+    {
+      "name": "Platform migration",
+      "description": "ROI analysis comparing migration costs against ongoing maintenance.",
+      "given": ["a legacy platform exists with known maintenance costs"],
+      "when": ["the annual budget cycle begins"],
+      "then": ["migration cost is quantified against maintenance savings"]
+    }
+  ]
+}
+```
 
 ### 8.2 Organizational Roles and Persona Definitions
 

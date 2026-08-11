@@ -15,11 +15,11 @@ Both forms use the same layout constants and produce visually consistent output.
 
 The diagram renders directly from the `PracticeBaseline` type's structural properties:
 
-- **`alphas`** — the array of Alpha objects, each with `name`, `contributesTo` (parent reference), `focusName` (grouping key), `seq` (sort order within focus), and optional `assetNames` (icon references).
+- **`alphas`** — the array of Alpha objects, each with `name`, `contributesTo` (parent reference), `mapsTo` (variant mapping reference), `focusName` (grouping key), `seq` (sort order within focus), and optional `assetNames` (icon references).
 - **`focuses`** — the array of Focus objects providing names, descriptions, and ordering for the grouping sections.
 - **`assets`** — the array of Asset objects for resolving icon references on cards.
 
-The `contributesTo` field on Alpha is the structural backbone of the diagram — it defines the parent-child tree that the layout algorithm renders. Alphas where `contributesTo` is absent or null are root alphas; all others are positioned as children of the alpha they name.
+The `contributesTo` and `mapsTo` fields on Alpha are the structural backbone of the diagram — they define the parent-child tree that the layout algorithm renders. Alphas where both `contributesTo` and `mapsTo` are absent or null are root alphas; all others are positioned as children of the alpha they name. The two fields are mutually exclusive on any given alpha: `contributesTo` indicates a sub-alpha relationship, while `mapsTo` indicates a variant mapping relationship (same state progression, different name/description).
 
 ## Visual Structure
 
@@ -58,11 +58,13 @@ Focus groups are ordered by the `seq` (or declaration order) of the correspondin
 
 ### Alpha Trees
 
-Within each focus group, root alphas (those with no `contributesTo`) are rendered as independent trees laid out horizontally. Each tree consists of:
+Within each focus group, root alphas (those with neither `contributesTo` nor `mapsTo`) are rendered as independent trees laid out horizontally. Each tree consists of:
 
 1. A **root card** at the top
 2. **Child cards** indented below, connected by tree lines
 3. **Grandchild cards** further indented, recursively
+
+Children of a parent alpha are collected from two sources: alphas whose `mapsTo` names the parent, and alphas whose `contributesTo` names the parent. **MapsTo children are sorted first**, appearing above contributesTo children within the same parent. This ordering is applied at every level of the tree, not only at the first level below the root.
 
 Trees within a focus group wrap onto new rows when they exceed the available width.
 
@@ -96,12 +98,15 @@ In the interactive form, cards use `foreignObject` to embed HTML content (suppor
 | `ROW_GAP` | 24px | Vertical gap between wrapped rows of trees |
 | `COLUMN_GAP` | 24px | Horizontal gap between columns within a multi-column tree |
 | `MULTI_COL_THRESHOLD` | 420px | Height threshold (7 × card slot) before multi-column layout activates |
+| `MAPS_TO_BAR_WIDTH` | 6px | Width of the vertical bar connector for `mapsTo` relationships |
+| `CONTRIBUTES_TO_COLOR` | `rgba(102, 102, 102, 0.8)` | Connector line colour for `contributesTo` relationships (grey) |
+| `MAPS_TO_COLOR` | `rgba(0, 102, 204, 0.6)` | Fill colour for the `mapsTo` bar connector (blue) |
 
 ### Tree Building
 
-For each root alpha, the algorithm builds a tree by recursively collecting children (alphas whose `contributesTo` matches the parent's name):
+For each root alpha, the algorithm builds a tree by recursively collecting children (alphas whose `mapsTo` or `contributesTo` matches the parent's name):
 
-1. **Filter children** of the current parent from the full alpha array.
+1. **Filter children** of the current parent from the full alpha array. Collect `mapsTo` children first, then `contributesTo` children, concatenating both lists so that mapsTo children appear before contributesTo children.
 2. **Sort** children by `seq` within their focus group (sorting happens at the focus level before tree building).
 3. For each child:
    - Assign `x = parentX + INDENT` and `y = currentY`.
@@ -132,14 +137,30 @@ The interactive form uses CSS flexbox with `flex-wrap: wrap` and a 24px gap, pro
 
 ## Connector Lines
 
-Parent-child relationships are rendered as orthogonal connector lines:
+Parent-child relationships are rendered using two distinct visual styles depending on the relationship type:
 
-1. **Vertical trunk.** A single vertical line extends from the bottom edge of the parent card (`parentY + CARD_HEIGHT`) down to the vertical centre of the last child card. This line is drawn once, on the first child's iteration.
-2. **Horizontal branch.** For each child, a horizontal line extends from the trunk's x-position (`parentX + LINE_OFFSET`) to the child card's left edge (`childX`), at the child's vertical centre (`childY + CARD_HEIGHT / 2`).
+### ContributesTo Connectors (Orthogonal Lines)
 
-Line style: 3px stroke, `rgba(102, 102, 102, 0.8)`.
+`contributesTo` children use the existing orthogonal line connector:
 
-The connector lines are rendered as a separate pass before the cards, ensuring lines appear behind cards in the SVG paint order.
+1. **Vertical trunk.** A 3px grey (`rgba(102, 102, 102, 0.8)`) line extending from the parent card's bottom edge (`parentY + CARD_HEIGHT`) down to the vertical centre of the last `contributesTo` child.
+2. **Horizontal branches.** For each `contributesTo` child, a 3px grey line from the trunk's x-position (`parentX + LINE_OFFSET`) to the child card's left edge, at the child's vertical centre.
+
+### MapsTo Connectors (Vertical Bar)
+
+`mapsTo` children use a thick vertical rectangular bar instead of line connectors, creating a stronger visual bond:
+
+- **Shape:** A filled `<rect>` with `MAPS_TO_BAR_WIDTH` (6px) width and 2px corner radius.
+- **Colour:** `rgba(0, 102, 204, 0.6)` (blue), constant `MAPS_TO_COLOR`.
+- **X-position:** Immediately to the left of the child cards (`childX - MAPS_TO_BAR_WIDTH`), which places it at `parentX + INDENT - 6`. This avoids the `LINE_OFFSET` position used by `contributesTo` trunk lines — the two connector types occupy different horizontal positions and do not overlap.
+- **Y-span:** From the parent card's bottom edge (`parentY + CARD_HEIGHT`) to the bottom edge of the last `mapsTo` child card (`lastMapsToChild.y + CARD_HEIGHT`).
+- **No horizontal branches.** The bar alone indicates the relationship; no individual lines connect it to each child card.
+
+### Mixed Children
+
+When a parent has both `mapsTo` and `contributesTo` children, both connector types are rendered independently. Since `mapsTo` children are sorted first (above `contributesTo` children), and the bar and trunk occupy different x-positions, the two connector types do not interfere visually.
+
+The connector lines and bar are rendered as a separate pass before the cards, ensuring they appear behind cards in the SVG paint order.
 
 ## Score Colouring (Interactive Only)
 
@@ -189,10 +210,10 @@ The static SVG export (`generateConcernsOverviewSvg`) produces a self-contained 
 
 Both implementations must produce the same visual layout. The shared invariants are:
 
-1. Same layout constants (card dimensions, gaps, indents, thresholds)
-2. Same tree-building algorithm (recursive, depth-first, `contributesTo`-based)
+1. Same layout constants (card dimensions, gaps, indents, thresholds, connector colours)
+2. Same tree-building algorithm (recursive, depth-first, collecting `mapsTo` then `contributesTo` children)
 3. Same multi-column split logic (prefix-sum balancing, 70% acceptance, max 3 columns)
-4. Same connector line geometry (vertical trunk + horizontal branches)
+4. Same connector geometry: orthogonal lines for `contributesTo`, vertical bar for `mapsTo`
 5. Same focus group ordering and partitioning
 
 Differences between the two forms are limited to:
@@ -210,3 +231,4 @@ Differences between the two forms are limited to:
 
 1. **Score colouring in static export.** Should the static export include score colouring? This would require either pre-computing scores at export time or accepting that static scores become stale.
 2. **Accessibility.** The interactive form uses `cursor: pointer` but does not provide keyboard navigation or ARIA labels for the SVG cards. Should the cards be rendered as focusable elements with `role="button"`?
+3. **MapsTo card styling.** Currently, mapsTo and contributesTo children use identical card styling (same dimensions, fill, border). Should mapsTo children have a distinct card appearance (e.g., a subtle blue tint or dashed border) to reinforce the connector colour distinction?

@@ -57,6 +57,7 @@ class PracticeValidator:
         self.dep_competencies = set()
         self.dep_competency_levels = defaultdict(set)
         self.dep_activity_spaces = set()
+        self.dep_focuses = set()
 
         self._index_dependencies()
 
@@ -72,27 +73,66 @@ class PracticeValidator:
             print(f"ERROR: Invalid JSON in {file_path}: {e}", file=sys.stderr)
             sys.exit(1)
 
+    def _resolve_baseline_chain(self) -> List[Dict]:
+        """Walk the baseline inheritance chain and return all baselines (child-first)."""
+        chain = [self.baseline]
+        visited = {self.baseline.get('name')}
+        current = self.baseline
+        resolved_parent = self.baseline_file.resolve().parent
+        search_dirs = [resolved_parent]
+        project_root = resolved_parent
+        while project_root != project_root.parent:
+            if (project_root / 'deps').is_dir() or (project_root / 'baselines').is_dir():
+                search_dirs.extend([project_root / 'deps', project_root / 'baselines'])
+                break
+            project_root = project_root.parent
+
+        while True:
+            parent_name = current.get('baselinePracticeName')
+            if not parent_name or parent_name in visited:
+                break
+            visited.add(parent_name)
+            parent = self._find_baseline_by_name(parent_name, search_dirs)
+            if not parent:
+                print(f"WARNING: Could not find parent baseline '{parent_name}' in search path", file=sys.stderr)
+                break
+            chain.append(parent)
+            current = parent
+        return chain
+
+    def _find_baseline_by_name(self, name: str, search_dirs: List[Path]) -> Optional[Dict]:
+        """Search for a baseline JSON file by its document name."""
+        for d in search_dirs:
+            if not d.is_dir():
+                continue
+            for f in d.rglob('*.json'):
+                try:
+                    with open(f, 'r', encoding='utf-8') as fh:
+                        data = json.load(fh)
+                    if data.get('name') == name and data.get('kind') == 'practiceBaseline':
+                        return data
+                except (json.JSONDecodeError, OSError, KeyError):
+                    continue
+        return None
+
     def _index_baseline(self):
-        """Build indexes of baseline elements for validation"""
-        # Index focuses
-        for focus in self.baseline.get('focuses', []):
-            self.baseline_focuses.add(focus['name'])
+        """Build indexes of baseline elements, walking the inheritance chain."""
+        chain = self._resolve_baseline_chain()
+        for baseline in reversed(chain):
+            for focus in baseline.get('focuses', []):
+                self.baseline_focuses.add(focus['name'])
 
-        # Index alphas and their states
-        for alpha in self.baseline.get('alphas', []):
-            alpha_name = alpha['name']
-            self.baseline_alphas[alpha_name] = alpha
+            for alpha in baseline.get('alphas', []):
+                alpha_name = alpha['name']
+                self.baseline_alphas[alpha_name] = alpha
+                for state in alpha.get('states', []):
+                    self.baseline_alpha_states[alpha_name].add(state['name'])
 
-            for state in alpha.get('states', []):
-                self.baseline_alpha_states[alpha_name].add(state['name'])
+            for comp in baseline.get('competencies', []):
+                self.baseline_competencies.add(comp['name'])
 
-        # Index competencies
-        for comp in self.baseline.get('competencies', []):
-            self.baseline_competencies.add(comp['name'])
-
-        # Index activity spaces
-        for asp in self.baseline.get('activitySpaces', []):
-            self.baseline_activity_spaces.add(asp['name'])
+            for asp in baseline.get('activitySpaces', []):
+                self.baseline_activity_spaces.add(asp['name'])
 
     def _index_dependencies(self):
         """Build indexes of dependency practice elements for validation"""
@@ -113,6 +153,10 @@ class PracticeValidator:
             # Index activity spaces
             for asp in dep.get('activitySpaces', []):
                 self.dep_activity_spaces.add(asp['name'])
+
+            # Index focuses (from dependency practices/baselines that define focuses)
+            for focus in dep.get('focuses', []):
+                self.dep_focuses.add(focus['name'])
 
     def validate_schema(self) -> bool:
         """Validate against JSON Schema"""
@@ -240,14 +284,20 @@ class PracticeValidator:
             # Validate activity space references
             has_errors |= self._validate_activity_spaces(practice, prefix)
 
+            # Validate practice element aliases
+            has_errors |= self._validate_aliases(practice, prefix)
+
         return not has_errors
 
     def _validate_competencies(self, practice: Dict, prefix: str) -> bool:
-        """Validate competency name references against baseline and dependency practices"""
+        """Validate competency name references against baseline, dependency, and practice-defined competencies"""
         has_errors = False
 
-        # Merge baseline + dependency competencies for validation
+        # Merge baseline + dependency + practice-defined competencies for validation
         all_competencies = self.baseline_competencies | self.dep_competencies
+        # Include competencies defined in the practice itself (schema supports Practice.competencies)
+        for comp in practice.get('competencies', []):
+            all_competencies.add(comp['name'])
 
         # Check activities
         for idx, activity in enumerate(practice.get('activities', [])):
@@ -334,28 +384,27 @@ class PracticeValidator:
         # Use provided allowed_alphas set (includes baseline + practice-defined)
         valid_alphas = allowed_alphas
 
-        # Check new alphas have contributesTo (or are from practice dependencies)
+        # Check new alphas have contributesTo or mapsTo (or are from practice dependencies)
         for idx, alpha in enumerate(practice.get('alphas', [])):
             alpha_name = alpha['name']
             path = f"{prefix}.alphas[{idx}]" if prefix else f"alphas[{idx}]"
             contributes_to = alpha.get('contributesTo')
+            maps_to = alpha.get('mapsTo')
 
-            # If not a baseline or dependency practice alpha, must have contributesTo
+            # If not a baseline or dependency practice alpha, must have contributesTo or mapsTo
             if alpha_name not in self.baseline_alphas and alpha_name not in self.dep_alphas:
-                if not contributes_to:
+                if not contributes_to and not maps_to:
                     self.errors.append({
                         "category": "baseline",
                         "severity": "error",
-                        "path": f"{path}.contributesTo",
-                        "issue": f"New alpha '{alpha_name}' missing contributesTo (floating alpha)",
-                        "expected": "Name of baseline alpha this extends (or practice-local alpha)",
+                        "path": f"{path}",
+                        "issue": f"New alpha '{alpha_name}' missing contributesTo or mapsTo (floating alpha)",
+                        "expected": "contributesTo or mapsTo pointing to a parent alpha",
                         "actual": None,
-                        "suggestion": f"Add contributesTo pointing to one of: {sorted(self.baseline_alphas.keys())} or practice-local alpha defined earlier"
+                        "suggestion": f"Add contributesTo (specialization) or mapsTo (variant mapping) pointing to one of: {sorted(self.baseline_alphas.keys())} or practice-local alpha defined earlier"
                     })
                     has_errors = True
-                elif contributes_to not in self.baseline_alphas and contributes_to not in valid_alphas:
-                    # contributesTo references unknown alpha (not baseline, not in this practice/method)
-                    # If practice has dependencies, allow reference (may be from external practice)
+                if contributes_to and contributes_to not in self.baseline_alphas and contributes_to not in valid_alphas:
                     if not has_cross_practice_deps:
                         self.errors.append({
                             "category": "baseline",
@@ -364,6 +413,18 @@ class PracticeValidator:
                             "issue": f"contributesTo references unknown alpha: '{contributes_to}'",
                             "expected": f"One of: {sorted(self.baseline_alphas.keys())} or practice-local alpha",
                             "actual": contributes_to,
+                            "suggestion": f"Use exact baseline alpha name (case-sensitive) or add to practiceDependencyNames if from external practice"
+                        })
+                        has_errors = True
+                if maps_to and maps_to not in self.baseline_alphas and maps_to not in valid_alphas:
+                    if not has_cross_practice_deps:
+                        self.errors.append({
+                            "category": "baseline",
+                            "severity": "error",
+                            "path": f"{path}.mapsTo",
+                            "issue": f"mapsTo references unknown alpha: '{maps_to}'",
+                            "expected": f"One of: {sorted(self.baseline_alphas.keys())} or practice-local alpha",
+                            "actual": maps_to,
                             "suggestion": f"Use exact baseline alpha name (case-sensitive) or add to practiceDependencyNames if from external practice"
                         })
                         has_errors = True
@@ -474,38 +535,41 @@ class PracticeValidator:
         return has_errors
 
     def _validate_focuses(self, practice: Dict, prefix: str) -> bool:
-        """Validate focus references"""
+        """Validate focus references against baseline and dependency focuses"""
         has_errors = False
+
+        # Merge baseline + dependency focuses for validation
+        all_focuses = self.baseline_focuses | self.dep_focuses
 
         # Check alpha focus references
         for idx, alpha in enumerate(practice.get('alphas', [])):
             focus_name = alpha.get('focusName')
-            if focus_name and focus_name not in self.baseline_focuses:
+            if focus_name and focus_name not in all_focuses:
                 path = f"{prefix}.alphas[{idx}].focusName" if prefix else f"alphas[{idx}].focusName"
                 self.errors.append({
                     "category": "baseline",
                     "severity": "error",
                     "path": path,
                     "issue": f"Unknown focus: '{focus_name}'",
-                    "expected": f"One of: {sorted(self.baseline_focuses)}",
+                    "expected": f"One of: {sorted(all_focuses)}",
                     "actual": focus_name,
-                    "suggestion": "Use: 'Value', 'Solution', or 'Endeavor'"
+                    "suggestion": f"Use one of: {sorted(all_focuses)}"
                 })
                 has_errors = True
 
         # Check activity focus references
         for idx, activity in enumerate(practice.get('activities', [])):
             focus_name = activity.get('focusName')
-            if focus_name and focus_name not in self.baseline_focuses:
+            if focus_name and focus_name not in all_focuses:
                 path = f"{prefix}.activities[{idx}].focusName" if prefix else f"activities[{idx}].focusName"
                 self.errors.append({
                     "category": "baseline",
                     "severity": "error",
                     "path": path,
                     "issue": f"Unknown focus: '{focus_name}'",
-                    "expected": f"One of: {sorted(self.baseline_focuses)}",
+                    "expected": f"One of: {sorted(all_focuses)}",
                     "actual": focus_name,
-                    "suggestion": "Use: 'Value', 'Solution', or 'Endeavor'"
+                    "suggestion": f"Use one of: {sorted(all_focuses)}"
                 })
                 has_errors = True
 
@@ -560,6 +624,118 @@ class PracticeValidator:
 
         return has_errors
 
+    def _validate_aliases(self, practice: Dict, prefix: str) -> bool:
+        """Validate practiceElementAliases: targets exist, no duplicates, no dependency collisions"""
+        has_errors = False
+        aliases = practice.get('practiceElementAliases', [])
+        if not aliases:
+            return False
+
+        # Build index of practice-defined elements by type
+        element_index = defaultdict(set)
+        for alpha in practice.get('alphas', []):
+            element_index['Alpha'].add(alpha['name'])
+        for wp in practice.get('workProducts', []):
+            element_index['WorkProduct'].add(wp['name'])
+        for act in practice.get('activities', []):
+            element_index['Activity'].add(act['name'])
+        for persona in practice.get('personas', []):
+            element_index['Persona'].add(persona['name'])
+        for pattern in practice.get('patterns', []):
+            element_index['Pattern'].add(pattern['name'])
+        for team in practice.get('teams', []):
+            element_index['Team'].add(team['name'])
+
+        # Include baseline and dependency elements
+        for alpha_name in self.baseline_alphas:
+            element_index['Alpha'].add(alpha_name)
+        for alpha_name in self.dep_alphas:
+            element_index['Alpha'].add(alpha_name)
+        for comp_name in self.baseline_competencies | self.dep_competencies:
+            element_index['Competency'].add(comp_name)
+
+        # Also index dependency-sourced elements by type
+        for dep in self.dependencies:
+            for wp in dep.get('workProducts', []):
+                element_index['WorkProduct'].add(wp['name'])
+            for act in dep.get('activities', []):
+                element_index['Activity'].add(act['name'])
+            for persona in dep.get('personas', []):
+                element_index['Persona'].add(persona['name'])
+            for pattern in dep.get('patterns', []):
+                element_index['Pattern'].add(pattern['name'])
+            for team in dep.get('teams', []):
+                element_index['Team'].add(team['name'])
+
+        # Build dependency alias index for collision detection
+        dep_aliases = {}
+        for dep in self.dependencies:
+            for a in dep.get('practiceElementAliases', []):
+                dep_aliases[a.get('aliasName', '')] = a.get('practiceElementName', '')
+
+        seen_alias_names = {}
+        for idx, alias in enumerate(aliases):
+            path = f"{prefix}.practiceElementAliases[{idx}]" if prefix else f"practiceElementAliases[{idx}]"
+            alias_name = alias.get('aliasName', '')
+            element_name = alias.get('practiceElementName', '')
+            element_type = alias.get('practiceElementType', '')
+
+            # Check alias target references a valid element of the declared type
+            if element_type and element_name:
+                if element_type in element_index and element_name not in element_index[element_type]:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{path}.practiceElementName",
+                        "issue": f"Alias references undefined {element_type}: '{element_name}'",
+                        "expected": f"One of: {sorted(element_index.get(element_type, set()))}",
+                        "actual": element_name,
+                        "suggestion": f"Correct the element name or define the {element_type}"
+                    })
+                    has_errors = True
+
+            # Check for duplicate alias names within this practice
+            if alias_name in seen_alias_names:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{path}.aliasName",
+                    "issue": f"Duplicate alias name: '{alias_name}'",
+                    "expected": "Unique alias names within a practice",
+                    "actual": f"'{alias_name}' already defined for '{seen_alias_names[alias_name]}'",
+                    "suggestion": "Remove the duplicate or differentiate the alias name"
+                })
+                has_errors = True
+            else:
+                seen_alias_names[alias_name] = element_name
+
+            # Check for collisions with dependency practice aliases
+            if alias_name in dep_aliases:
+                dep_target = dep_aliases[alias_name]
+                if dep_target != element_name:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{path}.aliasName",
+                        "issue": f"Alias name '{alias_name}' collides with dependency alias (different target)",
+                        "expected": f"Dependency maps '{alias_name}' -> '{dep_target}'",
+                        "actual": f"Practice maps '{alias_name}' -> '{element_name}'",
+                        "suggestion": f"Use a differentiated alias name (e.g. prefix with practice domain)"
+                    })
+                    has_errors = True
+                else:
+                    self.warnings.append({
+                        "category": "redundancy",
+                        "severity": "warning",
+                        "path": f"{path}.aliasName",
+                        "issue": f"Alias '{alias_name}' -> '{element_name}' duplicates a dependency practice alias",
+                        "expected": "Aliases inherited from dependency practices do not need re-declaration",
+                        "actual": f"Same alias defined in both this practice and a dependency",
+                        "suggestion": "Remove this alias — it is inherited from the dependency practice"
+                    })
+
+        return has_errors
+
     def validate_internal_integrity(self) -> bool:
         """Validate internal cross-references within practice/method"""
         has_errors = False
@@ -592,12 +768,16 @@ class PracticeValidator:
             for state in alpha.get('states', []):
                 all_alpha_states[alpha['name']].add(state['name'])
 
-        # Index dependency practice elements
+        # Index dependency practice elements (alphas, states, work products, activities)
         for dep in self.dependencies:
             for alpha in dep.get('alphas', []):
                 all_alphas.add(alpha['name'])
                 for state in alpha.get('states', []):
                     all_alpha_states[alpha['name']].add(state['name'])
+            for wp in dep.get('workProducts', []):
+                all_work_products.add(wp['name'])
+            for activity in dep.get('activities', []):
+                all_activities.add(activity['name'])
 
         # Index practice-defined elements
         for practice in practices:
@@ -643,6 +823,26 @@ class PracticeValidator:
 
                 for view_idx, view in enumerate(pattern.get('patternViews', [])):
                     view_path = f"{pattern_path}.patternViews[{view_idx}]"
+                    view_name = view.get('name', f'view[{view_idx}]')
+
+                    # Check for ambiguous alpha targets (same alpha, multiple states)
+                    alpha_state_map = defaultdict(list)
+                    for as_entry in view.get('alphaStates', []):
+                        if isinstance(as_entry, dict):
+                            alpha_state_map[as_entry.get('alphaName', '')].append(
+                                as_entry.get('stateName', ''))
+                    for alpha_name, states in alpha_state_map.items():
+                        if len(states) > 1:
+                            self.errors.append({
+                                "category": "integrity",
+                                "severity": "error",
+                                "path": f"{view_path}.alphaStates",
+                                "issue": f"Ambiguous pattern view: alpha '{alpha_name}' targets {len(states)} states in '{view_name}'",
+                                "expected": "At most one target state per alpha per patternView",
+                                "actual": f"{alpha_name} -> {states}",
+                                "suggestion": f"Split '{view_name}' into sequential sub-views so each advances '{alpha_name}' by one state"
+                            })
+                            has_errors = True
 
                     # Check activity references
                     for act_idx, act_name in enumerate(view.get('activities', [])):
@@ -849,6 +1049,229 @@ class PracticeValidator:
 
         return False
 
+    def _validate_background(self, background: Dict, path: str,
+                              all_alphas: set, all_alpha_states: Dict,
+                              all_work_products: set, all_wp_lods: Dict,
+                              all_alpha_instance_names: set, all_wp_instance_names: set,
+                              has_cross_practice_deps: bool,
+                              owner_alpha_name: str = None,
+                              owner_wp_name: str = None) -> bool:
+        """Validate cross-references within a Background object"""
+        has_errors = False
+
+        for idx, contrib in enumerate(background.get('alphaStates', [])):
+            alpha_name = contrib.get('alphaName')
+            state_name = contrib.get('stateName')
+            ref_path = f"{path}.background.alphaStates[{idx}]"
+
+            if alpha_name and owner_alpha_name and alpha_name == owner_alpha_name:
+                self.warnings.append({
+                    "category": "redundancy",
+                    "severity": "warning",
+                    "path": f"{ref_path}.alphaName",
+                    "issue": f"Background references previous state of the same alpha '{alpha_name}' — sequential progression is implicit in seq ordering",
+                    "expected": "Cross-alpha dependencies only",
+                    "actual": alpha_name,
+                    "suggestion": f"Remove self-referencing alphaState entry for '{alpha_name}'"
+                })
+
+            if alpha_name and alpha_name not in all_alphas and not has_cross_practice_deps:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{ref_path}.alphaName",
+                    "issue": f"Background references undefined alpha: '{alpha_name}'",
+                    "expected": f"One of: {sorted(all_alphas)}",
+                    "actual": alpha_name,
+                    "suggestion": "Define alpha or correct reference"
+                })
+                has_errors = True
+
+            if alpha_name and state_name and alpha_name in all_alpha_states:
+                if state_name not in all_alpha_states.get(alpha_name, set()):
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{ref_path}.stateName",
+                        "issue": f"Background references undefined state '{state_name}' for alpha '{alpha_name}'",
+                        "expected": f"One of: {sorted(all_alpha_states.get(alpha_name, set()))}",
+                        "actual": state_name,
+                        "suggestion": f"Check state names defined in {alpha_name} alpha"
+                    })
+                    has_errors = True
+
+        for idx, contrib in enumerate(background.get('workProductLevels', [])):
+            wp_name = contrib.get('workProductName')
+            lod_name = contrib.get('levelOfDetailName')
+            ref_path = f"{path}.background.workProductLevels[{idx}]"
+
+            if wp_name and owner_wp_name and wp_name == owner_wp_name:
+                self.warnings.append({
+                    "category": "redundancy",
+                    "severity": "warning",
+                    "path": f"{ref_path}.workProductName",
+                    "issue": f"Background references previous LOD of the same work product '{wp_name}' — sequential progression is implicit in seq ordering",
+                    "expected": "Cross-work-product dependencies only",
+                    "actual": wp_name,
+                    "suggestion": f"Remove self-referencing workProductLevel entry for '{wp_name}'"
+                })
+
+            if wp_name and wp_name not in all_work_products:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{ref_path}.workProductName",
+                    "issue": f"Background references undefined work product: '{wp_name}'",
+                    "expected": f"One of: {sorted(all_work_products)}",
+                    "actual": wp_name,
+                    "suggestion": "Define work product or correct reference"
+                })
+                has_errors = True
+
+            if wp_name and lod_name and wp_name in all_wp_lods:
+                if lod_name not in all_wp_lods.get(wp_name, set()):
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{ref_path}.levelOfDetailName",
+                        "issue": f"Background references undefined level '{lod_name}' for work product '{wp_name}'",
+                        "expected": f"One of: {sorted(all_wp_lods.get(wp_name, set()))}",
+                        "actual": lod_name,
+                        "suggestion": f"Check level names defined in {wp_name} work product"
+                    })
+                    has_errors = True
+
+        for idx, ref in enumerate(background.get('alphaInstanceStates', [])):
+            inst_name = ref.get('instanceName')
+            ref_path = f"{path}.background.alphaInstanceStates[{idx}]"
+
+            if inst_name and inst_name not in all_alpha_instance_names and not has_cross_practice_deps:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{ref_path}.instanceName",
+                    "issue": f"Background references undefined alpha instance: '{inst_name}'",
+                    "expected": f"One of: {sorted(all_alpha_instance_names)}",
+                    "actual": inst_name,
+                    "suggestion": "Define alpha instance name or correct reference"
+                })
+                has_errors = True
+
+        for idx, ref in enumerate(background.get('workProductInstanceLevels', [])):
+            inst_name = ref.get('instanceName')
+            ref_path = f"{path}.background.workProductInstanceLevels[{idx}]"
+
+            if inst_name and inst_name not in all_wp_instance_names and not has_cross_practice_deps:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{ref_path}.instanceName",
+                    "issue": f"Background references undefined work product instance: '{inst_name}'",
+                    "expected": f"One of: {sorted(all_wp_instance_names)}",
+                    "actual": inst_name,
+                    "suggestion": "Define work product instance name or correct reference"
+                })
+                has_errors = True
+
+        return has_errors
+
+    def validate_backgrounds(self) -> bool:
+        """Validate all background cross-references across the practice/method"""
+        has_errors = False
+
+        is_method = 'practices' in self.practice or 'baselinePractice' in self.practice
+        practices = self.practice.get('practices', []) if is_method else [self.practice]
+
+        all_alphas = set(self.baseline_alphas.keys()) | set(self.dep_alphas.keys())
+        all_alpha_states = defaultdict(set)
+        all_work_products = set()
+        all_wp_lods = defaultdict(set)
+        all_alpha_instance_names = set()
+        all_wp_instance_names = set()
+
+        for alpha_name in self.baseline_alpha_states:
+            all_alpha_states[alpha_name].update(self.baseline_alpha_states[alpha_name])
+        for alpha_name in self.dep_alpha_states:
+            all_alpha_states[alpha_name].update(self.dep_alpha_states[alpha_name])
+
+        # Index dependency practice elements for background validation
+        for dep in self.dependencies:
+            for wp in dep.get('workProducts', []):
+                all_work_products.add(wp['name'])
+                for lod in wp.get('levelsOfDetail', []):
+                    all_wp_lods[wp['name']].add(lod['name'])
+
+        for practice in practices:
+            for alpha in practice.get('alphas', []):
+                all_alphas.add(alpha['name'])
+                for state in alpha.get('states', []):
+                    all_alpha_states[alpha['name']].add(state['name'])
+            for wp in practice.get('workProducts', []):
+                all_work_products.add(wp['name'])
+                for lod in wp.get('levelsOfDetail', []):
+                    all_wp_lods[wp['name']].add(lod['name'])
+            for ain in practice.get('alphaInstances', []):
+                all_alpha_instance_names.add(ain['name'])
+            for wpin in practice.get('workProductInstances', []):
+                all_wp_instance_names.add(wpin['name'])
+
+        for practice_idx, practice in enumerate(practices):
+            prefix = f"practices[{practice_idx}]" if is_method else ""
+            practice_name = practice.get('name')
+            has_deps = bool(practice.get('practiceDependencyNames', []))
+
+            for a_idx, alpha in enumerate(practice.get('alphas', [])):
+                a_path = f"{prefix}.alphas[{a_idx}]" if prefix else f"alphas[{a_idx}]"
+                for s_idx, state in enumerate(alpha.get('states', [])):
+                    bg = state.get('background')
+                    if bg:
+                        s_path = f"{a_path}.states[{s_idx}]"
+                        has_errors |= self._validate_background(
+                            bg, s_path, all_alphas, all_alpha_states,
+                            all_work_products, all_wp_lods,
+                            all_alpha_instance_names, all_wp_instance_names, has_deps,
+                            owner_alpha_name=alpha.get('name'))
+
+            for wp_idx, wp in enumerate(practice.get('workProducts', [])):
+                wp_path = f"{prefix}.workProducts[{wp_idx}]" if prefix else f"workProducts[{wp_idx}]"
+                for lod_idx, lod in enumerate(wp.get('levelsOfDetail', [])):
+                    bg = lod.get('background')
+                    if bg:
+                        lod_path = f"{wp_path}.levelsOfDetail[{lod_idx}]"
+                        has_errors |= self._validate_background(
+                            bg, lod_path, all_alphas, all_alpha_states,
+                            all_work_products, all_wp_lods,
+                            all_alpha_instance_names, all_wp_instance_names, has_deps,
+                            owner_wp_name=wp.get('name'))
+
+            for asp_idx, asp in enumerate(practice.get('activitySpaces', [])):
+                asp_path = f"{prefix}.activitySpaces[{asp_idx}]" if prefix else f"activitySpaces[{asp_idx}]"
+                bg = asp.get('background')
+                if bg:
+                    has_errors |= self._validate_background(
+                        bg, asp_path, all_alphas, all_alpha_states,
+                        all_work_products, all_wp_lods,
+                        all_alpha_instance_names, all_wp_instance_names, has_deps)
+                for act_idx, act in enumerate(asp.get('activities', [])):
+                    act_bg = act.get('background')
+                    if act_bg:
+                        act_path = f"{asp_path}.activities[{act_idx}]"
+                        has_errors |= self._validate_background(
+                            act_bg, act_path, all_alphas, all_alpha_states,
+                            all_work_products, all_wp_lods,
+                            all_alpha_instance_names, all_wp_instance_names, has_deps)
+
+            for act_idx, act in enumerate(practice.get('activities', [])):
+                act_path = f"{prefix}.activities[{act_idx}]" if prefix else f"activities[{act_idx}]"
+                act_bg = act.get('background')
+                if act_bg:
+                    has_errors |= self._validate_background(
+                        act_bg, act_path, all_alphas, all_alpha_states,
+                        all_work_products, all_wp_lods,
+                        all_alpha_instance_names, all_wp_instance_names, has_deps)
+
+        return not has_errors
+
     def validate_redeclaration_vs_new(self) -> bool:
         """
         Validate that alphas are correctly classified as redeclaration vs new.
@@ -869,8 +1292,24 @@ class PracticeValidator:
             for alpha_idx, alpha in enumerate(practice.get('alphas', [])):
                 alpha_name = alpha.get('name')
                 has_contributes_to = 'contributesTo' in alpha
+                has_maps_to = 'mapsTo' in alpha
 
                 path = f"{prefix}.alphas[{alpha_idx}]" if prefix else f"alphas[{alpha_idx}]"
+
+                # Mutual exclusivity: contributesTo and mapsTo cannot coexist
+                if has_contributes_to and has_maps_to:
+                    self.errors.append({
+                        'category': 'baseline',
+                        'severity': 'error',
+                        'practice': practice_name,
+                        'path': path,
+                        'alpha': alpha_name,
+                        'issue': f'Alpha "{alpha_name}" has both contributesTo and mapsTo (mutually exclusive)',
+                        'expected': 'Either contributesTo OR mapsTo, not both',
+                        'actual': f'contributesTo: "{alpha.get("contributesTo")}", mapsTo: "{alpha.get("mapsTo")}"',
+                        'suggestion': 'Use contributesTo for specialization (different state progression, sub-concern). Use mapsTo for variant mapping (same state progression, IS-A relationship). Remove one.'
+                    })
+                    has_errors = True
 
                 # Check if this alpha name exactly matches a baseline alpha name
                 is_baseline_alpha = alpha_name in self.baseline_alphas
@@ -892,6 +1331,20 @@ class PracticeValidator:
                             'expected': 'No contributesTo property (baseline alphas are redeclared, not specialized)',
                             'actual': f'contributesTo: "{contributes_to}"',
                             'suggestion': f'Remove contributesTo property. "{alpha_name}" should be a REDECLARATION (enrichment) of the baseline alpha, not a new specialized alpha. Preserve baseline name, description, and state structure exactly. Only add practice-specific checklists to existing states.'
+                        })
+                        has_errors = True
+                    if has_maps_to:
+                        maps_to = alpha.get('mapsTo')
+                        self.errors.append({
+                            'category': 'baseline',
+                            'severity': 'error',
+                            'practice': practice_name,
+                            'path': path,
+                            'alpha': alpha_name,
+                            'issue': f'Alpha "{alpha_name}" exists in baseline but has mapsTo property',
+                            'expected': 'No mapsTo property (baseline alphas are redeclared, not mapped)',
+                            'actual': f'mapsTo: "{maps_to}"',
+                            'suggestion': f'Remove mapsTo property. "{alpha_name}" should be a REDECLARATION (enrichment) of the baseline alpha. Preserve baseline name, description, and state structure exactly.'
                         })
                         has_errors = True
 
@@ -925,11 +1378,9 @@ class PracticeValidator:
 
                 elif is_dep_alpha:
                     # This is a dependency practice alpha - REDECLARATION of parent practice alpha
-                    # Should NOT have contributesTo (redeclaration enriches existing alpha)
+                    # Should NOT have contributesTo or mapsTo (redeclaration enriches existing alpha)
                     dep_alpha = self.dep_alphas[alpha_name]
                     if has_contributes_to and not dep_alpha.get('contributesTo'):
-                        # Parent alpha has no contributesTo (baseline redeclaration),
-                        # so child should not add one
                         contributes_to = alpha.get('contributesTo')
                         self.errors.append({
                             'category': 'baseline',
@@ -941,6 +1392,20 @@ class PracticeValidator:
                             'expected': 'No contributesTo property (dependency practice alphas are redeclared, not specialized)',
                             'actual': f'contributesTo: "{contributes_to}"',
                             'suggestion': f'Remove contributesTo property. "{alpha_name}" should be a REDECLARATION (enrichment) of the dependency practice alpha.'
+                        })
+                        has_errors = True
+                    if has_maps_to and not dep_alpha.get('mapsTo'):
+                        maps_to = alpha.get('mapsTo')
+                        self.errors.append({
+                            'category': 'baseline',
+                            'severity': 'error',
+                            'practice': practice_name,
+                            'path': path,
+                            'alpha': alpha_name,
+                            'issue': f'Alpha "{alpha_name}" exists in dependency practice but has mapsTo property',
+                            'expected': 'No mapsTo property (dependency practice alphas are redeclared, not mapped)',
+                            'actual': f'mapsTo: "{maps_to}"',
+                            'suggestion': f'Remove mapsTo property. "{alpha_name}" should be a REDECLARATION (enrichment) of the dependency practice alpha.'
                         })
                         has_errors = True
 
@@ -972,8 +1437,8 @@ class PracticeValidator:
                         has_errors = True
 
                 else:
-                    # This is a new alpha - MUST have contributesTo
-                    if not has_contributes_to:
+                    # This is a new alpha - MUST have contributesTo or mapsTo
+                    if not has_contributes_to and not has_maps_to:
                         all_parent_alphas = sorted(set(self.baseline_alphas.keys()) | set(self.dep_alphas.keys()))
                         self.errors.append({
                             'category': 'baseline',
@@ -981,12 +1446,53 @@ class PracticeValidator:
                             'practice': practice_name,
                             'path': path,
                             'alpha': alpha_name,
-                            'issue': f'New alpha "{alpha_name}" missing contributesTo property',
-                            'expected': 'contributesTo: "<ParentAlphaName>"',
-                            'actual': 'No contributesTo property',
-                            'suggestion': f'Add contributesTo property pointing to a baseline or dependency practice alpha. All new alphas MUST contribute to a parent alpha (NO FLOATING ALPHAS). Available: {all_parent_alphas}'
+                            'issue': f'New alpha "{alpha_name}" missing contributesTo or mapsTo property',
+                            'expected': 'contributesTo: "<ParentAlphaName>" or mapsTo: "<ParentAlphaName>"',
+                            'actual': 'No contributesTo or mapsTo property',
+                            'suggestion': f'Add contributesTo (specialization with own states) or mapsTo (variant with same states) pointing to a parent alpha. NO FLOATING ALPHAS. Available: {all_parent_alphas}'
                         })
                         has_errors = True
+
+                    # mapsTo alphas MUST have identical states to their target
+                    if has_maps_to and not has_contributes_to:
+                        maps_to = alpha.get('mapsTo')
+                        target_alpha = None
+                        if maps_to in self.baseline_alphas:
+                            target_alpha = self.baseline_alphas[maps_to]
+                        elif maps_to in self.dep_alphas:
+                            target_alpha = self.dep_alphas[maps_to]
+                        else:
+                            for other_alpha in practice.get('alphas', []):
+                                if other_alpha.get('name') == maps_to:
+                                    target_alpha = other_alpha
+                                    break
+
+                        if target_alpha:
+                            target_state_names = [s['name'] for s in target_alpha.get('states', [])]
+                            practice_state_names = [s['name'] for s in alpha.get('states', [])]
+
+                            if target_state_names != practice_state_names:
+                                missing_states = set(target_state_names) - set(practice_state_names)
+                                extra_states = set(practice_state_names) - set(target_state_names)
+
+                                issue_parts = []
+                                if missing_states:
+                                    issue_parts.append(f'missing target states: {sorted(missing_states)}')
+                                if extra_states:
+                                    issue_parts.append(f'has extra states not in target: {sorted(extra_states)}')
+
+                                self.errors.append({
+                                    'category': 'baseline',
+                                    'severity': 'error',
+                                    'practice': practice_name,
+                                    'path': f'{path}.states',
+                                    'alpha': alpha_name,
+                                    'issue': f'mapsTo alpha "{alpha_name}" state mismatch with target "{maps_to}": {"; ".join(issue_parts)}',
+                                    'expected': f'Exact target states (ordered): {target_state_names}',
+                                    'actual': f'Practice states: {practice_state_names}',
+                                    'suggestion': f'mapsTo alphas MUST have identical state names and sequence as their target alpha. Use states: {target_state_names}. You can add different checklists but state names must match exactly.'
+                                })
+                                has_errors = True
 
         return not has_errors
 
@@ -1004,8 +1510,8 @@ def main():
         print("                            deps/baseline.json \\", file=sys.stderr)
         print("                            deps/language.schema.json \\", file=sys.stderr)
         print("                            practices/parent/_effective-parent.json", file=sys.stderr)
-        print("\nNote: If _effective-parent.json exists in the practice directory, it is", file=sys.stderr)
-        print("      auto-loaded as a dependency practice for validation.", file=sys.stderr)
+        print("\nNote: If _effective-parent.json or _effective-context.json exists in the", file=sys.stderr)
+        print("      practice directory, it is auto-loaded as a dependency for validation.", file=sys.stderr)
         sys.exit(1)
 
     practice_file = Path(sys.argv[1])
@@ -1015,11 +1521,12 @@ def main():
     # Collect explicit dependency practice files from additional arguments
     dependency_files = [Path(arg) for arg in sys.argv[4:]]
 
-    # Auto-discover _effective-parent.json in the practice directory
-    effective_parent = practice_file.parent / '_effective-parent.json'
-    if effective_parent.exists() and effective_parent not in dependency_files:
-        print(f"Auto-discovered dependency: {effective_parent}", file=sys.stderr)
-        dependency_files.append(effective_parent)
+    # Auto-discover dependency files in the practice directory
+    for auto_name in ('_effective-parent.json', '_effective-context.json'):
+        auto_path = practice_file.parent / auto_name
+        if auto_path.exists() and auto_path not in dependency_files:
+            print(f"Auto-discovered dependency: {auto_path}", file=sys.stderr)
+            dependency_files.append(auto_path)
 
     # Validate
     validator = PracticeValidator(practice_file, baseline_file, schema_file, dependency_files)
@@ -1036,6 +1543,9 @@ def main():
 
     print("Validating internal integrity...", file=sys.stderr)
     integrity_valid = validator.validate_internal_integrity()
+
+    print("Validating background references...", file=sys.stderr)
+    backgrounds_valid = validator.validate_backgrounds()
 
     print("Validating semantic alignment...", file=sys.stderr)
     semantic_valid = validator.validate_semantic_alignment()

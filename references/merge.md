@@ -217,7 +217,9 @@ Alphas merge by canonical name. When two alphas share the same name:
 - **States**: Merge using state-specific logic (see Section 6.2).
 - **`focusName`**: Prefers the non-implicit value. If the base has a real focus name (e.g., "Solution") and the overlay has an implicit placeholder, the base's focus name is kept. If the base has an implicit focus and the overlay provides a real one, the overlay's value is adopted.
 - **`contributesTo`**: The first non-empty value wins (base priority).
+- **`mapsTo`**: The first non-empty value wins (base priority). Mutually exclusive with `contributesTo`.
 - **`supportingAlphas`**: String arrays are unioned and deduplicated.
+- **`variants`**: Populated during post-merge finalization (see Section 7.2a).
 - **Source provenance**: The `sourcePracticeName` of the first layer to introduce the alpha is preserved (see Section 8).
 
 ### 6.2 State and Checklist Merging
@@ -375,11 +377,19 @@ Every alpha that declares a `contributesTo` relationship is automatically added 
 
 The aggregation walks all alphas, collects `contributesTo → child name` mappings, and unions them into each parent's `supportingAlphas` array (deduplicating with any explicitly declared entries).
 
+### 7.2a Variant Aggregation
+
+Every alpha that declares a `mapsTo` relationship is automatically added as a full Alpha object to the target (parent) alpha's `variants` array. This ensures that the parent alpha can discover all its variant types for display purposes without requiring explicit `variants` declarations.
+
+The aggregation walks all alphas, collects `mapsTo → variant alpha` mappings, and appends the full variant Alpha objects into each parent's `variants` array (deduplicating by name).
+
+Unlike `supportingAlphas` (populated from `contributesTo`), `variants` does NOT participate in state rollup calculations. A variant is a 1:1 type equivalence — it IS the parent, not a sub-concern feeding into the parent. Variant state is an alternative view of the parent's state progression, not an input to it. UIs and renderers use the `variants` array to present related types within the parent alpha's context.
+
 ### 7.3 Focus Name Propagation
 
 Two passes resolve focus names on the merged document:
 
-1. **Derived focus name propagation**: Alphas with a `contributesTo` relationship inherit their parent's `focusName` if they do not declare one explicitly. Activities inherit focus from their containing activity space or from the alphas they contribute to.
+1. **Derived focus name propagation**: Alphas with a `contributesTo` or `mapsTo` relationship inherit their parent's `focusName` if they do not declare one explicitly. Activities inherit focus from their containing activity space or from the alphas they contribute to.
 
 2. **Implicit focus placeholder finalization**: Any element still carrying an implicit/unresolved focus name after propagation is assigned a default placeholder value so that visualization tooling can render it in a catch-all swimlane.
 
@@ -393,6 +403,10 @@ This pass runs last to guarantee that no intermediate operation (cloning, spread
 
 ## 8 Source Provenance Tracking
 
+The merge algorithm tracks provenance at two levels: which **practice** and which **pattern** introduced each element.
+
+### 8.1 Practice-Level Provenance (`sourcePracticeName`)
+
 The merge algorithm tracks which practice introduced each element via a `sourcePracticeName` property. This is set on alphas, activities, activity spaces, work products, and patterns.
 
 **Provenance rules**:
@@ -402,6 +416,22 @@ The merge algorithm tracks which practice introduced each element via a `sourceP
 - When an extension practice merges with an existing element, the **existing** `sourcePracticeName` is preserved. The first practice to introduce an element retains provenance credit.
 
 This provenance information enables tooling to display element origins, show which practice contributed which content, and support practice-aware filtering in the navigator.
+
+### 8.2 Pattern-Level Provenance (`contributingPatternName`)
+
+The merge algorithm also tracks which pattern introduced or enriched each element via the `contributingPatternName` property on PracticeElement. This provides finer-grained attribution within a practice — while `sourcePracticeName` identifies the practice, `contributingPatternName` identifies the specific pattern within that practice that contributed the element.
+
+**Provenance rules**:
+
+- When an element is introduced by a pattern (e.g., an alpha instance declared within a pattern's `alphaInstanceNames`, or a work product instance within `workProductInstanceNames`), its `contributingPatternName` is set to that pattern's name.
+- When a pattern view references elements (alpha states, activities, activity spaces) that already exist in the accumulator, those elements' `contributingPatternName` is set to the pattern's name only if they do not already have one. The first pattern to reference an element retains pattern-level provenance credit.
+- Elements introduced directly by a practice or baseline (outside any pattern context) have no `contributingPatternName` — the property remains absent.
+
+**Use cases**:
+
+- **Pattern-aware navigation**: Tooling can filter or highlight elements by contributing pattern, showing which elements belong to which lifecycle orchestration.
+- **Impact analysis**: When modifying a pattern, tooling can identify all elements that trace back to it via `contributingPatternName`.
+- **Documentation closure**: Pattern-level provenance supports tracing which patterns are responsible for which content in a merged document.
 
 ---
 
@@ -461,5 +491,6 @@ When resolving a PracticeBaseline with `baselinePracticeNames`, the system creat
 | **Narratives** | Merge by name; narrative context prose concatenates |
 | **Aliases** | Deduplicate by composite key |
 | **Focus names** | Prefer non-implicit values; propagate from parent |
-| **Source provenance** | First practice to introduce element retains credit |
+| **Practice provenance** | First practice to introduce element retains credit |
+| **Pattern provenance** | First pattern to introduce or reference element retains credit |
 | **Layer ordering** | Baseline → transitive deps (post-order) → direct practices |

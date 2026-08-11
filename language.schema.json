@@ -26,7 +26,7 @@
       "description": "Common identity and prose fields for named practice artifacts. tags optional: omit, structured buckets, or legacy string[].",
       "required": ["name", "description"],
       "properties": {
-        "kind": { "type": "string", "enum": ["practice", "method", "practiceBaseline", "project", "practiceElementAlias", "workProduct", "workProductInstance", "alpha", "alphaInstance", "activitySpace", "activity", "persona", "personaGroup", "pattern", "patternView", "narrativeType", "citation", "acknowledgement"] },
+        "kind": { "type": "string", "enum": ["practice", "method", "practiceBaseline", "project", "practiceElementAlias", "workProduct", "workProductInstance", "alpha", "alphaInstance", "activitySpace", "activity", "persona", "personaGroup", "pattern", "patternView", "narrativeType", "citation", "acknowledgement", "test"] },
         "name": { "type": "string" },
         "description": { "type": "string" },
         "tags": {
@@ -69,8 +69,39 @@
           "type": "array",
           "description": "Optional array of asset references with semantic type classification (0..*). Enables multiple visual associations per element (e.g., alpha with both icon and state diagram).",
           "items": { "$ref": "#/$defs/AssetReference" }
+        },
+        "contributingPatternName": {
+          "type": "string",
+          "description": "Name of the Pattern that contributed this element during merge. Set by the merge algorithm to record pattern-level provenance — which pattern introduced or enriched this element. Complements sourcePracticeName (practice-level provenance) with finer-grained pattern-level attribution. Do not set in source practice authoring; populated automatically during composition."
         }
       }
+    },
+    "Test": {
+      "description": "A structured verification or execution scenario using the Given/When/Then pattern. Extends PracticeElement with Gherkin-inspired properties for expressing preconditions, triggers, and expected outcomes.",
+      "allOf": [
+        { "$ref": "#/$defs/PracticeElement" },
+        {
+          "type": "object",
+          "properties": {
+            "given": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Preconditions that must be true before this scenario is relevant. Each string is a natural-language prerequisite. Use 'but' prefix for negative conditions."
+            },
+            "when": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "The action(s) or event(s) being evaluated. Describes what the practitioner does or what occurs that triggers verification."
+            },
+            "then": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "The expected outcome(s) or observable result(s). Provides structured outcome decomposition complementing the test's description."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
     },
     "Checklist": {
       "allOf": [
@@ -87,6 +118,15 @@
             "evidencedBy": {
               "type": "array",
               "items": { "$ref": "#/$defs/WorkProductContribution" }
+            },
+            "test": {
+              "$ref": "#/$defs/Test",
+              "description": "The primary verification scenario for this checklist item. Adapts the Gherkin Given/When/Then concept for practitioner guidance."
+            },
+            "examples": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Test" },
+              "description": "Parameterized variations illustrating how this checklist item applies in different contexts. Each example is a named test scenario with its own given/when/then steps."
             }
           }
         }
@@ -107,7 +147,11 @@
             },
             "contributesToState": {
               "type": "string",
-              "description": "Optional name of a State on the alpha referenced by this alpha's contributesTo property. Declares that reaching this state contributes to the named state on the parent alpha."
+              "description": "Optional name of a State on the alpha referenced by this alpha's contributesTo or mapsTo property. When the owning alpha uses contributesTo, declares that reaching this state contributes evidence to the named state on the parent alpha. When the owning alpha uses mapsTo, declares state equivalence — this state IS the named state on the parent alpha, viewed through the variant's lens."
+            },
+            "background": {
+              "$ref": "#/$defs/Background",
+              "description": "Shared prerequisites and context for all checklist items in this state. Establishes what must already be true before any checklist item can be evaluated."
             }
           }
         }
@@ -262,6 +306,70 @@
       },
       "additionalProperties": false
     },
+    "AlphaInstanceStateReference": {
+      "type": "object",
+      "description": "Symbolic reference to an alpha instance at a specific state. Used in Background to declare instance-level prerequisites.",
+      "required": ["instanceName", "stateName"],
+      "properties": {
+        "instanceName": {
+          "type": "string",
+          "description": "Name of an AlphaInstanceName in scope (symbolic link; must match AlphaInstanceName.name in the same pattern, practice, or project)."
+        },
+        "stateName": {
+          "type": "string",
+          "description": "Name of a State under the alpha tracked by that instance (symbolic link; must match State.name within the instance's alpha)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkProductInstanceLevelReference": {
+      "type": "object",
+      "description": "Symbolic reference to a work product instance at a specific level of detail. Used in Background to declare instance-level prerequisites.",
+      "required": ["instanceName", "levelOfDetailName"],
+      "properties": {
+        "instanceName": {
+          "type": "string",
+          "description": "Name of a WorkProductInstanceName in scope (symbolic link; must match WorkProductInstanceName.name in the same pattern, practice, or project)."
+        },
+        "levelOfDetailName": {
+          "type": "string",
+          "description": "Name of a LevelOfDetail under the work product tracked by that instance (symbolic link; must match LevelOfDetail.name within the instance's work product)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Background": {
+      "type": "object",
+      "description": "Shared prerequisites and context that must hold before any checklist item in the parent state, level of detail, or instance is relevant. Adapts the Gherkin Background concept for practitioner guidance. At the practice level, defines what SHOULD hold; at the instance level, records what APPLIES in a specific project context.",
+      "properties": {
+        "given": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Preconditions that must hold before any checklist item can be evaluated. Each string is a natural-language prerequisite (e.g., 'the deployment pipeline is operational'). Use 'but' prefix for negative conditions."
+        },
+        "alphaStates": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AlphaContribution" },
+          "description": "Alpha states (on other alphas) that must be achieved before this state's checklists become relevant. Complements sequential progression within the same alpha."
+        },
+        "workProductLevels": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WorkProductContribution" },
+          "description": "Work product levels of detail that must be achieved before this state's checklists become relevant. Expresses the prerequisite direction of the LOD-to-State relationship."
+        },
+        "alphaInstanceStates": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AlphaInstanceStateReference" },
+          "description": "Specific alpha instances that must have reached a named state before this state's checklists become relevant. Used when prerequisites are about concrete tracked instances rather than abstract alpha types."
+        },
+        "workProductInstanceLevels": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WorkProductInstanceLevelReference" },
+          "description": "Specific work product instances that must have reached a named level of detail before this state's checklists become relevant. Used when prerequisites are about concrete tracked instances rather than abstract work product types."
+        }
+      },
+      "additionalProperties": false
+    },
     "Alpha": {
       "allOf": [
         { "$ref": "#/$defs/PracticeElement" },
@@ -280,7 +388,16 @@
             },
             "contributesTo": {
               "type": "string",
-              "description": "Optional name of another Alpha in the same baseline (0..1 specialization relationship). Used to create specialized alphas that contribute to/refine baseline alphas (e.g., 'Platform Capability' contributesTo 'Platform'). Do not embed an Alpha object."
+              "description": "Optional name of another Alpha in the same baseline (0..1 specialization relationship). Used to create specialized alphas that contribute to/refine baseline alphas (e.g., 'Platform Capability' contributesTo 'Platform'). Mutually exclusive with mapsTo. Do not embed an Alpha object."
+            },
+            "mapsTo": {
+              "type": "string",
+              "description": "Optional name of another Alpha that this alpha is a specialized variant of (0..1 variant mapping relationship). States MUST match the target alpha exactly. Mutually exclusive with contributesTo. On merge, this alpha is added to the target alpha's variants array. Example: 'AI-Ready Enterprise' mapsTo 'Sales Play'."
+            },
+            "variants": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Alpha" },
+              "description": "Alphas that have declared mapsTo this alpha, populated during merge. Each variant is a full Alpha with the same state progression but distinct name, description, and checklists. Do not set in source practice authoring."
             },
             "relatesTo": {
               "type": "array",
@@ -343,6 +460,10 @@
               "type": "array",
               "items": { "$ref": "#/$defs/ExternalLink" },
               "description": "External documents specific to this state. Typically omitted when the parent AlphaInstanceName links apply; use only when this state is tracked in a different document."
+            },
+            "background": {
+              "$ref": "#/$defs/Background",
+              "description": "Project-specific prerequisites for this alpha instance. Supplements the practice-level background defined on the referenced State with instance-specific context."
             }
           }
         }
@@ -411,6 +532,10 @@
               "type": "array",
               "items": { "$ref": "#/$defs/ExternalLink" },
               "description": "External documents specific to this level of detail. Typically omitted when the parent WorkProductInstanceName links apply; use only when this level of detail is tracked in a different document."
+            },
+            "background": {
+              "$ref": "#/$defs/Background",
+              "description": "Project-specific prerequisites for this work product instance. Supplements the practice-level background defined on the referenced LevelOfDetail with instance-specific context."
             }
           }
         }
@@ -433,6 +558,10 @@
               "type": "array",
               "minItems": 1,
               "items": { "$ref": "#/$defs/AlphaContribution" }
+            },
+            "background": {
+              "$ref": "#/$defs/Background",
+              "description": "Shared prerequisites and context for all checklist items at this level of detail. Establishes what must already be true before any checklist item can be evaluated."
             }
           }
         }
@@ -465,6 +594,10 @@
               "type": "array",
               "description": "PersonaGroup.name entries (symbolic links on the same Practice document or merged method scope; must match PersonaGroup.name, not Persona.name).",
               "items": { "type": "string" }
+            },
+            "background": {
+              "$ref": "#/$defs/Background",
+              "description": "Shared prerequisites and context for all activities in this space or for this specific activity. Establishes what must already be true before work can begin."
             }
           }
         }
@@ -489,6 +622,15 @@
             "recommendedCompetencyLevels": {
               "type": "array",
               "items": { "$ref": "#/$defs/CompetencyLevelReference" }
+            },
+            "test": {
+              "$ref": "#/$defs/Test",
+              "description": "The primary execution scenario for this activity. Captures preconditions, triggers, and expected outcomes using the Given/When/Then pattern."
+            },
+            "examples": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Test" },
+              "description": "Parameterized variations illustrating how this activity plays out in different contexts (e.g., greenfield vs migration, small team vs large org)."
             }
           }
         }
@@ -1331,6 +1473,28 @@
               "type": "array",
               "items": { "$ref": "#/$defs/AlphaBinding" },
               "description": "Optional cross-baseline alpha contribution relationships that emerge from composing practices from different baseline families. Each binding declares that alphas from contributing baselines contribute to a target baseline alpha."
+            },
+            "version": {
+              "type": "string",
+              "description": "Semantic version string for this method (e.g. '1.0.0')."
+            },
+            "authors": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Authors or contributors of this method."
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "ISO 8601 date or datetime when this method was created."
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "ISO 8601 date or datetime when this method was last updated."
+            },
+            "keywords": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Searchable keyword tags for library discovery."
             }
           },
           "oneOf": [

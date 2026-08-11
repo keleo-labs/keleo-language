@@ -218,6 +218,19 @@ class BaselineValidator:
                 })
                 has_errors = True
 
+            # Check for mapsTo (should NOT exist in baseline alphas)
+            if 'mapsTo' in alpha:
+                self.errors.append({
+                    "category": "baseline",
+                    "severity": "error",
+                    "path": f"{prefix}.mapsTo",
+                    "issue": f"Baseline alpha '{alpha_name}' has mapsTo property - baseline alphas are root-level",
+                    "expected": "No mapsTo property",
+                    "actual": alpha.get('mapsTo'),
+                    "suggestion": "Remove mapsTo property (baseline alphas are foundational, not variants)"
+                })
+                has_errors = True
+
             # Check for relatesTo (REQUIRED in baseline alphas)
             relates_to = alpha.get('relatesTo', [])
             if not relates_to or len(relates_to) == 0:
@@ -667,6 +680,111 @@ class BaselineValidator:
 
         return not has_errors
 
+    def validate_backgrounds(self) -> bool:
+        """Validate background cross-references on alpha states"""
+        has_errors = False
+        alphas = self.baseline.get('alphas', [])
+
+        alpha_names = {alpha['name'] for alpha in alphas}
+        alpha_states = defaultdict(set)
+        for alpha in alphas:
+            for state in alpha.get('states', []):
+                alpha_states[alpha['name']].add(state['name'])
+
+        if self.parent_baseline:
+            for alpha in self.parent_baseline.get('alphas', []):
+                alpha_names.add(alpha['name'])
+                for state in alpha.get('states', []):
+                    alpha_states[alpha['name']].add(state['name'])
+
+        for a_idx, alpha in enumerate(alphas):
+            for s_idx, state in enumerate(alpha.get('states', [])):
+                bg = state.get('background')
+                if not bg:
+                    continue
+
+                path = f"alphas[{a_idx}].states[{s_idx}]"
+
+                for idx, contrib in enumerate(bg.get('alphaStates', [])):
+                    ref_alpha = contrib.get('alphaName')
+                    ref_state = contrib.get('stateName')
+                    ref_path = f"{path}.background.alphaStates[{idx}]"
+
+                    if ref_alpha and ref_alpha == alpha['name']:
+                        self.warnings.append({
+                            "category": "redundancy",
+                            "severity": "warning",
+                            "path": f"{ref_path}.alphaName",
+                            "issue": f"Background references previous state of the same alpha '{ref_alpha}' — sequential progression is implicit in seq ordering",
+                            "expected": "Cross-alpha dependencies only",
+                            "actual": ref_alpha,
+                            "suggestion": f"Remove self-referencing alphaState entry for '{ref_alpha}'"
+                        })
+
+                    if ref_alpha and ref_alpha not in alpha_names:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{ref_path}.alphaName",
+                            "issue": f"Background references undefined alpha: '{ref_alpha}'",
+                            "expected": f"One of: {sorted(alpha_names)}",
+                            "actual": ref_alpha,
+                            "suggestion": "Define alpha or correct reference"
+                        })
+                        has_errors = True
+
+                    if ref_alpha and ref_state and ref_alpha in alpha_states:
+                        if ref_state not in alpha_states[ref_alpha]:
+                            self.errors.append({
+                                "category": "integrity",
+                                "severity": "error",
+                                "path": f"{ref_path}.stateName",
+                                "issue": f"Background references undefined state '{ref_state}' for alpha '{ref_alpha}'",
+                                "expected": f"One of: {sorted(alpha_states[ref_alpha])}",
+                                "actual": ref_state,
+                                "suggestion": f"Check state names defined in {ref_alpha} alpha"
+                            })
+                            has_errors = True
+
+        for asp_idx, asp in enumerate(self.baseline.get('activitySpaces', [])):
+            bg = asp.get('background')
+            if not bg:
+                continue
+
+            path = f"activitySpaces[{asp_idx}]"
+
+            for idx, contrib in enumerate(bg.get('alphaStates', [])):
+                ref_alpha = contrib.get('alphaName')
+                ref_state = contrib.get('stateName')
+                ref_path = f"{path}.background.alphaStates[{idx}]"
+
+                if ref_alpha and ref_alpha not in alpha_names:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{ref_path}.alphaName",
+                        "issue": f"Background references undefined alpha: '{ref_alpha}'",
+                        "expected": f"One of: {sorted(alpha_names)}",
+                        "actual": ref_alpha,
+                        "suggestion": "Define alpha or correct reference"
+                    })
+                    has_errors = True
+
+                if ref_alpha and ref_state and ref_alpha in alpha_states:
+                    if ref_state not in alpha_states[ref_alpha]:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{ref_path}.stateName",
+                            "issue": f"Background references undefined state '{ref_state}' for alpha '{ref_alpha}'",
+                            "expected": f"One of: {sorted(alpha_states[ref_alpha])}",
+                            "actual": ref_state,
+                            "suggestion": f"Check state names defined in {ref_alpha} alpha"
+                        })
+                        has_errors = True
+
+        return not has_errors
+
     def validate_universality(self) -> None:
         """Check for overly specific terminology (warnings only)"""
         # Patterns indicating vendor/tool-specific naming
@@ -708,6 +826,7 @@ class BaselineValidator:
         narrative_types_valid = self.validate_narrative_types()
 
         aliases_valid = self.validate_aliases()
+        backgrounds_valid = self.validate_backgrounds()
 
         # Universality is warnings only
         self.validate_universality()
@@ -721,7 +840,8 @@ class BaselineValidator:
             activity_spaces_valid and
             competencies_valid and
             narrative_types_valid and
-            aliases_valid
+            aliases_valid and
+            backgrounds_valid
         )
 
         # Build report
