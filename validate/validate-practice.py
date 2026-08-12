@@ -1272,6 +1272,189 @@ class PracticeValidator:
 
         return not has_errors
 
+    def _normalise_version(self, version: str) -> Optional[str]:
+        """Normalise a version string to three-part semver (e.g. '1.0' -> '1.0.0')."""
+        if not version:
+            return None
+        parts = version.strip().split('.')
+        while len(parts) < 3:
+            parts.append('0')
+        try:
+            return '.'.join(str(int(p)) for p in parts[:3])
+        except ValueError:
+            return None
+
+    def _parse_version_tuple(self, version: str) -> Optional[tuple]:
+        """Parse a semver string into a (major, minor, patch) tuple."""
+        normalised = self._normalise_version(version)
+        if not normalised:
+            return None
+        parts = normalised.split('.')
+        try:
+            return (int(parts[0]), int(parts[1]), int(parts[2]))
+        except (ValueError, IndexError):
+            return None
+
+    def _version_satisfies_range(self, version: str, version_range: str) -> Optional[bool]:
+        """Check if a version satisfies a semver range constraint.
+
+        Returns True/False if determinable, None if the range syntax is too complex.
+        Supports: exact ('1.0.0'), caret ('^1.0.0'), tilde ('~1.0.0'),
+        simple comparisons ('>=1.0.0', '<2.0.0'), and space-separated compound ranges.
+        """
+        ver = self._parse_version_tuple(version)
+        if ver is None:
+            return None
+
+        range_str = version_range.strip()
+
+        if range_str.startswith('^'):
+            base = self._parse_version_tuple(range_str[1:])
+            if base is None:
+                return None
+            if base[0] > 0:
+                return base <= ver < (base[0] + 1, 0, 0)
+            elif base[1] > 0:
+                return base <= ver < (0, base[1] + 1, 0)
+            else:
+                return ver == base
+
+        if range_str.startswith('~'):
+            base = self._parse_version_tuple(range_str[1:])
+            if base is None:
+                return None
+            return base <= ver < (base[0], base[1] + 1, 0)
+
+        if ' ' in range_str:
+            parts = range_str.split()
+            for part in parts:
+                result = self._version_satisfies_range(version, part)
+                if result is None:
+                    return None
+                if not result:
+                    return False
+            return True
+
+        if range_str.startswith('>='):
+            base = self._parse_version_tuple(range_str[2:])
+            return ver >= base if base else None
+        if range_str.startswith('>'):
+            base = self._parse_version_tuple(range_str[1:])
+            return ver > base if base else None
+        if range_str.startswith('<='):
+            base = self._parse_version_tuple(range_str[2:])
+            return ver <= base if base else None
+        if range_str.startswith('<'):
+            base = self._parse_version_tuple(range_str[1:])
+            return ver < base if base else None
+
+        base = self._parse_version_tuple(range_str)
+        if base:
+            return ver == base
+
+        return None
+
+    def validate_version_constraints(self) -> bool:
+        """Validate dependencyVersions constraints.
+
+        Checks:
+        1. Each documentName matches a declared dependency name
+        2. If the referenced document is loaded, its version satisfies the range
+        """
+        dep_versions = self.practice.get('dependencyVersions', [])
+        if not dep_versions:
+            return True
+
+        declared_deps = set()
+        baseline_name = self.practice.get('baselinePracticeName')
+        if baseline_name:
+            declared_deps.add(baseline_name)
+        for dep_name in self.practice.get('practiceDependencyNames', []):
+            declared_deps.add(dep_name)
+
+        dep_docs_by_name = {}
+        if baseline_name and self.baseline:
+            dep_docs_by_name[baseline_name] = self.baseline
+        for dep in self.dependencies:
+            dep_name = dep.get('name')
+            if dep_name:
+                dep_docs_by_name[dep_name] = dep
+
+        has_warnings = False
+        for idx, constraint in enumerate(dep_versions):
+            doc_name = constraint.get('documentName', '')
+            version_range = constraint.get('versionRange', '')
+            path = f"dependencyVersions[{idx}]"
+
+            if doc_name not in declared_deps:
+                self.warnings.append({
+                    "category": "version",
+                    "severity": "warning",
+                    "path": f"{path}.documentName",
+                    "issue": f"Orphaned version constraint: '{doc_name}' does not match any declared dependency",
+                    "expected": f"One of: {sorted(declared_deps)}",
+                    "actual": doc_name,
+                    "suggestion": "Remove this constraint or correct the documentName"
+                })
+                has_warnings = True
+                continue
+
+            if doc_name in dep_docs_by_name:
+                dep_doc = dep_docs_by_name[doc_name]
+                dep_version = dep_doc.get('version')
+                if dep_version and version_range:
+                    satisfies = self._version_satisfies_range(dep_version, version_range)
+                    if satisfies is False:
+                        normalised = self._normalise_version(dep_version)
+                        self.warnings.append({
+                            "category": "version",
+                            "severity": "warning",
+                            "path": path,
+                            "issue": f"Version mismatch: '{doc_name}' is at version {dep_version} (normalised: {normalised}) but constraint requires {version_range}",
+                            "expected": f"Version satisfying {version_range}",
+                            "actual": dep_version,
+                            "suggestion": f"Update '{doc_name}' to a version satisfying {version_range}, or relax the constraint"
+                        })
+                        has_warnings = True
+
+        return True
+
+    def validate_schema_version(self) -> bool:
+        """Validate schemaVersion compatibility if present."""
+        schema_version = self.practice.get('schemaVersion')
+        if not schema_version:
+            return True
+
+        schema_comment = self.schema.get('$comment', '')
+        if schema_comment.startswith('schemaVersion:'):
+            declared_schema_ver = schema_comment.split(':', 1)[1]
+            doc_ver = self._parse_version_tuple(schema_version)
+            schema_ver = self._parse_version_tuple(declared_schema_ver)
+
+            if doc_ver and schema_ver:
+                if doc_ver[0] > schema_ver[0]:
+                    self.errors.append({
+                        "category": "version",
+                        "severity": "error",
+                        "path": "schemaVersion",
+                        "issue": f"Document targets schema {schema_version} but validator supports {declared_schema_ver} (major version mismatch)",
+                        "expected": f"Schema major version <= {schema_ver[0]}",
+                        "actual": schema_version,
+                        "suggestion": "Update to a compatible schema version or upgrade the validator"
+                    })
+                    return False
+                elif doc_ver[1] > schema_ver[1] and doc_ver[0] == schema_ver[0]:
+                    self.warnings.append({
+                        "category": "version",
+                        "severity": "warning",
+                        "path": "schemaVersion",
+                        "issue": f"Document targets schema {schema_version} but validator supports {declared_schema_ver} (minor version ahead)",
+                        "expected": f"Schema version <= {declared_schema_ver}",
+                        "actual": schema_version,
+                        "suggestion": "Some features may not be validated — consider upgrading the validator"
+                    })
+        return True
+
     def validate_redeclaration_vs_new(self) -> bool:
         """
         Validate that alphas are correctly classified as redeclaration vs new.
@@ -1549,6 +1732,12 @@ def main():
 
     print("Validating semantic alignment...", file=sys.stderr)
     semantic_valid = validator.validate_semantic_alignment()
+
+    print("Validating version constraints...", file=sys.stderr)
+    validator.validate_version_constraints()
+
+    print("Validating schema version...", file=sys.stderr)
+    schema_version_valid = validator.validate_schema_version()
 
     # Generate report
     report = validator.generate_report()

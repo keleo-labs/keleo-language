@@ -7,8 +7,11 @@
 3. [Method, Practice, and Baseline Architecture](#3-method-practice-and-baseline-architecture)
    - 3.1 [Method Root Type and Discrimination Logic](#31-method-root-type-and-discrimination-logic)
    - 3.2 [Metadata and Provenance](#32-metadata-and-provenance)
+   - 3.3 [Schema Versioning and Document Compatibility](#33-schema-versioning-and-document-compatibility)
+   - 3.4 [Document Version Format](#34-document-version-format)
 4. [Adapting and Composing Practices](#4-adapting-and-composing-practices)
    - 4.1 [Practice Dependencies](#41-practice-dependencies)
+     - 4.1.1 [Dependency Version Constraints](#411-dependency-version-constraints)
    - 4.2 [Practice and Method Composition (Merge)](#42-practice-and-method-composition-merge)
    - 4.3 [Practice Aliasing and Strict Isolation](#43-practice-aliasing-and-strict-isolation)
    - 4.4 [Redeclaration vs Specialization Decision Framework](#44-redeclaration-vs-specialization-decision-framework)
@@ -87,6 +90,26 @@ At the highest structural level, the schema utilizes a root-level if/then/else v
 
 Both Practice and PracticeBaselineShape mandate explicit metadata properties: authors, createdAt, updatedAt, version, and keywords. Operational tooling must enforce strict version control and standardized ISO timestamp formats for these fields to ensure auditability, intellectual property tracking, and proper lifecycle management of the methodology itself.
 
+### 3.3 Schema Versioning and Document Compatibility
+
+The Practice Language schema declares its own version via a `$comment` keyword at the root level (e.g. `"$comment": "schemaVersion:1.0.0"`). This version follows semantic versioning (semver) conventions:
+
+- **Major** version bump: breaking structural changes (removed fields, renamed types, changed discrimination logic). Documents authored against a prior major version may not validate.
+- **Minor** version bump: additive, non-breaking changes (new optional fields, new `$defs` types, expanded enums). Documents authored against a prior minor version still validate.
+- **Patch** version bump: non-structural changes (description corrections, documentation updates).
+
+Individual documents declare which schema version they target via an optional `schemaVersion` property (pattern `^\d+\.\d+\.\d+$`). This field is available on Practice, PracticeBaseline, Method, Project, ChangeRequest, and ChangeSet. When present, consuming systems should check compatibility before parsing:
+
+- If the document's major version exceeds the tool's supported major version, reject the document.
+- If the document's minor version exceeds the tool's, emit a warning (some features may not be understood).
+- If `schemaVersion` is absent, proceed without compatibility checking (backwards compatible).
+
+When a document is packaged in a `.keleo` file, its `schemaVersion` should be consistent with the `PackageManifest.schemaVersion`. The package-level declaration applies to all documents in the package; the document-level field provides finer-grained compatibility information for documents consumed outside a package context.
+
+### 3.4 Document Version Format
+
+The `version` field on Practice, PracticeBaseline, Method, and Project represents the version of that document. The recommended format is semver (e.g. `1.0.0`), but shortened forms like `1.0` remain valid for backwards compatibility. Tooling that performs version range comparison should normalise non-semver versions to three-part form: `1.0` becomes `1.0.0`, `2` becomes `2.0.0`.
+
 ## 4 Adapting and Composing Practices
 
 The schema is built for modularity, allowing practices to be adapted and combined.
@@ -94,6 +117,39 @@ The schema is built for modularity, allowing practices to be adapted and combine
 ### 4.1 Practice Dependencies
 
 The Practice object supports an array of practiceDependencyNames. This acts as a symbolic link to other required methodologies. Tooling must resolve these dependencies to allow organizations to build modular, composable methodologies where advanced practices inherit or require the successful validation of foundational ones.
+
+### 4.1.1 Dependency Version Constraints
+
+Documents that reference other documents by name can optionally declare version constraints via the `dependencyVersions` array. Each entry is a `DocumentVersionConstraint` object containing:
+
+- `documentName` — the name of the referenced document (must match a dependency name declared elsewhere in the same document, e.g. a `baselinePracticeName`, `practiceDependencyNames` entry, `practiceNames` entry, `practiceName`, or `methodName`).
+- `versionRange` — a semver range constraint using npm/node-semver syntax (e.g. `^2.0.0`, `>=1.0.0 <3.0.0`, `~1.2.0`).
+
+**Example:**
+
+```json
+{
+  "name": "Platform Engineering",
+  "baselinePracticeName": "Platform Adoption Essentials",
+  "practiceDependencyNames": ["Team Topologies Lifecycle"],
+  "dependencyVersions": [
+    { "documentName": "Platform Adoption Essentials", "versionRange": ">=1.2.0 <2.0.0" },
+    { "documentName": "Team Topologies Lifecycle", "versionRange": "^1.0.0" }
+  ]
+}
+```
+
+**Resolution semantics:**
+
+1. Dependencies are still resolved by name (unchanged from current behaviour).
+2. If the referring document has a `dependencyVersions` entry matching the resolved document's name, tooling normalises the resolved document's `version` to three-part semver and checks it against the `versionRange`.
+3. Version mismatches produce **warnings** by default, not errors. Practice authors should not be blocked during authoring; CI pipelines and package validation may use a strict mode that treats mismatches as errors.
+4. If no matching `dependencyVersions` entry exists for a dependency, any version is accepted (current behaviour, unchanged).
+5. A `dependencyVersions` entry whose `documentName` does not match any declared dependency name is an orphaned constraint; tooling should warn about it.
+
+**Interaction with the package layer:**
+
+Document-level `dependencyVersions` complements the package-level `PackageDependency` mechanism. The package layer operates at package identity (which package, at what version range); the document layer operates at document identity (which specific document, at what version range). A package may satisfy its package-level dependency constraint yet contain a document at a version that violates a document-level constraint. Tooling should resolve both layers: first select a compatible package, then verify that documents within it satisfy document-level constraints. When documents are consumed outside packages (standalone files resolved via a library index), document-level `dependencyVersions` is the only version constraint mechanism available.
 
 ### 4.2 Practice and Method Composition (Merge)
 
