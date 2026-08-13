@@ -99,6 +99,50 @@ The `target` section mirrors the structure of the `current` section but records 
 
 The target section allows users to define objectives that may differ from the full pattern — for example, a project may target a subset of alpha states or require only certain checklist items to be completed.
 
+### Cycles
+
+The `cycles` section tracks the objectives and tasks for the project, organised into bounded periods of work. It is an optional array of ProjectCycle objects, allowing progressive adoption — projects can begin without cycles and add them as work tracking is introduced.
+
+- `cycles` — optional array of ProjectCycle objects. Each cycle tracks the objectives and tasks undertaken during a bounded period.
+- `currentCycleName` — optional string at the Project level identifying the active cycle by name. When present, must match the `name` of an entry in the `cycles` array.
+
+#### ProjectCycle
+
+A ProjectCycle extends ProjectStateSection (inheriting `alphaInstances`, `workProductInstances`, and `notes`) with cycle-specific metadata. The term "cycle" is methodology-agnostic — teams may name cycles after sprints, iterations, months, quarters, or any other cadence that fits their way of working.
+
+**Inherited from ProjectStateSection:**
+
+- `alphaInstances` (optional) — array of AlphaInstance objects tracking the alpha states being pursued or achieved during this cycle
+- `workProductInstances` (optional) — array of WorkProductInstance objects tracking the work product levels being pursued or achieved during this cycle
+- `notes` (optional) — array of Note objects for cycle-level observations, decisions, and retrospective commentary
+
+**Own properties:**
+
+- `name` (required) — identifies the cycle (e.g. "Sprint 1", "Q3 2026", "August")
+- `description` (optional) — what this cycle covers or aims to achieve
+- `startedAt` (optional) — ISO timestamp recording when the cycle began
+- `completedAt` (optional) — ISO timestamp recording when the cycle ended. Absent while the cycle is still active
+
+#### Relationship Between Sections
+
+The `current`, `target`, and `cycles` sections serve complementary purposes:
+
+- **current** provides an assessed statement of the current status — where things are now. Its checklist states declare what has been completed, what remains, and what will not be completed.
+- **target** provides a statement of intent — the alpha states and work product levels the project aims to achieve overall.
+- **cycles** track the operational work — the concrete objectives and tasks being pursued within each bounded period. The active cycle records what the team is working on now; closed cycles record what was worked on previously.
+
+`current` is a point-in-time snapshot. `target` is a destination. Cycles are the journey — they record *what work was undertaken* to move from current toward target.
+
+#### Cycle Lifecycle
+
+A cycle progresses through three phases:
+
+1. **Open** — `completedAt` is absent. The cycle is actively tracking work. `currentCycleName` points to this cycle.
+2. **Closed** — `completedAt` is set. The cycle is complete. `currentCycleName` may now point to a new cycle.
+3. **Historical** — closed cycles accumulate as a project history, enabling retrospective analysis and velocity tracking.
+
+**Tooling guidance:** Systems supporting this schema should allow users to create new cycles, close active cycles, and manage objectives within cycles. When a cycle is closed, tooling may automatically generate a retrospective Note on the cycle summarising what was accomplished.
+
 ## Schema Changes to Existing Types
 
 ### Pattern (extended)
@@ -177,6 +221,10 @@ A Project should include the same provenance metadata as Practice and PracticeBa
 8. All ChecklistState entries on AlphaInstance objects must reference valid checklist items within the parent instance's referenced Alpha State
 9. All ChecklistState entries on WorkProductInstance objects must reference valid checklist items within the parent instance's referenced WorkProduct LevelOfDetail
 10. Team `personaName` entries in TeamMember objects must reference Personas defined in the resolved practice/method scope
+11. Cycle names within the `cycles` array must be unique
+12. If `currentCycleName` is present, it must match the `name` of an entry in the `cycles` array
+13. All AlphaInstance entries in `cycles` must reference alpha instance names declared in the plan's Pattern
+14. All WorkProductInstance entries in `cycles` must reference work product instance names declared in the plan's Pattern
 
 ## Open Questions
 

@@ -1738,7 +1738,7 @@ In a **Project**, AlphaInstanceName objects identify the specific, concrete inst
 
 **AlphaInstance**
 
-The AlphaInstance object records the state of a specific instance at a point in the lifecycle. These objects appear in PatternView.alphaInstances arrays (within practices) and in Project current/target sections.
+The AlphaInstance object records the state of a specific instance at a point in the lifecycle. These objects appear in PatternView.alphaInstances arrays (within practices) and in Project current/target/cycles sections.
 
 Structure:
 
@@ -1892,7 +1892,7 @@ In a **Project**, WorkProductInstanceName objects identify the specific, concret
 
 **WorkProductInstance**
 
-The WorkProductInstance object records a specific artifact's maturity level. These objects appear in evidence arrays (AlphaInstance.evidenceBy, AlphaContribution.evidenceBy) and in Project current/target sections, linking abstract progression to concrete deliverables.
+The WorkProductInstance object records a specific artifact's maturity level. These objects appear in evidence arrays (AlphaInstance.evidenceBy, AlphaContribution.evidenceBy) and in Project current/target/cycles sections, linking abstract progression to concrete deliverables.
 
 Structure:
 
@@ -2615,12 +2615,13 @@ The `plan` section establishes the project's lifecycle objectives. It contains a
 
 **Tooling Guidance:** Systems supporting this schema should allow users to clone an existing Pattern from the resolved practice/method scope as a starting point for their plan. The cloned Pattern becomes an independent copy owned by the project. Tooling should ensure all tracked items are represented as AlphaInstanceName or WorkProductInstanceName declarations within the Pattern, defaulting instance names to names derived from the alpha/work product name when the user has not explicitly named them.
 
-### 12.4 Current and Target Sections
+### 12.4 Current, Target, and Cycles
 
-The `current` and `target` sections share the same structure (ProjectStateSection) but serve different purposes:
+The `current`, `target`, and `cycles` sections serve complementary purposes:
 
-- **Current** records the presently assessed state of tracked alphas and work products — "where are we now?"
-- **Target** records the desired/goal state — "where do we want to be?"
+- **Current** provides an assessed statement of the current status — "where are we now?" Its checklist states declare what has been completed, what remains, and what will not be completed.
+- **Target** provides a statement of intent — "where do we want to be?"
+- **Cycles** track the operational work — "what are we doing to get there?" (see Section 12.7)
 
 Both sections contain:
 
@@ -2688,7 +2689,7 @@ The ExternalLink type provides a reusable reference to an external document or r
 }
 ```
 
-Notes appear at multiple levels: at the project top level, within `plan`, `current`, `target`, `team`, and on individual ChecklistState entries. This multi-level placement enables commentary to be captured at the appropriate level of specificity — from project-wide decisions down to rationale for a single checklist item's state.
+Notes appear at multiple levels: at the project top level, within `plan`, `current`, `target`, `cycles`, `team`, and on individual ChecklistState entries. This multi-level placement enables commentary to be captured at the appropriate level of specificity — from project-wide decisions down to rationale for a single checklist item's state.
 
 **ExternalLink Usage Across Types:**
 
@@ -2699,6 +2700,94 @@ ExternalLink is used on instance types at two levels, mirroring the declaration-
 - **Note** — links point to supporting material such as meeting transcripts, design documents, or external reports
 
 **Automated Journaling:** Systems implementing this schema may automatically record Notes based on user interactions and state changes (e.g. when a checklist item is marked complete, when an alpha instance transitions state, or when team membership changes). Automated notes should be clearly distinguishable from user-authored notes — tooling may use a naming convention or additional metadata to indicate provenance.
+
+### 12.7 Cycles and Operational Work Tracking
+
+The `cycles` section is where a project tracks its operational work — the concrete objectives and tasks being pursued within bounded periods. While `current` provides an assessed snapshot and `target` declares intent, cycles record *what work is being undertaken* to move from one toward the other.
+
+**The Three Roles:**
+
+- **`current`** is an assessed statement of the current status. Its checklist states declare what has been completed, what remains, and what will not be completed. It is a point-in-time snapshot.
+- **`target`** is a statement of intent — the overall destination.
+- **`cycles`** are the journey. Each cycle tracks the objectives and tasks the team is pursuing (or has pursued) during a bounded period.
+
+**Cycle Model:**
+
+A ProjectCycle extends ProjectStateSection with cycle-specific metadata (`name`, `description`, `startedAt`, `completedAt`). The term "cycle" avoids methodology-specific connotations (sprint, iteration, increment) while clearly conveying a repeatable work period. Teams name cycles according to their own cadence: "Sprint 1", "Q3 2026", "August", "Release 2.0", etc.
+
+A cycle progresses through three phases:
+
+1. **Open** — `completedAt` is absent. The cycle is actively tracking work. `currentCycleName` points to this cycle. The cycle's alpha instances and work product instances represent the objectives being pursued right now.
+2. **Closed** — `completedAt` is set. The cycle is complete. Its instances record what was worked on during that period. `currentCycleName` may now point to a new cycle.
+3. **Historical** — closed cycles accumulate as a project history, enabling retrospective analysis and velocity tracking.
+
+**What Goes in a Cycle:**
+
+A cycle's `alphaInstances` and `workProductInstances` record the objectives being tracked during that period — the alpha states being pursued and the work product levels being developed. These are the items the team has committed to working on. As work progresses, `current` is updated to reflect the latest assessed state, while the cycle records what was undertaken.
+
+An alpha instance may appear in multiple sections simultaneously:
+
+- In `target` at state "Operational" (the goal)
+- In `current` at state "Provisioned" (the latest assessed state)
+- In the active cycle at state "Operational" (the objective being pursued this cycle)
+- In a closed cycle at state "Architecture Selected" (an earlier objective that was completed)
+
+**Active Cycle Management:**
+
+`currentCycleName` identifies the active cycle. Tooling should:
+
+- Create a new cycle entry in `cycles` when the user starts a new cycle
+- Set `currentCycleName` to the new cycle's name
+- Track objectives within the active cycle as the team works toward them
+- Update `current` as assessments change
+- Set `completedAt` on the cycle when the user closes it
+- Optionally auto-generate a retrospective Note on the cycle at close
+
+**Example:**
+
+```json
+{
+  "currentCycleName": "Sprint 2",
+  "cycles": [
+    {
+      "name": "Sprint 1",
+      "description": "Foundation and architecture selection",
+      "startedAt": "2026-07-01T00:00:00Z",
+      "completedAt": "2026-07-14T00:00:00Z",
+      "alphaInstances": [
+        {
+          "name": "Core Platform",
+          "description": "Primary platform instance",
+          "alphaName": "Platform",
+          "stateName": "Architecture Selected"
+        }
+      ],
+      "notes": [
+        {
+          "name": "Sprint 1 retrospective",
+          "timestamp": "2026-07-14T15:00:00Z",
+          "content": "Architecture decision took longer than expected due to multi-cloud evaluation. Security team input was critical."
+        }
+      ]
+    },
+    {
+      "name": "Sprint 2",
+      "description": "Provisioning and initial deployment",
+      "startedAt": "2026-07-15T00:00:00Z",
+      "alphaInstances": [
+        {
+          "name": "Core Platform",
+          "description": "Primary platform instance",
+          "alphaName": "Platform",
+          "stateName": "Provisioned"
+        }
+      ]
+    }
+  ]
+}
+```
+
+In this example, Sprint 1 is closed (has `completedAt`) — its objective was "Architecture Selected" for the Core Platform. Sprint 2 is the active cycle (matches `currentCycleName`, lacks `completedAt`) — the team is now pursuing "Provisioned". The `current` section (not shown) would reflect the latest assessed state of the Core Platform independent of these cycle-level objectives.
 
 ## 13 Change Requests
 
