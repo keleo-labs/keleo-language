@@ -817,6 +817,34 @@ class PracticeValidator:
                         })
                         has_errors = True
 
+            # Validate work product partOf references
+            for wp_idx, wp in enumerate(practice.get('workProducts', [])):
+                wp_path = f"{prefix}.workProducts[{wp_idx}]" if prefix else f"workProducts[{wp_idx}]"
+                part_of = wp.get('partOf')
+                if part_of:
+                    if part_of == wp.get('name'):
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{wp_path}.partOf",
+                            "issue": f"Work product '{wp.get('name')}' cannot be partOf itself",
+                            "expected": "Different work product name",
+                            "actual": part_of,
+                            "suggestion": "Remove self-referencing partOf or correct the reference"
+                        })
+                        has_errors = True
+                    elif part_of not in all_work_products and not has_cross_practice_deps:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{wp_path}.partOf",
+                            "issue": f"partOf references undefined work product: '{part_of}'",
+                            "expected": f"One of: {sorted(all_work_products)}",
+                            "actual": part_of,
+                            "suggestion": "Define work product or correct reference"
+                        })
+                        has_errors = True
+
             # Validate pattern view -> activity/alpha references
             for pattern_idx, pattern in enumerate(practice.get('patterns', [])):
                 pattern_path = f"{prefix}.patterns[{pattern_idx}]" if prefix else f"patterns[{pattern_idx}]"
@@ -904,6 +932,40 @@ class PracticeValidator:
                                         "suggestion": "Add alpha definition or declare practice dependency"
                                     })
                                     has_errors = True
+
+        # Detect circular partOf chains across all work products
+        part_of_map = {}
+        for practice_scan in practices:
+            for wp in practice_scan.get('workProducts', []):
+                if wp.get('partOf'):
+                    part_of_map[wp['name']] = wp['partOf']
+        for dep in self.dependencies:
+            for wp in dep.get('workProducts', []):
+                if wp.get('partOf'):
+                    part_of_map[wp['name']] = wp['partOf']
+
+        reported_cycles = set()
+        for wp_name in part_of_map:
+            visited = {wp_name}
+            current = part_of_map[wp_name]
+            while current in part_of_map:
+                if current in visited:
+                    cycle_key = frozenset(visited | {current})
+                    if cycle_key not in reported_cycles:
+                        reported_cycles.add(cycle_key)
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": "workProducts",
+                            "issue": f"Circular partOf chain detected involving work product '{wp_name}'",
+                            "expected": "Acyclic partOf relationships",
+                            "actual": f"Cycle: {wp_name} -> {' -> '.join(sorted(visited - {wp_name}))} -> {current}",
+                            "suggestion": "Remove one partOf reference to break the cycle"
+                        })
+                        has_errors = True
+                    break
+                visited.add(current)
+                current = part_of_map.get(current)
 
         return not has_errors
 

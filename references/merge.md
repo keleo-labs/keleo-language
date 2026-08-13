@@ -264,6 +264,7 @@ Work products merge by canonical name. When two work products share the same nam
   - `contributesTo` arrays are unioned by `alphaName::stateName` key.
   - **Checklists** within a level merge by canonical name (same logic as alpha state checklists).
   - Results are sorted by `seq` value.
+- **`partOf`** merges as a scalar: the first non-empty value (from the kernel or earliest overlay) wins.
 
 ### 6.5 Pattern and PatternView Merging
 

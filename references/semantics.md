@@ -33,6 +33,7 @@
    - 7.1 [Structure of Work Products](#71-structure-of-work-products)
    - 7.2 [Artifact Instantiation and Concurrency](#72-artifact-instantiation-and-concurrency)
    - 7.3 [Work Product Instance Semantics: Declaration vs Evidence Chains](#73-work-product-instance-semantics-declaration-vs-evidence-chains)
+   - 7.4 [Work Product Composition (`partOf`)](#74-work-product-composition-partof)
 8. [Execution Boundaries and Organizational Roles](#8-execution-boundaries-and-organizational-roles)
    - 8.1 [Activity Spaces and Activities](#81-activity-spaces-and-activities)
      - 8.1.1 [Gherkin-Inspired Structure on Activities](#811-gherkin-inspired-structure-on-activities)
@@ -1978,6 +1979,67 @@ Evidence chain proving alpha state:
 ```
 
 This design serves both guidance and execution: practices use work product instances to illustrate the kinds of deliverables adopters will produce and how they evidence progression, while projects use the same structures to identify and track the specific artifacts being managed at measurable maturity levels.
+
+### 7.4 Work Product Composition (`partOf`)
+
+Work products can declare a `partOf` relationship to indicate that one work product is logically contained within another. The relationship is unidirectional: the child declares which parent it belongs to. There is no reciprocal `composedOf` array on the parent — tooling can compute the inverse at runtime.
+
+**When to Use `partOf`**
+
+Use `partOf` when a work product represents a distinct, independently trackable artifact that is logically a component or section of a larger deliverable. Both parent and child retain their own levels of detail and progress independently through them.
+
+Examples:
+- "Done Criteria" partOf "Definition of Done Specification" — the criteria are a trackable artifact contained within the broader specification
+- "API Contract" partOf "Architecture" — the API contract is a concrete deliverable within the overall architecture documentation
+- "Migration Runbook" partOf "Migration Plan" — the runbook is an operational component of the plan
+
+**When NOT to Use `partOf`**
+
+- When the "part" is just a section of a document that does not warrant independent tracking — use LOD checklists instead
+- When the relationship is "contributes evidence to" rather than "is contained in" — use `contributesTo` on LevelOfDetail to connect work products to alpha states
+- When work products are related but not in a containment relationship — use narratives to document the association
+
+**Structural Rules**
+
+- `partOf` is optional (0..1) — a work product may have at most one parent
+- The value is a symbolic link: it must exactly match a `WorkProduct.name` in the same practice, a dependency practice, or the baseline
+- Self-references are invalid: a work product cannot be `partOf` itself
+- Circular chains are invalid: if A partOf B, then B must not directly or transitively declare partOf A
+- Keep hierarchies shallow — one level of containment is typical
+
+**Contrast with Alpha `contributesTo`**
+
+Alpha `contributesTo` models specialization: a sub-concern contributing to the health of a parent concern (abstract progress rollup). WorkProduct `partOf` models composition: a sub-artifact physically contained within a parent artifact (tangible containment). The semantic distinction matters: `contributesTo` aggregates state progression; `partOf` declares structural nesting of deliverables.
+
+**Merge Behavior**
+
+During practice composition (Section 4.2), `partOf` merges as a scalar field: the first non-empty value (from the kernel or earliest overlay) wins.
+
+**Example**
+
+```json
+{
+  "workProducts": [
+    {
+      "name": "Definition of Done Specification",
+      "description": "Comprehensive specification defining the quality standard that every Increment must satisfy before release.",
+      "levelsOfDetail": [
+        { "name": "Drafted", "seq": 1, "description": "Initial criteria captured.", "checklist": [], "contributesTo": [{"alphaName": "Definition of Done", "stateName": "Identified"}] },
+        { "name": "Agreed", "seq": 2, "description": "Criteria reviewed and accepted by the team.", "checklist": [], "contributesTo": [{"alphaName": "Definition of Done", "stateName": "Established"}] }
+      ]
+    },
+    {
+      "name": "Done Criteria",
+      "description": "Specific testable criteria that must be satisfied for an Increment to be considered done.",
+      "partOf": "Definition of Done Specification",
+      "levelsOfDetail": [
+        { "name": "Listed", "seq": 1, "description": "Criteria enumerated as a checklist.", "checklist": [], "contributesTo": [{"alphaName": "Definition of Done", "stateName": "Identified"}] },
+        { "name": "Measurable", "seq": 2, "description": "Each criterion has objective acceptance tests.", "checklist": [], "contributesTo": [{"alphaName": "Definition of Done", "stateName": "Established"}] }
+      ]
+    }
+  ]
+}
+```
 
 ## 8 Execution Boundaries and Organizational Roles
 
