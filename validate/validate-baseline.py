@@ -785,6 +785,93 @@ class BaselineValidator:
 
         return not has_errors
 
+    def validate_acyclicity(self) -> bool:
+        """Validate acyclicity in Background prerequisite graph."""
+        has_errors = False
+
+        edges = defaultdict(set)
+        all_nodes = set()
+
+        def collect_bg_edges(source_key, bg):
+            all_nodes.add(source_key)
+            for req in bg.get('alphaStates', []):
+                if req.get('alphaName') and req.get('stateName'):
+                    target = f"alpha:{req['alphaName']}.{req['stateName']}"
+                    edges[source_key].add(target)
+                    all_nodes.add(target)
+            for req in bg.get('workProductLevels', []):
+                if req.get('workProductName') and req.get('levelOfDetailName'):
+                    target = f"wp:{req['workProductName']}.{req['levelOfDetailName']}"
+                    edges[source_key].add(target)
+                    all_nodes.add(target)
+
+        for alpha in self.baseline.get('alphas', []):
+            for state in alpha.get('states', []):
+                bg = state.get('background')
+                if bg:
+                    collect_bg_edges(f"alpha:{alpha['name']}.{state['name']}", bg)
+
+        for asp in self.baseline.get('activitySpaces', []):
+            bg = asp.get('background')
+            if bg:
+                collect_bg_edges(f"activitySpace:{asp['name']}", bg)
+
+        if self.parent_baseline:
+            for alpha in self.parent_baseline.get('alphas', []):
+                for state in alpha.get('states', []):
+                    bg = state.get('background')
+                    if bg:
+                        collect_bg_edges(f"alpha:{alpha['name']}.{state['name']}", bg)
+
+        if not all_nodes:
+            return True
+
+        # Iterative DFS with three-colour marking
+        WHITE, GREY, BLACK = 0, 1, 2
+        colour = defaultdict(int)
+        reported_cycles = set()
+
+        for start in all_nodes:
+            if colour[start] != WHITE:
+                continue
+
+            stack = [(start, iter(edges.get(start, set())))]
+            colour[start] = GREY
+            path = [start]
+
+            while stack:
+                node, edge_iter = stack[-1]
+                child = next(edge_iter, None)
+
+                if child is not None:
+                    child_colour = colour[child]
+                    if child_colour == GREY:
+                        idx = path.index(child)
+                        cycle = path[idx:] + [child]
+                        cycle_key = frozenset(path[idx:])
+                        if cycle_key not in reported_cycles:
+                            reported_cycles.add(cycle_key)
+                            self.errors.append({
+                                "category": "acyclicity",
+                                "severity": "error",
+                                "path": "backgrounds",
+                                "issue": f"Circular prerequisite dependency: {' → '.join(cycle)}",
+                                "expected": "Acyclic prerequisite graph (no deadlocks)",
+                                "actual": f"Cycle: {' → '.join(cycle)}",
+                                "suggestion": "Remove one background prerequisite to break the deadlock cycle"
+                            })
+                            has_errors = True
+                    elif child_colour == WHITE:
+                        colour[child] = GREY
+                        path.append(child)
+                        stack.append((child, iter(edges.get(child, set()))))
+                else:
+                    stack.pop()
+                    path.pop()
+                    colour[node] = BLACK
+
+        return not has_errors
+
     def _normalise_version(self, version: str) -> Optional[str]:
         """Normalise a version string to three-part semver (e.g. '1.0' -> '1.0.0')."""
         if not version:
@@ -995,6 +1082,7 @@ class BaselineValidator:
 
         aliases_valid = self.validate_aliases()
         backgrounds_valid = self.validate_backgrounds()
+        acyclicity_valid = self.validate_acyclicity()
 
         # Version constraint and schema version validation
         self.validate_version_constraints()
@@ -1014,6 +1102,7 @@ class BaselineValidator:
             narrative_types_valid and
             aliases_valid and
             backgrounds_valid and
+            acyclicity_valid and
             schema_version_valid
         )
 
@@ -1033,7 +1122,8 @@ class BaselineValidator:
                 "activity_spaces_valid": activity_spaces_valid,
                 "competencies_valid": competencies_valid,
                 "narrative_types_valid": narrative_types_valid,
-                "aliases_valid": aliases_valid
+                "aliases_valid": aliases_valid,
+                "acyclicity_valid": acyclicity_valid
             }
         }
 

@@ -848,6 +848,20 @@ class PracticeValidator:
             # Validate pattern view -> activity/alpha references
             for pattern_idx, pattern in enumerate(practice.get('patterns', [])):
                 pattern_path = f"{prefix}.patterns[{pattern_idx}]" if prefix else f"patterns[{pattern_idx}]"
+                pattern_name = pattern.get('name', f'pattern[{pattern_idx}]')
+
+                view_count = len(pattern.get('patternViews', []))
+                if view_count < 2:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{pattern_path}.patternViews",
+                        "issue": f"Pattern '{pattern_name}' has {view_count} patternView(s), minimum is 2",
+                        "expected": "At least 2 patternViews showing progressive alpha advancement",
+                        "actual": f"{view_count} patternView(s)",
+                        "suggestion": "Add patternViews from the mapping guide — patterns must show progression across at least 2 phases"
+                    })
+                    has_errors = True
 
                 for view_idx, view in enumerate(pattern.get('patternViews', [])):
                     view_path = f"{pattern_path}.patternViews[{view_idx}]"
@@ -985,6 +999,7 @@ class PracticeValidator:
                 "schema": sum(1 for e in self.errors if e['category'] == 'schema'),
                 "baseline": sum(1 for e in self.errors if e['category'] == 'baseline'),
                 "integrity": sum(1 for e in self.errors if e['category'] == 'integrity'),
+                "acyclicity": sum(1 for e in self.errors if e['category'] == 'acyclicity'),
                 "semantic": sum(1 for w in self.warnings if w['category'] == 'semantic')
             }
         }
@@ -1333,6 +1348,206 @@ class PracticeValidator:
                         all_alpha_instance_names, all_wp_instance_names, has_deps)
 
         return not has_errors
+
+    def validate_acyclicity(self) -> bool:
+        """Validate acyclicity constraints per semantics.md Section 14."""
+        has_errors = False
+
+        is_method = 'practices' in self.practice or 'baselinePractice' in self.practice
+        practices = self.practice.get('practices', []) if is_method else [self.practice]
+
+        has_errors |= self._validate_alpha_hierarchy_acyclicity(practices)
+        has_errors |= self._validate_contributes_to_state_acyclicity(practices)
+        has_errors |= self._validate_prerequisite_acyclicity(practices)
+
+        return not has_errors
+
+    def _validate_alpha_hierarchy_acyclicity(self, practices: List[Dict]) -> bool:
+        """Detect cycles in the combined contributesTo/mapsTo alpha graph."""
+        has_errors = False
+
+        parent_map = {}
+        for practice in practices:
+            for alpha in practice.get('alphas', []):
+                parent = alpha.get('contributesTo') or alpha.get('mapsTo')
+                if parent:
+                    parent_map[alpha['name']] = parent
+
+        for dep in self.dependencies:
+            for alpha in dep.get('alphas', []):
+                parent = alpha.get('contributesTo') or alpha.get('mapsTo')
+                if parent and alpha['name'] not in parent_map:
+                    parent_map[alpha['name']] = parent
+
+        reported_cycles = set()
+        for start_name in parent_map:
+            visited = []
+            visited_set = set()
+            current = start_name
+            while current in parent_map:
+                if current in visited_set:
+                    cycle_start_idx = visited.index(current)
+                    cycle = visited[cycle_start_idx:] + [current]
+                    cycle_key = frozenset(cycle)
+                    if cycle_key not in reported_cycles:
+                        reported_cycles.add(cycle_key)
+                        self.errors.append({
+                            "category": "acyclicity",
+                            "severity": "error",
+                            "path": "alphas",
+                            "issue": f"Circular reference in Alpha hierarchy (contributesTo/mapsTo): {' → '.join(cycle)}",
+                            "expected": "Acyclic alpha hierarchy",
+                            "actual": f"Cycle: {' → '.join(cycle)}",
+                            "suggestion": "Remove one contributesTo or mapsTo reference to break the cycle"
+                        })
+                        has_errors = True
+                    break
+                visited.append(current)
+                visited_set.add(current)
+                current = parent_map[current]
+
+        return has_errors
+
+    def _validate_contributes_to_state_acyclicity(self, practices: List[Dict]) -> bool:
+        """Detect cycles in State.contributesToState references."""
+        has_errors = False
+
+        parent_map = {}
+        for practice in practices:
+            for alpha in practice.get('alphas', []):
+                for state in alpha.get('states', []):
+                    cts = state.get('contributesToState')
+                    if cts and cts.get('alphaName') and cts.get('stateName'):
+                        parent_map[(alpha['name'], state['name'])] = (cts['alphaName'], cts['stateName'])
+
+        reported_cycles = set()
+        for start_node in parent_map:
+            visited = []
+            visited_set = set()
+            current = start_node
+            while current in parent_map:
+                if current in visited_set:
+                    cycle_start_idx = visited.index(current)
+                    cycle_nodes = visited[cycle_start_idx:] + [current]
+                    cycle_key = frozenset(visited[cycle_start_idx:])
+                    if cycle_key not in reported_cycles:
+                        reported_cycles.add(cycle_key)
+                        cycle_str = ' → '.join(f'{a}.{s}' for a, s in cycle_nodes)
+                        self.errors.append({
+                            "category": "acyclicity",
+                            "severity": "error",
+                            "path": "alphas.states.contributesToState",
+                            "issue": f"Circular reference in State.contributesToState: {cycle_str}",
+                            "expected": "Acyclic state contribution mapping",
+                            "actual": f"Cycle: {cycle_str}",
+                            "suggestion": "Remove one contributesToState reference to break the cycle"
+                        })
+                        has_errors = True
+                    break
+                visited.append(current)
+                visited_set.add(current)
+                current = parent_map[current]
+
+        return has_errors
+
+    def _validate_prerequisite_acyclicity(self, practices: List[Dict]) -> bool:
+        """Detect cycles in Background prerequisite graph (cross-element deadlocks)."""
+        has_errors = False
+
+        edges = defaultdict(set)
+        all_nodes = set()
+
+        def collect_bg_edges(source_key, bg):
+            all_nodes.add(source_key)
+            for req in bg.get('alphaStates', []):
+                if req.get('alphaName') and req.get('stateName'):
+                    target = f"alpha:{req['alphaName']}.{req['stateName']}"
+                    edges[source_key].add(target)
+                    all_nodes.add(target)
+            for req in bg.get('workProductLevels', []):
+                if req.get('workProductName') and req.get('levelOfDetailName'):
+                    target = f"wp:{req['workProductName']}.{req['levelOfDetailName']}"
+                    edges[source_key].add(target)
+                    all_nodes.add(target)
+
+        for practice in practices:
+            for alpha in practice.get('alphas', []):
+                for state in alpha.get('states', []):
+                    bg = state.get('background')
+                    if bg:
+                        collect_bg_edges(f"alpha:{alpha['name']}.{state['name']}", bg)
+            for wp in practice.get('workProducts', []):
+                for lod in wp.get('levelsOfDetail', []):
+                    bg = lod.get('background')
+                    if bg:
+                        collect_bg_edges(f"wp:{wp['name']}.{lod['name']}", bg)
+
+        for dep in self.dependencies:
+            for alpha in dep.get('alphas', []):
+                for state in alpha.get('states', []):
+                    bg = state.get('background')
+                    if bg:
+                        collect_bg_edges(f"alpha:{alpha['name']}.{state['name']}", bg)
+            for wp in dep.get('workProducts', []):
+                for lod in wp.get('levelsOfDetail', []):
+                    bg = lod.get('background')
+                    if bg:
+                        collect_bg_edges(f"wp:{wp['name']}.{lod['name']}", bg)
+
+        for alpha in self.baseline.get('alphas', []):
+            for state in alpha.get('states', []):
+                bg = state.get('background')
+                if bg:
+                    collect_bg_edges(f"alpha:{alpha['name']}.{state['name']}", bg)
+
+        if not all_nodes:
+            return has_errors
+
+        # Iterative DFS with three-colour marking
+        WHITE, GREY, BLACK = 0, 1, 2
+        colour = defaultdict(int)
+        reported_cycles = set()
+
+        for start in all_nodes:
+            if colour[start] != WHITE:
+                continue
+
+            stack = [(start, iter(edges.get(start, set())))]
+            colour[start] = GREY
+            path = [start]
+
+            while stack:
+                node, edge_iter = stack[-1]
+                child = next(edge_iter, None)
+
+                if child is not None:
+                    child_colour = colour[child]
+                    if child_colour == GREY:
+                        idx = path.index(child)
+                        cycle = path[idx:] + [child]
+                        cycle_key = frozenset(path[idx:])
+                        if cycle_key not in reported_cycles:
+                            reported_cycles.add(cycle_key)
+                            self.errors.append({
+                                "category": "acyclicity",
+                                "severity": "error",
+                                "path": "backgrounds",
+                                "issue": f"Circular prerequisite dependency: {' → '.join(cycle)}",
+                                "expected": "Acyclic prerequisite graph (no deadlocks)",
+                                "actual": f"Cycle: {' → '.join(cycle)}",
+                                "suggestion": "Remove one background prerequisite to break the deadlock cycle"
+                            })
+                            has_errors = True
+                    elif child_colour == WHITE:
+                        colour[child] = GREY
+                        path.append(child)
+                        stack.append((child, iter(edges.get(child, set()))))
+                else:
+                    stack.pop()
+                    path.pop()
+                    colour[node] = BLACK
+
+        return has_errors
 
     def _normalise_version(self, version: str) -> Optional[str]:
         """Normalise a version string to three-part semver (e.g. '1.0' -> '1.0.0')."""
@@ -1791,6 +2006,9 @@ def main():
 
     print("Validating background references...", file=sys.stderr)
     backgrounds_valid = validator.validate_backgrounds()
+
+    print("Validating acyclicity constraints...", file=sys.stderr)
+    acyclicity_valid = validator.validate_acyclicity()
 
     print("Validating semantic alignment...", file=sys.stderr)
     semantic_valid = validator.validate_semantic_alignment()
