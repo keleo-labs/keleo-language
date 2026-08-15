@@ -736,6 +736,75 @@ class PracticeValidator:
 
         return has_errors
 
+    def _validate_references(self, practice: Dict, prefix: str,
+                             all_alphas: set, all_alpha_states: Dict,
+                             all_work_products: set, all_wp_lods: Dict,
+                             has_cross_practice_deps: bool) -> bool:
+        """Validate references array: alpha/state and work product/LOD cross-references"""
+        has_errors = False
+
+        for ref_idx, ref in enumerate(practice.get('references', [])):
+            ref_path = f"{prefix}.references[{ref_idx}]" if prefix else f"references[{ref_idx}]"
+            alpha_name = ref.get('alphaName')
+            state_name = ref.get('stateName')
+
+            if alpha_name and alpha_name not in all_alphas and not has_cross_practice_deps:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{ref_path}.alphaName",
+                    "issue": f"Reference '{ref.get('name', '')}' references undefined alpha: '{alpha_name}'",
+                    "expected": f"One of: {sorted(all_alphas)}",
+                    "actual": alpha_name,
+                    "suggestion": "Define alpha or correct reference"
+                })
+                has_errors = True
+
+            if alpha_name and state_name and alpha_name in all_alpha_states:
+                if state_name not in all_alpha_states.get(alpha_name, set()):
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{ref_path}.stateName",
+                        "issue": f"Reference '{ref.get('name', '')}' references undefined state '{state_name}' for alpha '{alpha_name}'",
+                        "expected": f"One of: {sorted(all_alpha_states.get(alpha_name, set()))}",
+                        "actual": state_name,
+                        "suggestion": f"Check state names defined in {alpha_name} alpha"
+                    })
+                    has_errors = True
+
+            for ev_idx, evidence in enumerate(ref.get('evidenceBy', []) or []):
+                ev_path = f"{ref_path}.evidenceBy[{ev_idx}]"
+                wp_name = evidence.get('workProductName')
+                lod_name = evidence.get('levelOfDetailName')
+
+                if wp_name and wp_name not in all_work_products and not has_cross_practice_deps:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{ev_path}.workProductName",
+                        "issue": f"Reference evidence '{evidence.get('name', '')}' references undefined work product: '{wp_name}'",
+                        "expected": f"One of: {sorted(all_work_products)}",
+                        "actual": wp_name,
+                        "suggestion": "Define work product or correct reference"
+                    })
+                    has_errors = True
+
+                if wp_name and lod_name and wp_name in all_wp_lods:
+                    if lod_name not in all_wp_lods.get(wp_name, set()):
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{ev_path}.levelOfDetailName",
+                            "issue": f"Reference evidence '{evidence.get('name', '')}' references undefined level '{lod_name}' for work product '{wp_name}'",
+                            "expected": f"One of: {sorted(all_wp_lods.get(wp_name, set()))}",
+                            "actual": lod_name,
+                            "suggestion": f"Check level names defined in {wp_name} work product"
+                        })
+                        has_errors = True
+
+        return has_errors
+
     def validate_internal_integrity(self) -> bool:
         """Validate internal cross-references within practice/method"""
         has_errors = False
@@ -946,6 +1015,28 @@ class PracticeValidator:
                                         "suggestion": "Add alpha definition or declare practice dependency"
                                     })
                                     has_errors = True
+
+        # Build work product LOD index for reference validation
+        all_wp_lods = defaultdict(set)
+        for dep in self.dependencies:
+            for wp in dep.get('workProducts', []):
+                for lod in wp.get('levelsOfDetail', []):
+                    all_wp_lods[wp['name']].add(lod['name'])
+        for practice_scan in practices:
+            for wp in practice_scan.get('workProducts', []):
+                for lod in wp.get('levelsOfDetail', []):
+                    all_wp_lods[wp['name']].add(lod['name'])
+
+        # Validate practice references (curated alpha/work product examples)
+        for practice_idx, practice in enumerate(practices):
+            prefix = f"practices[{practice_idx}]" if is_method else ""
+            practice_name = practice.get('name')
+            has_cross_practice_deps = practice_name in practices_with_deps
+
+            has_errors |= self._validate_references(
+                practice, prefix, all_alphas, all_alpha_states,
+                all_work_products, all_wp_lods, has_cross_practice_deps
+            )
 
         # Detect circular partOf chains across all work products
         part_of_map = {}
@@ -1415,10 +1506,13 @@ class PracticeValidator:
         parent_map = {}
         for practice in practices:
             for alpha in practice.get('alphas', []):
+                target_alpha = alpha.get('contributesTo') or alpha.get('mapsTo')
+                if not target_alpha:
+                    continue
                 for state in alpha.get('states', []):
                     cts = state.get('contributesToState')
-                    if cts and cts.get('alphaName') and cts.get('stateName'):
-                        parent_map[(alpha['name'], state['name'])] = (cts['alphaName'], cts['stateName'])
+                    if cts and isinstance(cts, str):
+                        parent_map[(alpha['name'], state['name'])] = (target_alpha, cts)
 
         reported_cycles = set()
         for start_node in parent_map:

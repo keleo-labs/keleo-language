@@ -1840,6 +1840,110 @@ Pattern tracks progression:
 
 This design serves both guidance and execution: practices use instances to illustrate the kinds of concerns adopters will encounter and how they progress, while projects use the same structures to identify and track the specific real-world instances being managed.
 
+### 6.6 Reference Content: Curated Examples and Reusable Resources
+
+Practices can curate concrete, real-world examples and reusable resources that illustrate alphas at specific states. The `references` array on a Practice contains `AlphaInstance` objects that serve as standalone reference content — templates, case studies, sample artifacts, or exemplary implementations that consuming systems can surface to practitioners as available resources.
+
+#### Purpose and Distinction from Other Instance Uses
+
+The Practice Language uses `AlphaInstance` in three distinct contexts, each with different semantics:
+
+| Context | Location | Purpose |
+|---------|----------|---------|
+| Pattern view instances | `PatternView.alphaInstances` | Illustrate expected progression across lifecycle phases |
+| Project instances | Project `current`/`target`/`cycles` | Track actual state in a live engagement |
+| **Reference content** | **`Practice.references`** | **Curate standalone exemplars — templates, case studies, sample artifacts** |
+
+Pattern view instances are bound to a specific pattern's phase model — they show what states to target at each stage. Project instances record assessed or desired state in a live execution context. Reference content is neither — it provides curated, standalone examples that exist independently of any pattern phase or project timeline.
+
+#### Structure
+
+Each reference is an `AlphaInstance` anchored to an alpha at a specific state. Work product references are embedded as `evidenceBy` entries within each alpha reference. External content is linked via `links`.
+
+```json
+{
+  "references": [
+    {
+      "name": "TOGAF-Based Platform Architecture",
+      "description": "Example of a platform that has achieved the Architecture Selected state following TOGAF architectural patterns.",
+      "alphaName": "Platform",
+      "stateName": "Architecture Selected",
+      "links": [
+        {
+          "name": "TOGAF Architecture Framework",
+          "description": "The Open Group Architecture Framework reference",
+          "uri": "https://www.opengroup.org/togaf"
+        }
+      ],
+      "evidenceBy": [
+        {
+          "name": "TOGAF Architecture Document Template",
+          "description": "Template for creating architecture documentation following TOGAF standards with ADR structure.",
+          "workProductName": "Architecture",
+          "levelOfDetailName": "Defined",
+          "links": [
+            {
+              "name": "Architecture Document Template",
+              "description": "Downloadable TOGAF-aligned architecture document template",
+              "uri": "https://example.com/templates/togaf-architecture.docx"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+In this example, the reference illustrates the "Platform" alpha at the "Architecture Selected" state. It links to the TOGAF framework as context, and includes a work product instance — a template architecture document at the "Defined" level — that practitioners can use as a starting point.
+
+#### Authoring Guidance
+
+**When to use references:**
+
+- When a practice has access to real-world examples that would help practitioners understand what "good" looks like at a specific alpha state
+- When templates, starter documents, or sample artifacts exist that practitioners can adapt rather than creating from scratch
+- When case studies or exemplary implementations illustrate how an alpha progresses through states in practice
+- When external standards, frameworks, or reference architectures map to specific alpha states
+
+**When NOT to use references:**
+
+- For showing expected progression across lifecycle phases — use pattern views with `AlphaInstance` entries instead
+- For tracking actual state in a project — use Project `current`/`target` sections
+- For declaring the kinds of instances adopters should anticipate — use `alphaInstances` (AlphaInstanceName) at the practice level
+
+**Naming conventions:**
+
+- Reference names should be specific and descriptive, identifying the source or nature of the example (e.g., "AWS Well-Architected Platform" rather than "Platform Example 1")
+- Work product instance names within `evidenceBy` should identify the specific artifact (e.g., "TOGAF Architecture Document Template" rather than "Architecture Template")
+
+**Categorisation via tags:**
+
+Use the structured tags object on each reference to classify by type:
+
+```json
+{
+  "name": "Zero-Trust Network Architecture Template",
+  "alphaName": "Platform",
+  "stateName": "Provisioned",
+  "tags": {
+    "domainTags": ["Security", "Architecture"],
+    "lifecycleTags": ["Adoption"],
+    "organizationalTags": ["Platform Team"]
+  }
+}
+```
+
+This enables consuming systems to filter references by domain, lifecycle stage, or organisational context.
+
+#### Validation Rules
+
+1. Each reference's `alphaName` must match a defined alpha in the baseline or practice
+2. Each reference's `stateName` must match a state on the referenced alpha
+3. Each `evidenceBy` entry's `workProductName` must match a defined work product in the baseline or practice
+4. Each `evidenceBy` entry's `levelOfDetailName` must match a level of detail on the referenced work product
+5. Reference names should be unique within the `references` array (tooling should warn on duplicates)
+
 ## 7 Evidentiary Verification via Work Product Elements
 
 A WorkProduct is the tangible artifact providing the empirical evidence necessary to validate Alpha state progressions. Work Products are the evidentiary artifacts of the practice. To ensure rigorous maturity tracking, a Work Product must explicitly define its progression through at least three Levels of Detail, aligning with progressive organizational adoption.
