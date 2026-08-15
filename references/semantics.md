@@ -2152,6 +2152,81 @@ During practice composition (Section 4.2), `partOf` merges as a scalar field: th
 }
 ```
 
+### 7.5 Work Product Variant Mapping (`mapsTo`)
+
+Work products can declare a `mapsTo` relationship to indicate that one work product is a specialized variant of another. This mirrors the `mapsTo` relationship on Alphas (Section 4.4) — the variant IS-A type of the parent work product, following the same levels of detail with domain-specific checklists.
+
+**When to Use `mapsTo`**
+
+Use `mapsTo` when a work product represents a distinct named variant of a parent work product that follows the same LOD progression. The variant has its own name, description, and checklists but shares the same levels of detail as its parent.
+
+Examples:
+- "Cloud Architecture" mapsTo "Architecture" — the cloud architecture is a specialized variant with the same maturity levels (Outlined → Detailed → Validated) but cloud-specific checklists
+- "Security Assessment Report" mapsTo "Assessment Report" — same LOD progression with security-specific verification criteria
+- "Platform Onboarding Guide" mapsTo "Onboarding Guide" — same content maturity levels with platform-specific content
+
+**When NOT to Use `mapsTo`**
+
+- When the work product is logically contained within a larger work product — use `partOf` instead
+- When the work product needs different levels of detail from the parent — `mapsTo` requires identical LOD names and sequences
+- When the relationship is "contributes evidence to" rather than "is a variant of" — use `contributesTo` on LevelOfDetail to connect work products to alpha states
+
+**Structural Rules**
+
+- `mapsTo` is optional (0..1) — a work product may map to at most one parent
+- `mapsTo` and `partOf` are **mutually exclusive** — a work product cannot be both a component of and a variant of another work product
+- The value is a symbolic link: it must exactly match a `WorkProduct.name` in the same practice, a dependency practice, or the baseline
+- Self-references are invalid: a work product cannot `mapsTo` itself
+- Circular chains are invalid: if A mapsTo B, then B must not directly or transitively declare mapsTo or partOf A. See [Section 14 — Acyclicity Constraints and Circular Reference Protection](#14-acyclicity-constraints-and-circular-reference-protection) for the comprehensive acyclicity rules and implementation requirements
+- Levels of detail MUST match the target work product exactly (same LOD names and sequences). The variant CAN have a different name, description, and checklists.
+
+**Contrast with `partOf`**
+
+- **`partOf`** models **containment**: a sub-artifact physically contained within a parent artifact (e.g., "API Contract" partOf "Architecture")
+- **`mapsTo`** models **variant equivalence**: a specialized version of the same artifact type (e.g., "Cloud Architecture" mapsTo "Architecture")
+
+The semantic distinction matters: `partOf` declares structural nesting of deliverables; `mapsTo` declares that the variant IS the parent artifact, viewed through a domain-specific lens. On merge, `mapsTo` work products are embedded in the parent's `variants` array (Section 4.2), enabling UIs to present them as related types.
+
+**Merge Behavior**
+
+During practice composition (Section 4.2), `mapsTo` merges as a scalar field: the first non-empty value wins. After all extension layers merge, work products with `mapsTo` are aggregated into the target work product's `variants` array (see [merge.md Section 7.2b](merge.md#72b-work-product-variant-aggregation)).
+
+**Example**
+
+```json
+{
+  "workProducts": [
+    {
+      "name": "Architecture",
+      "description": "Technical blueprint detailing platform infrastructure, capability domains, and integration patterns.",
+      "levelsOfDetail": [
+        { "name": "Outlined", "seq": 1, "description": "High-level block diagram.", "checklist": [], "contributesTo": [{"alphaName": "Platform", "stateName": "Architecture Selected"}] },
+        { "name": "Detailed", "seq": 2, "description": "Comprehensive documentation.", "checklist": [], "contributesTo": [{"alphaName": "Platform", "stateName": "Provisioned"}] },
+        { "name": "Validated", "seq": 3, "description": "Production-proven architecture.", "checklist": [], "contributesTo": [{"alphaName": "Platform", "stateName": "Hosting Assets"}] }
+      ]
+    },
+    {
+      "name": "Cloud Architecture",
+      "description": "Cloud-specific architecture variant documenting cloud provider selection, multi-region strategy, and cloud-native design patterns.",
+      "mapsTo": "Architecture",
+      "levelsOfDetail": [
+        { "name": "Outlined", "seq": 1, "description": "High-level block diagram.", "checklist": [
+          { "seq": 1, "name": "Cloud provider selected", "description": "Target cloud platform identified and approved" }
+        ], "contributesTo": [{"alphaName": "Platform", "stateName": "Architecture Selected"}] },
+        { "name": "Detailed", "seq": 2, "description": "Comprehensive documentation.", "checklist": [
+          { "seq": 1, "name": "Multi-region strategy documented", "description": "Geographic distribution and failover approach defined" }
+        ], "contributesTo": [{"alphaName": "Platform", "stateName": "Provisioned"}] },
+        { "name": "Validated", "seq": 3, "description": "Production-proven architecture.", "checklist": [
+          { "seq": 1, "name": "Cloud scaling validated", "description": "Auto-scaling behaviour confirmed under production load" }
+        ], "contributesTo": [{"alphaName": "Platform", "stateName": "Hosting Assets"}] }
+      ]
+    }
+  ]
+}
+```
+
+**Reasoning**: Cloud Architecture IS an Architecture — it follows the same maturity levels (Outlined → Detailed → Validated) with cloud-specific checklists. Using `mapsTo` rather than `partOf` because: (a) it has the same LOD progression as its parent, (b) it is a distinct named variant, not a sub-component contained within the parent, and (c) on merge it should appear within the Architecture work product's `variants` array for UI rendering.
+
 ## 8 Execution Boundaries and Organizational Roles
 
 ### 8.1 Activity Spaces and Activities
@@ -3477,6 +3552,27 @@ Because `contributesTo` and `mapsTo` are mutually exclusive on a single alpha bu
 
 **Constraint:** For any work product X, walking the `partOf` chain must terminate at a work product with no `partOf` property. The chain must never revisit a previously visited work product.
 
+#### 14.1.5 Work Product Variant Mapping Hierarchy (`WorkProduct.mapsTo`)
+
+**Property:** `WorkProduct.mapsTo` — string naming a parent work product that this work product is a variant of.
+
+**Graph:** Each work product with `mapsTo` set forms an edge from variant to parent. The resulting graph must be acyclic.
+
+**Invalid Examples:**
+- **Self-reference:** WorkProduct "Architecture" with `mapsTo: "Architecture"`
+- **Mutual:** WorkProduct "A" mapsTo "B", WorkProduct "B" mapsTo "A"
+
+**Constraint:** Identical to `partOf` — the chain must terminate at a root work product without revisiting any node.
+
+#### 14.1.6 Mixed `partOf`/`mapsTo` Chains (Work Products)
+
+Because `partOf` and `mapsTo` are mutually exclusive on a single work product but both reference parent work products, cycles can span both relationship types. The acyclicity constraint applies to the **union** of both edge sets.
+
+**Invalid Example:**
+- WorkProduct "A" partOf "B", WorkProduct "B" mapsTo "C", WorkProduct "C" partOf "A"
+
+**Constraint:** Construct a single directed graph where each work product with `partOf` or `mapsTo` has exactly one outgoing edge to its target. This combined graph must be acyclic.
+
 ### 14.2 Cross-Element Prerequisite Cycles
 
 Background prerequisites create cross-element dependency graphs that are harder to detect than single-property hierarchies because cycles span multiple element types and properties.
@@ -3557,6 +3653,8 @@ Practices also reference baselines via `baselinePracticeName`. While a practice 
 | `mapsTo` | Alpha | Variant mapping tree | All alphas in baseline + practice + dependencies |
 | `contributesTo` + `mapsTo` (combined) | Alpha | Combined parent graph | Union of both edge sets |
 | `partOf` | WorkProduct | Containment tree | All work products in baseline + practice + dependencies |
+| `mapsTo` | WorkProduct | Variant mapping tree | All work products in baseline + practice + dependencies |
+| `partOf` + `mapsTo` (combined) | WorkProduct | Combined parent graph | Union of both edge sets |
 | `Background.alphaStates` | State, LevelOfDetail | Cross-alpha prerequisites | All states in scope |
 | `Background.workProductLevels` | State, LevelOfDetail | Cross-element prerequisites | All states and LODs in scope |
 | `Background.alphaInstanceStates` | AlphaInstance, WorkProductInstance | Instance prerequisites | All instances in project |
@@ -3570,7 +3668,7 @@ Practices also reference baselines via `baselinePracticeName`. While a practice 
 
 1. Document dependency graphs (baseline and practice dependencies)
 2. Alpha hierarchy (`contributesTo` + `mapsTo` combined)
-3. Work product containment (`partOf`)
+3. Work product hierarchy (`partOf` + `mapsTo` combined)
 4. Cross-element prerequisites (backgrounds)
 5. State-level contributions (`contributesToState`)
 6. Revision chains (`supersedes`)

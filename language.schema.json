@@ -485,7 +485,16 @@
             },
             "partOf": {
               "type": "string",
-              "description": "Optional name of another WorkProduct that this work product is a component of (0..1 containment relationship). Used when a work product is logically contained within a larger work product (e.g., 'Done Criteria' partOf 'Definition of Done Specification'). Symbolic link; must match WorkProduct.name in the same practice, a dependency practice, or the baseline."
+              "description": "Optional name of another WorkProduct that this work product is a component of (0..1 containment relationship). Used when a work product is logically contained within a larger work product (e.g., 'Done Criteria' partOf 'Definition of Done Specification'). Mutually exclusive with mapsTo. Symbolic link; must match WorkProduct.name in the same practice, a dependency practice, or the baseline."
+            },
+            "mapsTo": {
+              "type": "string",
+              "description": "Optional name of another WorkProduct that this work product is a specialized variant of (0..1 variant mapping relationship). Levels of detail MUST match the target work product exactly. Mutually exclusive with partOf. On merge, this work product is added to the target work product's variants array. Example: 'Cloud Architecture' mapsTo 'Architecture'."
+            },
+            "variants": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/WorkProduct" },
+              "description": "Work products that have declared mapsTo this work product, populated during merge. Each variant is a full WorkProduct with the same LOD progression but distinct name, description, and checklists. Do not set in source practice authoring."
             }
           }
         }

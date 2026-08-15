@@ -740,13 +740,39 @@ class PracticeValidator:
                              all_alphas: set, all_alpha_states: Dict,
                              all_work_products: set, all_wp_lods: Dict,
                              has_cross_practice_deps: bool) -> bool:
-        """Validate references array: alpha/state and work product/LOD cross-references"""
+        """Validate references array: alpha/state and work product/LOD cross-references, duplicate names, missing links"""
         has_errors = False
 
+        seen_ref_names = set()
         for ref_idx, ref in enumerate(practice.get('references', [])):
             ref_path = f"{prefix}.references[{ref_idx}]" if prefix else f"references[{ref_idx}]"
+            ref_name = ref.get('name', '')
             alpha_name = ref.get('alphaName')
             state_name = ref.get('stateName')
+
+            if ref_name in seen_ref_names:
+                self.warnings.append({
+                    "category": "integrity",
+                    "severity": "warning",
+                    "path": f"{ref_path}.name",
+                    "issue": f"Duplicate reference name: '{ref_name}'",
+                    "expected": "Unique reference names within a practice",
+                    "actual": ref_name,
+                    "suggestion": "Differentiate reference names to avoid ambiguity"
+                })
+            seen_ref_names.add(ref_name)
+
+            links = ref.get('links', [])
+            if not links:
+                self.warnings.append({
+                    "category": "integrity",
+                    "severity": "warning",
+                    "path": f"{ref_path}.links",
+                    "issue": f"Reference '{ref_name}' has no links — references without external links provide limited actionable value",
+                    "expected": "At least one links entry with a valid URI",
+                    "actual": "No links",
+                    "suggestion": "Add at least one ExternalLink with a URI to make this reference actionable"
+                })
 
             if alpha_name and alpha_name not in all_alphas and not has_cross_practice_deps:
                 self.errors.append({
@@ -886,10 +912,25 @@ class PracticeValidator:
                         })
                         has_errors = True
 
-            # Validate work product partOf references
+            # Validate work product partOf and mapsTo references
             for wp_idx, wp in enumerate(practice.get('workProducts', [])):
                 wp_path = f"{prefix}.workProducts[{wp_idx}]" if prefix else f"workProducts[{wp_idx}]"
                 part_of = wp.get('partOf')
+                maps_to = wp.get('mapsTo')
+
+                # Mutual exclusivity: partOf and mapsTo cannot coexist
+                if part_of and maps_to:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": wp_path,
+                        "issue": f"Work product '{wp.get('name')}' has both partOf and mapsTo (mutually exclusive)",
+                        "expected": "Either partOf OR mapsTo, not both",
+                        "actual": f"partOf: '{part_of}', mapsTo: '{maps_to}'",
+                        "suggestion": "Use partOf for containment (sub-artifact within parent). Use mapsTo for variant mapping (IS-A variant with same LODs). Remove one."
+                    })
+                    has_errors = True
+
                 if part_of:
                     if part_of == wp.get('name'):
                         self.errors.append({
@@ -910,6 +951,30 @@ class PracticeValidator:
                             "issue": f"partOf references undefined work product: '{part_of}'",
                             "expected": f"One of: {sorted(all_work_products)}",
                             "actual": part_of,
+                            "suggestion": "Define work product or correct reference"
+                        })
+                        has_errors = True
+
+                if maps_to:
+                    if maps_to == wp.get('name'):
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{wp_path}.mapsTo",
+                            "issue": f"Work product '{wp.get('name')}' cannot mapsTo itself",
+                            "expected": "Different work product name",
+                            "actual": maps_to,
+                            "suggestion": "Remove self-referencing mapsTo or correct the reference"
+                        })
+                        has_errors = True
+                    elif maps_to not in all_work_products and not has_cross_practice_deps:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{wp_path}.mapsTo",
+                            "issue": f"mapsTo references undefined work product: '{maps_to}'",
+                            "expected": f"One of: {sorted(all_work_products)}",
+                            "actual": maps_to,
                             "suggestion": "Define work product or correct reference"
                         })
                         has_errors = True
@@ -1038,22 +1103,25 @@ class PracticeValidator:
                 all_work_products, all_wp_lods, has_cross_practice_deps
             )
 
-        # Detect circular partOf chains across all work products
-        part_of_map = {}
+        # Detect circular partOf/mapsTo chains across all work products
+        # Both partOf and mapsTo create parent edges; cycles can span both types
+        wp_parent_map = {}
         for practice_scan in practices:
             for wp in practice_scan.get('workProducts', []):
-                if wp.get('partOf'):
-                    part_of_map[wp['name']] = wp['partOf']
+                parent = wp.get('partOf') or wp.get('mapsTo')
+                if parent:
+                    wp_parent_map[wp['name']] = parent
         for dep in self.dependencies:
             for wp in dep.get('workProducts', []):
-                if wp.get('partOf'):
-                    part_of_map[wp['name']] = wp['partOf']
+                parent = wp.get('partOf') or wp.get('mapsTo')
+                if parent:
+                    wp_parent_map[wp['name']] = parent
 
         reported_cycles = set()
-        for wp_name in part_of_map:
+        for wp_name in wp_parent_map:
             visited = {wp_name}
-            current = part_of_map[wp_name]
-            while current in part_of_map:
+            current = wp_parent_map[wp_name]
+            while current in wp_parent_map:
                 if current in visited:
                     cycle_key = frozenset(visited | {current})
                     if cycle_key not in reported_cycles:
@@ -1062,15 +1130,15 @@ class PracticeValidator:
                             "category": "integrity",
                             "severity": "error",
                             "path": "workProducts",
-                            "issue": f"Circular partOf chain detected involving work product '{wp_name}'",
-                            "expected": "Acyclic partOf relationships",
+                            "issue": f"Circular partOf/mapsTo chain detected involving work product '{wp_name}'",
+                            "expected": "Acyclic partOf/mapsTo relationships",
                             "actual": f"Cycle: {wp_name} -> {' -> '.join(sorted(visited - {wp_name}))} -> {current}",
-                            "suggestion": "Remove one partOf reference to break the cycle"
+                            "suggestion": "Remove one partOf or mapsTo reference to break the cycle"
                         })
                         has_errors = True
                     break
                 visited.add(current)
-                current = part_of_map.get(current)
+                current = wp_parent_map.get(current)
 
         return not has_errors
 
@@ -1448,6 +1516,7 @@ class PracticeValidator:
         practices = self.practice.get('practices', []) if is_method else [self.practice]
 
         has_errors |= self._validate_alpha_hierarchy_acyclicity(practices)
+        has_errors |= self._validate_work_product_hierarchy_acyclicity(practices)
         has_errors |= self._validate_contributes_to_state_acyclicity(practices)
         has_errors |= self._validate_prerequisite_acyclicity(practices)
 
@@ -1490,6 +1559,52 @@ class PracticeValidator:
                             "expected": "Acyclic alpha hierarchy",
                             "actual": f"Cycle: {' → '.join(cycle)}",
                             "suggestion": "Remove one contributesTo or mapsTo reference to break the cycle"
+                        })
+                        has_errors = True
+                    break
+                visited.append(current)
+                visited_set.add(current)
+                current = parent_map[current]
+
+        return has_errors
+
+    def _validate_work_product_hierarchy_acyclicity(self, practices: List[Dict]) -> bool:
+        """Detect cycles in the combined partOf/mapsTo work product graph."""
+        has_errors = False
+
+        parent_map = {}
+        for practice in practices:
+            for wp in practice.get('workProducts', []):
+                parent = wp.get('partOf') or wp.get('mapsTo')
+                if parent:
+                    parent_map[wp['name']] = parent
+
+        for dep in self.dependencies:
+            for wp in dep.get('workProducts', []):
+                parent = wp.get('partOf') or wp.get('mapsTo')
+                if parent and wp['name'] not in parent_map:
+                    parent_map[wp['name']] = parent
+
+        reported_cycles = set()
+        for start_name in parent_map:
+            visited = []
+            visited_set = set()
+            current = start_name
+            while current in parent_map:
+                if current in visited_set:
+                    cycle_start_idx = visited.index(current)
+                    cycle = visited[cycle_start_idx:] + [current]
+                    cycle_key = frozenset(cycle)
+                    if cycle_key not in reported_cycles:
+                        reported_cycles.add(cycle_key)
+                        self.errors.append({
+                            "category": "acyclicity",
+                            "severity": "error",
+                            "path": "workProducts",
+                            "issue": f"Circular reference in WorkProduct hierarchy (partOf/mapsTo): {' → '.join(cycle)}",
+                            "expected": "Acyclic work product hierarchy",
+                            "actual": f"Cycle: {' → '.join(cycle)}",
+                            "suggestion": "Remove one partOf or mapsTo reference to break the cycle"
                         })
                         has_errors = True
                     break

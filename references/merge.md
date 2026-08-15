@@ -265,6 +265,8 @@ Work products merge by canonical name. When two work products share the same nam
   - **Checklists** within a level merge by canonical name (same logic as alpha state checklists).
   - Results are sorted by `seq` value.
 - **`partOf`** merges as a scalar: the first non-empty value (from the kernel or earliest overlay) wins.
+- **`mapsTo`**: The first non-empty value wins (base priority). Mutually exclusive with `partOf`.
+- **`variants`**: Populated during post-merge finalization (see Section 7.2b).
 
 ### 6.5 Pattern and PatternView Merging
 
@@ -385,6 +387,14 @@ Every alpha that declares a `mapsTo` relationship is automatically added as a fu
 The aggregation walks all alphas, collects `mapsTo → variant alpha` mappings, and appends the full variant Alpha objects into each parent's `variants` array (deduplicating by name).
 
 Unlike `supportingAlphas` (populated from `contributesTo`), `variants` does NOT participate in state rollup calculations. A variant is a 1:1 type equivalence — it IS the parent, not a sub-concern feeding into the parent. Variant state is an alternative view of the parent's state progression, not an input to it. UIs and renderers use the `variants` array to present related types within the parent alpha's context.
+
+### 7.2b Work Product Variant Aggregation
+
+Every work product that declares a `mapsTo` relationship is automatically added as a full WorkProduct object to the target (parent) work product's `variants` array. This mirrors the alpha variant aggregation (Section 7.2a) and ensures that the parent work product can discover all its variant types for display purposes without requiring explicit `variants` declarations.
+
+The aggregation walks all work products, collects `mapsTo → variant work product` mappings, and appends the full variant WorkProduct objects into each parent's `variants` array (deduplicating by name).
+
+Work product `variants` does NOT participate in LOD rollup or maturity calculations. A variant is a 1:1 type equivalence — it IS the parent artifact, viewed through a domain-specific lens (e.g., "Cloud Architecture" is an "Architecture" with cloud-specific checklists). UIs and renderers use the `variants` array to present related artifact types within the parent work product's context.
 
 ### 7.3 Focus Name Propagation
 
