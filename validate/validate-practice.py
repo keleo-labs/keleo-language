@@ -888,6 +888,20 @@ class PracticeValidator:
             for activity in practice.get('activities', []):
                 all_activities.add(activity['name'])
 
+        # Build ordered LOD sequence index for mapsTo validation
+        wp_lod_sequences = {}
+        for wp in self.baseline.get('workProducts', []):
+            lods = wp.get('levelsOfDetail', [])
+            wp_lod_sequences[wp['name']] = [lod['name'] for lod in sorted(lods, key=lambda l: l.get('seq', 0))]
+        for dep in self.dependencies:
+            for wp in dep.get('workProducts', []):
+                lods = wp.get('levelsOfDetail', [])
+                wp_lod_sequences.setdefault(wp['name'], [lod['name'] for lod in sorted(lods, key=lambda l: l.get('seq', 0))])
+        for practice in practices:
+            for wp in practice.get('workProducts', []):
+                lods = wp.get('levelsOfDetail', [])
+                wp_lod_sequences.setdefault(wp['name'], [lod['name'] for lod in sorted(lods, key=lambda l: l.get('seq', 0))])
+
         # Validate each practice
         for practice_idx, practice in enumerate(practices):
             prefix = f"practices[{practice_idx}]" if is_method else ""
@@ -978,6 +992,20 @@ class PracticeValidator:
                             "suggestion": "Define work product or correct reference"
                         })
                         has_errors = True
+                    elif maps_to in wp_lod_sequences:
+                        variant_lods = [lod['name'] for lod in sorted(wp.get('levelsOfDetail', []), key=lambda l: l.get('seq', 0))]
+                        parent_lods = wp_lod_sequences[maps_to]
+                        if variant_lods != parent_lods:
+                            self.errors.append({
+                                "category": "integrity",
+                                "severity": "error",
+                                "path": f"{wp_path}.mapsTo",
+                                "issue": f"mapsTo variant '{wp.get('name')}' LODs do not match parent '{maps_to}' — variant LODs must be identical",
+                                "expected": f"LODs: {parent_lods}",
+                                "actual": f"LODs: {variant_lods}",
+                                "suggestion": "mapsTo requires identical LOD names and sequences. Use the same LOD names as the parent work product with domain-specific checklists."
+                            })
+                            has_errors = True
 
             # Validate pattern view -> activity/alpha references
             for pattern_idx, pattern in enumerate(practice.get('patterns', [])):
