@@ -33,7 +33,7 @@ keleo-language/
 |------|---------|
 | `language.schema.json` | JSON Schema (Draft 2020-12) defining Practice, PracticeBaseline, Method, and Project structures |
 | `references/semantics.md` | Operational architecture and semantic guidance — the "why" behind schema structures |
-| `references/design-principles.md` | Design principles governing schema evolution, specifications, and project changes |
+| `references/design-principles.md` | Project-specific design principles for schema evolution (supplements global coding standards) |
 | `references/domain-framework.md` | Four-perspective enterprise analysis framework used during practice authoring |
 | `specifications/projects.md` | Design specification for the Project type |
 

@@ -1,10 +1,9 @@
 # Design Principles
 
-Guiding principles for evolving the Practice Language schema, specifications, and project structure. These principles inform every change to this project — read them before proposing schema modifications, adding new types, or writing specifications.
+Guiding principles specific to the Practice Language schema and its evolution. These principles supplement the global coding standards (defined in `~/.claude/CLAUDE.md`) with project-specific rules — read both before proposing schema modifications, adding new types, or writing specifications.
 
 ## Specifications and Documentation
 
-- **Gherkin-based specifications.** Specifications and design documents should express requirements using Given/When/Then structure where applicable. This mirrors the Practice Language's own Test model and produces unambiguous, verifiable requirements rather than prose descriptions.
 - **Three-layer coverage.** Every language concept requires coverage in three layers: schema definition (`language.schema.json`), semantic guidance (`references/semantics.md`), and validator support (`validate/`). A change that touches only one layer is incomplete.
 - **Semantics document the why, schema encodes the what.** The schema defines structural constraints; `semantics.md` explains operational meaning, authoring guidance, and decision frameworks. Neither is sufficient alone.
 - **Merge spec tracks composition behaviour.** Any schema change that affects how elements compose across practices or baselines must be reflected in `references/merge.md`. The merge algorithm is the consumer of the schema — if the merge spec doesn't know about a new type or relationship, it won't be processed during composition.
@@ -18,8 +17,11 @@ Guiding principles for evolving the Practice Language schema, specifications, an
 - **No floating elements.** Every alpha must declare `contributesTo` or `mapsTo` unless it is a baseline alpha or a redeclaration. Every work product LOD must declare `contributesTo`. Elements without structural connections to the baseline hierarchy are validation errors.
 - **Symbolic links, not embedded objects.** Cross-references between elements use string names (symbolic links), not embedded copies. This keeps the document graph navigable, prevents duplication, and allows validation by name resolution.
 
-## Versioning and Breaking Changes
+## Versioning
 
-- **Semver governs schema evolution.** Major version bumps for breaking changes (removed/renamed fields, changed discrimination logic). Minor version bumps for additive changes (new optional fields, new `$defs` types). Patch version bumps for documentation-only changes.
-- **Breaking changes rename, don't deprecate.** When a breaking change is warranted, rename cleanly rather than maintaining backwards compatibility shims. The major version bump signals consumers to migrate.
-- **The `$comment` schemaVersion is the source of truth.** The version in the schema's `$comment` field is authoritative. Document-level `schemaVersion` fields reference it for compatibility checking.
+The `$comment` field in `language.schema.json` contains the authoritative version string in the format `schemaVersion:X.Y.Z`. Document-level `schemaVersion` fields in practices, baselines, methods, and projects reference this version for compatibility checking.
+
+Version component examples specific to this schema:
+- **MAJOR** — removing or renaming a field, changing a required/optional boundary, altering enum values, restructuring type hierarchies.
+- **MINOR** — adding a new optional field, introducing a new `$defs` type, adding a new enum value to a non-exclusive set.
+- **PATCH** — correcting a description, fixing a typo in a `$comment`, updating documentation-only files (`semantics.md`, `merge.md`, this document).
