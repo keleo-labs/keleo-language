@@ -37,7 +37,7 @@
    - 6.11 [Alias Merging](#611-alias-merging)
    - 6.12 [Instance Declaration Merging](#612-instance-declaration-merging)
 7. [Post-Merge Finalization](#7-post-merge-finalization)
-   - 7.1 [Alpha Binding Resolution](#71-alpha-binding-resolution)
+   - 7.1 [Binding Resolution](#71-binding-resolution)
    - 7.2 [Supporting Alpha Aggregation](#72-supporting-alpha-aggregation)
    - 7.3 [Focus Name Propagation](#73-focus-name-propagation)
    - 7.4 [Baseline Description Re-stamping](#74-baseline-description-re-stamping)
@@ -338,41 +338,93 @@ Practice element aliases are deduplicated by composite key `practiceElementType 
 
 After all extension layers have been merged into the accumulator, several finalization passes run.
 
-### 7.1 Alpha Binding Resolution
+### 7.1 Binding Resolution
 
-When the source document is a Method with an `alphaBindings` array, the merge algorithm injects cross-baseline contribution relationships into the merged document. This step runs **before** supporting alpha aggregation (Section 7.2) so that the injected `contributesTo` properties are automatically picked up by the aggregation pass.
+When the source document is a Method with a `bindings` object, the merge algorithm injects cross-baseline relationships into the merged document. The `bindings` object contains two arrays — `alphaBindings` and `workProductBindings` — each supporting both `contribution` and `variant` relationship types. This step runs **before** supporting alpha aggregation (Section 7.2) and variant aggregation (Sections 7.2a, 7.2b) so that injected `contributesTo`, `mapsTo`, and `partOf` properties are automatically picked up by those passes.
 
-For each `AlphaBinding` in the Method's `alphaBindings` array:
+#### 7.1.1 Alpha Binding Resolution
 
-1. **Resolve the target alpha.** Look up the `baselineAlpha` by matching `baselineName` and `alphaName` against the alphas in the merged document. If the target alpha is not found, emit a validation warning and skip this binding.
+For each `AlphaBinding` in the Method's `bindings.alphaBindings` array:
 
-2. **Inject `contributesTo` on each contributing alpha.** For each entry in `contributingAlphas`, find the contributing alpha in the merged document by matching `baselineName` and `alphaName`. Set the contributing alpha's `contributesTo` property to the target alpha's name. If the contributing alpha already has a `contributesTo` value (from its own baseline), emit a warning — method-level bindings should not override existing within-baseline contribution relationships.
+1. **Resolve the target alpha.** Look up the `targetAlpha` by matching `baselineName` and `alphaName` against the alphas in the merged document. If the target alpha is not found, emit a validation warning and skip this binding.
 
-3. **Inject `contributesToState` on contributing alpha states.** For each `stateContributions` entry on the contributing alpha, find the state matching `fromState` within the contributing alpha's `states` array and set its `contributesToState` property to the `toState` value. If the state already has a `contributesToState` value, emit a warning and do not override.
+2. **Inject the relationship on each source alpha.** For each entry in `sourceAlphas`, find the source alpha in the merged document by matching `baselineName` and `alphaName`.
 
-**Example:** Given a Method with this binding:
+   - If `relationship` is `"contribution"`: set the source alpha's `contributesTo` property to the target alpha's name.
+   - If `relationship` is `"variant"`: set the source alpha's `mapsTo` property to the target alpha's name.
+   - If the source alpha already has the relevant property set (from its own baseline), emit a warning — method-level bindings should not override existing within-baseline relationships.
+
+3. **Inject `contributesToState` on source alpha states.** For each `stateContributions` entry on the source alpha, find the state matching `fromState` within the source alpha's `states` array and set its `contributesToState` property to the `toState` value. If the state already has a `contributesToState` value, emit a warning and do not override. This step applies to both `contribution` and `variant` bindings — for contribution bindings, the state mapping means "reaching fromState advances toState"; for variant bindings, it means "fromState corresponds to toState" (equivalence across different terminology or granularity).
+
+**Example (contribution):** Given a Method with this binding:
 
 ```json
 {
-  "baselineAlpha": {
-    "baselineName": "Project Management Essentials",
-    "alphaName": "Deliverable"
+  "bindings": {
+    "alphaBindings": [
+      {
+        "relationship": "contribution",
+        "targetAlpha": {
+          "baselineName": "Project Management Essentials",
+          "alphaName": "Deliverable"
+        },
+        "sourceAlphas": [
+          {
+            "baselineName": "Platform Adoption Essentials",
+            "alphaName": "Platform",
+            "stateContributions": [
+              { "fromState": "Operational", "toState": "Built" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+After this step, the "Platform" alpha in the merged document will have `contributesTo: "Deliverable"`, and its "Operational" state will have `contributesToState: "Built"`.
+
+**Example (variant):** Given a Method with this binding:
+
+```json
+{
+  "relationship": "variant",
+  "targetAlpha": {
+    "baselineName": "Sales Essentials",
+    "alphaName": "Sales Play"
   },
-  "contributingAlphas": [
+  "sourceAlphas": [
     {
-      "baselineName": "Platform Adoption Essentials",
-      "alphaName": "Platform",
+      "baselineName": "AI Adoption Essentials",
+      "alphaName": "AI Sales Play",
       "stateContributions": [
-        { "fromState": "Operational", "toState": "Built" }
+        { "fromState": "Opportunity Qualified", "toState": "Selected" },
+        { "fromState": "Solution Mapped", "toState": "Activated" }
       ]
     }
   ]
 }
 ```
 
-After this step, the "Platform" alpha in the merged document will have `contributesTo: "Deliverable"`, and its "Operational" state will have `contributesToState: "Built"`.
+After this step, the "AI Sales Play" alpha will have `mapsTo: "Sales Play"`, and its "Opportunity Qualified" state will have `contributesToState: "Selected"`.
 
-**Ordering dependency:** This step must run before Section 7.2 (Supporting Alpha Aggregation) because the aggregation pass walks all `contributesTo` declarations to build `supportingAlphas` arrays. By injecting `contributesTo` first, the "Deliverable" alpha will automatically gain "Platform" in its `supportingAlphas` array without additional logic.
+#### 7.1.2 Work Product Binding Resolution
+
+For each `WorkProductBinding` in the Method's `bindings.workProductBindings` array:
+
+1. **Resolve the target work product.** Look up the `targetWorkProduct` by matching `baselineName` and `workProductName` against the work products in the merged document. If the target work product is not found, emit a validation warning and skip this binding.
+
+2. **Inject the relationship on each source work product.** For each entry in `sourceWorkProducts`, find the source work product in the merged document by matching `baselineName` and `workProductName`.
+
+   - If `relationship` is `"contribution"`: set the source work product's `partOf` property to the target work product's name.
+   - If `relationship` is `"variant"`: set the source work product's `mapsTo` property to the target work product's name.
+   - If the source work product already has the relevant property set (from its own baseline), emit a warning — method-level bindings should not override existing within-baseline relationships.
+   - `partOf` and `mapsTo` are mutually exclusive — if a binding would set one while the other is already present, emit a warning and do not override.
+
+3. **Inject LOD-to-state contribution mappings.** For each `lodContributions` entry on the source work product, find the level of detail matching `fromLevelOfDetail` within the source work product's `levelsOfDetail` array. Add an `AlphaContribution` entry to that LOD's `contributesTo` array, mapping to the target work product's corresponding alpha state via the `toLevelOfDetail` mapping. If the LOD already contributes to the target alpha state, deduplicate.
+
+**Ordering dependency:** This step must run before Section 7.2 (Supporting Alpha Aggregation) and Sections 7.2a/7.2b (Variant Aggregation) because those passes walk `contributesTo`, `mapsTo`, and `partOf` declarations. By injecting relationships first, supporting alpha arrays and variant arrays are built automatically without additional logic.
 
 ### 7.2 Supporting Alpha Aggregation
 
@@ -501,6 +553,7 @@ When resolving a PracticeBaseline with `baselinePracticeNames`, the system creat
 | **Citations** | Field-level merge; authors union; later date/source wins |
 | **Narratives** | Merge by name; narrative context prose concatenates |
 | **Aliases** | Deduplicate by composite key |
+| **Bindings** | Resolved post-merge; contribution injects `contributesTo`/`partOf`, variant injects `mapsTo`; state/LOD mappings injected as `contributesToState` |
 | **Focus names** | Prefer non-implicit values; propagate from parent |
 | **Practice provenance** | First practice to introduce element retains credit |
 | **Pattern provenance** | First pattern to introduce or reference element retains credit |
