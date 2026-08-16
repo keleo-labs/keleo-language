@@ -1187,6 +1187,7 @@ class PracticeValidator:
                 "baseline": sum(1 for e in self.errors if e['category'] == 'baseline'),
                 "integrity": sum(1 for e in self.errors if e['category'] == 'integrity'),
                 "acyclicity": sum(1 for e in self.errors if e['category'] == 'acyclicity'),
+                "bindings": sum(1 for e in self.errors if e['category'] == 'bindings'),
                 "semantic": sum(1 for w in self.warnings if w['category'] == 'semantic')
             }
         }
@@ -1969,6 +1970,277 @@ class PracticeValidator:
                     })
         return True
 
+    def validate_bindings(self) -> bool:
+        """Validate method-level bindings (cross-baseline alpha and work product relationships)."""
+        is_method = 'practices' in self.practice or 'baselinePractice' in self.practice
+        if not is_method:
+            return True
+
+        bindings = self.practice.get('bindings')
+        if not bindings:
+            return True
+
+        has_errors = False
+
+        # Build index of all accessible baselines and their elements
+        # For now, validate against what we can see (baseline + dependencies)
+        accessible_alphas = defaultdict(dict)  # baselineName -> {alphaName -> alpha}
+        accessible_alpha_states = defaultdict(lambda: defaultdict(set))  # baselineName -> alphaName -> {states}
+        accessible_work_products = defaultdict(dict)  # baselineName -> {wpName -> wp}
+        accessible_wp_lods = defaultdict(lambda: defaultdict(set))  # baselineName -> wpName -> {lods}
+
+        baseline_name = self.baseline.get('name', '')
+        for alpha in self.baseline.get('alphas', []):
+            accessible_alphas[baseline_name][alpha['name']] = alpha
+            for state in alpha.get('states', []):
+                accessible_alpha_states[baseline_name][alpha['name']].add(state['name'])
+        for wp in self.baseline.get('workProducts', []):
+            accessible_work_products[baseline_name][wp['name']] = wp
+            for lod in wp.get('levelsOfDetail', []):
+                accessible_wp_lods[baseline_name][wp['name']].add(lod['name'])
+
+        for dep in self.dependencies:
+            dep_name = dep.get('name', '')
+            dep_baseline = dep.get('baselinePracticeName', dep_name)
+            for alpha in dep.get('alphas', []):
+                accessible_alphas[dep_baseline][alpha['name']] = alpha
+                accessible_alphas[dep_name][alpha['name']] = alpha
+                for state in alpha.get('states', []):
+                    accessible_alpha_states[dep_baseline][alpha['name']].add(state['name'])
+                    accessible_alpha_states[dep_name][alpha['name']].add(state['name'])
+            for wp in dep.get('workProducts', []):
+                accessible_work_products[dep_baseline][wp['name']] = wp
+                accessible_work_products[dep_name][wp['name']] = wp
+                for lod in wp.get('levelsOfDetail', []):
+                    accessible_wp_lods[dep_baseline][wp['name']].add(lod['name'])
+                    accessible_wp_lods[dep_name][wp['name']].add(lod['name'])
+
+        # Also index practices within the method
+        for practice in self.practice.get('practices', []):
+            p_baseline = practice.get('baselinePracticeName', '')
+            for alpha in practice.get('alphas', []):
+                accessible_alphas[p_baseline][alpha['name']] = alpha
+                for state in alpha.get('states', []):
+                    accessible_alpha_states[p_baseline][alpha['name']].add(state['name'])
+            for wp in practice.get('workProducts', []):
+                accessible_work_products[p_baseline][wp['name']] = wp
+                for lod in wp.get('levelsOfDetail', []):
+                    accessible_wp_lods[p_baseline][wp['name']].add(lod['name'])
+
+        # Validate alpha bindings
+        seen_alpha_targets = defaultdict(set)
+        for idx, binding in enumerate(bindings.get('alphaBindings', [])):
+            path = f"bindings.alphaBindings[{idx}]"
+            target = binding.get('targetAlpha', {})
+            t_baseline = target.get('baselineName', '')
+            t_alpha = target.get('alphaName', '')
+
+            if t_baseline and t_alpha:
+                if t_baseline in accessible_alphas and t_alpha not in accessible_alphas[t_baseline]:
+                    self.errors.append({
+                        "category": "bindings",
+                        "severity": "error",
+                        "path": f"{path}.targetAlpha.alphaName",
+                        "issue": f"Target alpha '{t_alpha}' not found in baseline '{t_baseline}'",
+                        "expected": f"One of: {sorted(accessible_alphas.get(t_baseline, {}).keys())}",
+                        "actual": t_alpha,
+                        "suggestion": "Check alpha name spelling or baseline name"
+                    })
+                    has_errors = True
+
+            target_states = accessible_alpha_states.get(t_baseline, {}).get(t_alpha, set())
+
+            for s_idx, source in enumerate(binding.get('sourceAlphas', [])):
+                s_path = f"{path}.sourceAlphas[{s_idx}]"
+                s_baseline = source.get('baselineName', '')
+                s_alpha = source.get('alphaName', '')
+
+                if s_baseline in accessible_alphas and s_alpha not in accessible_alphas[s_baseline]:
+                    self.errors.append({
+                        "category": "bindings",
+                        "severity": "error",
+                        "path": f"{s_path}.alphaName",
+                        "issue": f"Source alpha '{s_alpha}' not found in baseline '{s_baseline}'",
+                        "expected": f"One of: {sorted(accessible_alphas.get(s_baseline, {}).keys())}",
+                        "actual": s_alpha,
+                        "suggestion": "Check alpha name spelling or baseline name"
+                    })
+                    has_errors = True
+
+                # Check for duplicate source in same target
+                source_key = (s_baseline, s_alpha)
+                target_key = (t_baseline, t_alpha)
+                if source_key in seen_alpha_targets[target_key]:
+                    self.warnings.append({
+                        "category": "bindings",
+                        "severity": "warning",
+                        "path": s_path,
+                        "issue": f"Duplicate source alpha '{s_alpha}' from '{s_baseline}' targeting '{t_alpha}'",
+                        "expected": "Each source alpha appears at most once per target",
+                        "actual": f"{s_baseline}.{s_alpha}",
+                        "suggestion": "Remove duplicate binding entry"
+                    })
+                seen_alpha_targets[target_key].add(source_key)
+
+                source_states = accessible_alpha_states.get(s_baseline, {}).get(s_alpha, set())
+
+                mapped_target_states = set()
+                for sc_idx, sc in enumerate(source.get('stateContributions', [])):
+                    sc_path = f"{s_path}.stateContributions[{sc_idx}]"
+                    from_state = sc.get('fromState', '')
+                    to_state = sc.get('toState', '')
+
+                    if source_states and from_state not in source_states:
+                        self.errors.append({
+                            "category": "bindings",
+                            "severity": "error",
+                            "path": f"{sc_path}.fromState",
+                            "issue": f"State '{from_state}' not found on source alpha '{s_alpha}'",
+                            "expected": f"One of: {sorted(source_states)}",
+                            "actual": from_state,
+                            "suggestion": "Check state name spelling"
+                        })
+                        has_errors = True
+
+                    if target_states and to_state not in target_states:
+                        self.errors.append({
+                            "category": "bindings",
+                            "severity": "error",
+                            "path": f"{sc_path}.toState",
+                            "issue": f"State '{to_state}' not found on target alpha '{t_alpha}'",
+                            "expected": f"One of: {sorted(target_states)}",
+                            "actual": to_state,
+                            "suggestion": "Check state name spelling"
+                        })
+                        has_errors = True
+                    else:
+                        mapped_target_states.add(to_state)
+
+                # Warn about unmapped target states
+                relationship = binding.get('relationship', 'contribution')
+                if target_states and source.get('stateContributions') is not None:
+                    unmapped = target_states - mapped_target_states
+                    if unmapped:
+                        severity = "warning" if relationship == "contribution" else "info"
+                        label = "not advanced by this source" if relationship == "contribution" else "will be interpolated from surrounding mapped states"
+                        self.warnings.append({
+                            "category": "bindings",
+                            "severity": severity,
+                            "path": s_path,
+                            "issue": f"Unmapped target states on '{t_alpha}': {sorted(unmapped)} — {label}",
+                            "expected": "Full target state coverage preferred",
+                            "actual": f"Mapped: {sorted(mapped_target_states)}, Unmapped: {sorted(unmapped)}",
+                            "suggestion": "Map each target state to its closest semantic equivalent on the source, using many-to-one if needed"
+                        })
+
+        # Validate work product bindings
+        seen_wp_targets = defaultdict(set)
+        for idx, binding in enumerate(bindings.get('workProductBindings', [])):
+            path = f"bindings.workProductBindings[{idx}]"
+            target = binding.get('targetWorkProduct', {})
+            t_baseline = target.get('baselineName', '')
+            t_wp = target.get('workProductName', '')
+
+            if t_baseline and t_wp:
+                if t_baseline in accessible_work_products and t_wp not in accessible_work_products[t_baseline]:
+                    self.errors.append({
+                        "category": "bindings",
+                        "severity": "error",
+                        "path": f"{path}.targetWorkProduct.workProductName",
+                        "issue": f"Target work product '{t_wp}' not found in baseline '{t_baseline}'",
+                        "expected": f"One of: {sorted(accessible_work_products.get(t_baseline, {}).keys())}",
+                        "actual": t_wp,
+                        "suggestion": "Check work product name spelling or baseline name"
+                    })
+                    has_errors = True
+
+            target_lods = accessible_wp_lods.get(t_baseline, {}).get(t_wp, set())
+
+            for s_idx, source in enumerate(binding.get('sourceWorkProducts', [])):
+                s_path = f"{path}.sourceWorkProducts[{s_idx}]"
+                s_baseline = source.get('baselineName', '')
+                s_wp = source.get('workProductName', '')
+
+                if s_baseline in accessible_work_products and s_wp not in accessible_work_products[s_baseline]:
+                    self.errors.append({
+                        "category": "bindings",
+                        "severity": "error",
+                        "path": f"{s_path}.workProductName",
+                        "issue": f"Source work product '{s_wp}' not found in baseline '{s_baseline}'",
+                        "expected": f"One of: {sorted(accessible_work_products.get(s_baseline, {}).keys())}",
+                        "actual": s_wp,
+                        "suggestion": "Check work product name spelling or baseline name"
+                    })
+                    has_errors = True
+
+                # Check for duplicate source in same target
+                source_key = (s_baseline, s_wp)
+                target_key = (t_baseline, t_wp)
+                if source_key in seen_wp_targets[target_key]:
+                    self.warnings.append({
+                        "category": "bindings",
+                        "severity": "warning",
+                        "path": s_path,
+                        "issue": f"Duplicate source work product '{s_wp}' from '{s_baseline}' targeting '{t_wp}'",
+                        "expected": "Each source work product appears at most once per target",
+                        "actual": f"{s_baseline}.{s_wp}",
+                        "suggestion": "Remove duplicate binding entry"
+                    })
+                seen_wp_targets[target_key].add(source_key)
+
+                source_lods = accessible_wp_lods.get(s_baseline, {}).get(s_wp, set())
+
+                mapped_target_lods = set()
+                for lc_idx, lc in enumerate(source.get('lodContributions', [])):
+                    lc_path = f"{s_path}.lodContributions[{lc_idx}]"
+                    from_lod = lc.get('fromLevelOfDetail', '')
+                    to_lod = lc.get('toLevelOfDetail', '')
+
+                    if source_lods and from_lod not in source_lods:
+                        self.errors.append({
+                            "category": "bindings",
+                            "severity": "error",
+                            "path": f"{lc_path}.fromLevelOfDetail",
+                            "issue": f"LOD '{from_lod}' not found on source work product '{s_wp}'",
+                            "expected": f"One of: {sorted(source_lods)}",
+                            "actual": from_lod,
+                            "suggestion": "Check LOD name spelling"
+                        })
+                        has_errors = True
+
+                    if target_lods and to_lod not in target_lods:
+                        self.errors.append({
+                            "category": "bindings",
+                            "severity": "error",
+                            "path": f"{lc_path}.toLevelOfDetail",
+                            "issue": f"LOD '{to_lod}' not found on target work product '{t_wp}'",
+                            "expected": f"One of: {sorted(target_lods)}",
+                            "actual": to_lod,
+                            "suggestion": "Check LOD name spelling"
+                        })
+                        has_errors = True
+                    else:
+                        mapped_target_lods.add(to_lod)
+
+                # Warn about unmapped target LODs
+                relationship = binding.get('relationship', 'contribution')
+                if target_lods and source.get('lodContributions') is not None:
+                    unmapped = target_lods - mapped_target_lods
+                    if unmapped:
+                        severity = "warning" if relationship == "contribution" else "info"
+                        label = "not advanced by this source" if relationship == "contribution" else "will be interpolated from surrounding mapped LODs"
+                        self.warnings.append({
+                            "category": "bindings",
+                            "severity": severity,
+                            "path": s_path,
+                            "issue": f"Unmapped target LODs on '{t_wp}': {sorted(unmapped)} — {label}",
+                            "expected": "Full target LOD coverage preferred",
+                            "actual": f"Mapped: {sorted(mapped_target_lods)}, Unmapped: {sorted(unmapped)}",
+                            "suggestion": "Map each target LOD to its closest semantic equivalent on the source, using many-to-one if needed"
+                        })
+
+        return not has_errors
+
     def validate_redeclaration_vs_new(self) -> bool:
         """
         Validate that alphas are correctly classified as redeclaration vs new.
@@ -2234,6 +2506,9 @@ def main():
 
     print("Validating baseline references...", file=sys.stderr)
     baseline_valid = validator.validate_baseline_references()
+
+    print("Validating method-level bindings...", file=sys.stderr)
+    bindings_valid = validator.validate_bindings()
 
     print("Validating redeclaration vs new alpha classification...", file=sys.stderr)
     redeclaration_valid = validator.validate_redeclaration_vs_new()

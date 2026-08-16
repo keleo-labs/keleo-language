@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/language.schema.json",
-  "$comment": "schemaVersion:1.4.0",
+  "$comment": "schemaVersion:2.0.0",
   "title": "Practice language (from language.mmd)",
   "description": "JSON Schema derived from the Mermaid classDiagram in language.mmd. Identity is by name; most cross-links are string names (not embedded objects). Root validation discriminates Practice vs Method vs PracticeBaseline. Method can use embedded objects (baselinePractice + practices) or string references (baselinePracticeName + practiceNames) or a mix.",
   "$defs": {
@@ -218,7 +218,7 @@
     },
     "BaselineAlphaReference": {
       "type": "object",
-      "description": "Qualified reference to an alpha within a named baseline. Used in method-level alpha bindings to identify alphas across baseline boundaries.",
+      "description": "Qualified reference to an alpha within a named baseline. Used in method-level bindings to identify alphas across baseline boundaries.",
       "required": ["baselineName", "alphaName"],
       "properties": {
         "baselineName": {
@@ -232,41 +232,139 @@
       },
       "additionalProperties": false
     },
+    "BaselineWorkProductReference": {
+      "type": "object",
+      "description": "Qualified reference to a work product within a named baseline. Used in method-level bindings to identify work products across baseline boundaries.",
+      "required": ["baselineName", "workProductName"],
+      "properties": {
+        "baselineName": {
+          "type": "string",
+          "description": "Name of the PracticeBaseline containing the referenced work product (symbolic link; must match a PracticeBaseline.name accessible to the method)."
+        },
+        "workProductName": {
+          "type": "string",
+          "description": "Name of a WorkProduct within the named baseline (symbolic link; must match WorkProduct.name in the specified baseline)."
+        }
+      },
+      "additionalProperties": false
+    },
     "ContributingAlpha": {
       "type": "object",
-      "description": "An alpha from one baseline that contributes to an alpha in another baseline, with optional state-level mappings. When stateContributions is present, it declares specific state correspondences; when omitted, the contribution is declared at the alpha level only.",
+      "description": "An alpha from one baseline that is bound to an alpha in another baseline, with optional state-level mappings. When stateContributions is present, it declares specific state correspondences; when omitted, the binding is declared at the alpha level only. State mappings are valid for both contribution and variant relationships — cross-baseline alphas may use different terminology or granularity.",
       "required": ["baselineName", "alphaName"],
       "properties": {
         "baselineName": {
           "type": "string",
-          "description": "Name of the PracticeBaseline containing the contributing alpha (symbolic link; must match a PracticeBaseline.name accessible to the method)."
+          "description": "Name of the PracticeBaseline containing the source alpha (symbolic link; must match a PracticeBaseline.name accessible to the method)."
         },
         "alphaName": {
           "type": "string",
-          "description": "Name of the contributing Alpha within the named baseline (symbolic link; must match Alpha.name in the specified baseline)."
+          "description": "Name of the source Alpha within the named baseline (symbolic link; must match Alpha.name in the specified baseline)."
         },
         "stateContributions": {
           "type": "array",
           "items": { "$ref": "#/$defs/StateContribution" },
-          "description": "Optional state-level mappings from contributing alpha states to target baseline alpha states. Only map states where there is a clear correspondence; gaps are expected and valid."
+          "description": "Optional state-level mappings from source alpha states to target alpha states. For contribution relationships, maps which source states advance which target states. For variant relationships, maps state equivalence across different terminology or granularity. Many-to-one mappings are valid (multiple source states mapping to one target state). Unmapped source states produce no signal to the target; unmapped target states are not addressed by this source."
+        }
+      },
+      "additionalProperties": false
+    },
+    "LodContribution": {
+      "type": "object",
+      "description": "Maps a source work product's level of detail to a target work product's level of detail. Used in cross-baseline work product bindings where the source and target may use different LOD terminology or granularity.",
+      "required": ["fromLevelOfDetail", "toLevelOfDetail"],
+      "properties": {
+        "fromLevelOfDetail": {
+          "type": "string",
+          "description": "Name of a LevelOfDetail on the source work product (symbolic link; must match LevelOfDetail.name within the source work product)."
+        },
+        "toLevelOfDetail": {
+          "type": "string",
+          "description": "Name of a LevelOfDetail on the target work product (symbolic link; must match LevelOfDetail.name within the target work product)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContributingWorkProduct": {
+      "type": "object",
+      "description": "A work product from one baseline that is bound to a work product in another baseline, with optional LOD-level mappings. When lodContributions is present, it declares specific LOD correspondences; when omitted, the binding is declared at the work product level only. LOD mappings are valid for both contribution and variant relationships — cross-baseline work products may use different terminology or granularity.",
+      "required": ["baselineName", "workProductName"],
+      "properties": {
+        "baselineName": {
+          "type": "string",
+          "description": "Name of the PracticeBaseline containing the source work product (symbolic link; must match a PracticeBaseline.name accessible to the method)."
+        },
+        "workProductName": {
+          "type": "string",
+          "description": "Name of the source WorkProduct within the named baseline (symbolic link; must match WorkProduct.name in the specified baseline)."
+        },
+        "lodContributions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/LodContribution" },
+          "description": "Optional LOD-level mappings from source work product levels to target work product levels. For contribution relationships, maps which source LODs advance which target LODs. For variant relationships, maps LOD equivalence across different terminology or granularity. Many-to-one mappings are valid. Unmapped source LODs produce no signal to the target; unmapped target LODs are not addressed by this source."
         }
       },
       "additionalProperties": false
     },
     "AlphaBinding": {
       "type": "object",
-      "description": "Declares that one or more alphas from contributing baselines contribute to a target baseline alpha. This relationship exists only at the method level — it emerges from the composition of practices from different baseline families, and does not exist within either family independently.",
-      "required": ["baselineAlpha", "contributingAlphas"],
+      "description": "Declares a cross-baseline relationship between alphas. For 'contribution' relationships, source alphas contribute evidence toward the target alpha (cross-baseline contributesTo). For 'variant' relationships, source alphas are domain-specific versions of the target alpha (cross-baseline mapsTo). This relationship exists only at the method level — it emerges from the composition of practices from different baseline families.",
+      "required": ["relationship", "targetAlpha", "sourceAlphas"],
       "properties": {
-        "baselineAlpha": {
-          "$ref": "#/$defs/BaselineAlphaReference",
-          "description": "The target alpha that receives contributions. Typically a placeholder or management-level alpha in one baseline family."
+        "relationship": {
+          "type": "string",
+          "enum": ["contribution", "variant"],
+          "description": "The semantic relationship between source and target alphas. 'contribution': source alphas contribute evidence toward the target (cross-baseline contributesTo). 'variant': source alphas are domain-specific versions of the target (cross-baseline mapsTo — IS-A semantics)."
         },
-        "contributingAlphas": {
+        "targetAlpha": {
+          "$ref": "#/$defs/BaselineAlphaReference",
+          "description": "The target alpha in the binding. For contribution: receives evidence from source alphas. For variant: the parent concept that source alphas are variants of."
+        },
+        "sourceAlphas": {
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/ContributingAlpha" },
-          "description": "One or more alphas from other baselines that contribute to the target baseline alpha."
+          "description": "One or more alphas from other baselines that are bound to the target alpha."
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkProductBinding": {
+      "type": "object",
+      "description": "Declares a cross-baseline relationship between work products. For 'contribution' relationships, source work products are components of the target (cross-baseline partOf). For 'variant' relationships, source work products are domain-specific versions of the target (cross-baseline mapsTo). This relationship exists only at the method level.",
+      "required": ["relationship", "targetWorkProduct", "sourceWorkProducts"],
+      "properties": {
+        "relationship": {
+          "type": "string",
+          "enum": ["contribution", "variant"],
+          "description": "The semantic relationship between source and target work products. 'contribution': source work products are components of the target (cross-baseline partOf). 'variant': source work products are domain-specific versions of the target (cross-baseline mapsTo — IS-A semantics)."
+        },
+        "targetWorkProduct": {
+          "$ref": "#/$defs/BaselineWorkProductReference",
+          "description": "The target work product in the binding. For contribution: the parent that source work products are part of. For variant: the parent concept that source work products are variants of."
+        },
+        "sourceWorkProducts": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/ContributingWorkProduct" },
+          "description": "One or more work products from other baselines that are bound to the target work product."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Bindings": {
+      "type": "object",
+      "description": "Container for cross-baseline bindings declared at the method level. Bindings declare relationships between elements from different baseline families that emerge from practice composition. Each binding type supports both contribution (contributesTo/partOf) and variant (mapsTo) relationships.",
+      "properties": {
+        "alphaBindings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AlphaBinding" },
+          "description": "Cross-baseline alpha relationships. Each binding declares that source alphas from one baseline either contribute to or are variants of a target alpha in another baseline."
+        },
+        "workProductBindings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WorkProductBinding" },
+          "description": "Cross-baseline work product relationships. Each binding declares that source work products from one baseline either are components of or are variants of a target work product in another baseline."
         }
       },
       "additionalProperties": false
@@ -1553,10 +1651,9 @@
               "items": { "$ref": "#/$defs/Asset" },
               "description": "Optional array of visual assets for the entire method (shared across practices)"
             },
-            "alphaBindings": {
-              "type": "array",
-              "items": { "$ref": "#/$defs/AlphaBinding" },
-              "description": "Optional cross-baseline alpha contribution relationships that emerge from composing practices from different baseline families. Each binding declares that alphas from contributing baselines contribute to a target baseline alpha."
+            "bindings": {
+              "$ref": "#/$defs/Bindings",
+              "description": "Optional cross-baseline bindings that emerge from composing practices from different baseline families. Contains alpha bindings (cross-baseline contributesTo/mapsTo for alphas) and work product bindings (cross-baseline partOf/mapsTo for work products)."
             },
             "version": {
               "type": "string",

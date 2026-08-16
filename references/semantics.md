@@ -18,7 +18,7 @@
    - 4.5 [Adapting and Extending Practice Elements](#45-adapting-and-extending-practice-elements)
    - 4.6 [Practice Partitioning and Value-Driven Scoping](#46-practice-partitioning-and-value-driven-scoping)
    - 4.7 [Alpha vs Work Product Decision Framework](#47-alpha-vs-work-product-decision-framework)
-   - 4.8 [Method-Level Alpha Bindings](#48-method-level-alpha-bindings)
+   - 4.8 [Method-Level Bindings](#48-method-level-bindings)
 5. [PracticeElement Foundations](#5-practiceelement-foundations)
    - 5.1 [PracticeElement, Tagging Taxonomy, and Narrative Anchors](#51-practiceelement-tagging-taxonomy-and-narrative-anchors)
    - 5.2 [Checklists and Dynamic State-Gating](#52-checklists-and-dynamic-state-gating)
@@ -857,39 +857,107 @@ Not every work product requires four LODs — use what fits the source content (
 - Phase 2 should flag LOD names that resemble abstract concern progression rather than content maturity descriptors
 - Cross-validation: every alpha state should be reachable via at least one work product LOD `contributesTo`; orphaned states indicate missing work products or incorrect classification
 
-### 4.8 Method-Level Alpha Bindings
+### 4.8 Method-Level Bindings
 
-Methods compose practices from orthogonal baseline families — for example, a project management family and a platform adoption family. These families are designed independently on separate baselines, with no knowledge of each other. When composed into a method, placeholder alphas in one family (e.g., "Deliverable" in project management) need to connect to concrete alphas in another (e.g., "Platform" and "Migration Path" in platform adoption).
+Methods compose practices from orthogonal baseline families — for example, a project management family and a platform adoption family. These families are designed independently on separate baselines, with no knowledge of each other. When composed into a method, elements in one family need to connect to elements in another: placeholder alphas (e.g., "Deliverable" in project management) to concrete alphas (e.g., "Platform" in platform adoption), and work products in one family to work products in another.
 
-The `alphaBindings` property on Method declares these cross-baseline contribution relationships. Each binding says: **these alphas from contributing baselines contribute to this target baseline alpha.** The method is the right place for this declaration because it is the only construct that knows both baseline families.
+The `bindings` property on Method declares these cross-baseline relationships. It is an object containing two arrays — `alphaBindings` and `workProductBindings` — each supporting both **contribution** and **variant** relationship types. The method is the right place for these declarations because it is the only construct that knows both baseline families.
+
+#### Relationship Types
+
+Each binding declares a `relationship` that determines its semantic meaning:
+
+| Relationship | Alpha semantics | Work product semantics | Within-baseline equivalent |
+|---|---|---|---|
+| `"contribution"` | Source alphas contribute evidence toward the target alpha | Source work products are components of the target work product | `contributesTo` / `partOf` |
+| `"variant"` | Source alphas are domain-specific versions of the target (IS-A) | Source work products are domain-specific versions of the target (IS-A) | `mapsTo` |
 
 #### Structure
 
-An alpha binding has two parts:
+A binding has three parts:
 
-- **baselineAlpha** — a `BaselineAlphaReference` identifying the target alpha by baseline name and alpha name. This is the alpha that receives contributions (e.g., `"Deliverable"` in `"Project Management Essentials"`).
-- **contributingAlphas** — an array of `ContributingAlpha` entries, each identifying an alpha from another baseline that contributes to the target, with optional state-level mappings.
+- **relationship** — `"contribution"` or `"variant"`, declaring the semantic type of the binding.
+- **target** — a `BaselineAlphaReference` or `BaselineWorkProductReference` identifying the target element by baseline name and element name.
+- **sources** — an array of `ContributingAlpha` or `ContributingWorkProduct` entries, each identifying an element from another baseline with optional state/LOD-level mappings.
+
+**Alpha binding example (contribution):**
 
 ```json
 {
-  "alphaBindings": [
-    {
-      "baselineAlpha": {
-        "baselineName": "Project Management Essentials",
-        "alphaName": "Deliverable"
-      },
-      "contributingAlphas": [
-        {
-          "baselineName": "Platform Adoption Essentials",
-          "alphaName": "Platform",
-          "stateContributions": [
-            { "fromState": "Operational", "toState": "Built" },
-            { "fromState": "Adopted", "toState": "Accepted" }
-          ]
+  "bindings": {
+    "alphaBindings": [
+      {
+        "relationship": "contribution",
+        "targetAlpha": {
+          "baselineName": "Project Management Essentials",
+          "alphaName": "Deliverable"
         },
+        "sourceAlphas": [
+          {
+            "baselineName": "Platform Adoption Essentials",
+            "alphaName": "Platform",
+            "stateContributions": [
+              { "fromState": "Operational", "toState": "Built" },
+              { "fromState": "Adopted", "toState": "Accepted" }
+            ]
+          },
+          {
+            "baselineName": "Platform Adoption Essentials",
+            "alphaName": "Migration Path"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+In this example, the method composes project management and platform adoption practices. The binding declares that "Platform" and "Migration Path" from the platform adoption baseline contribute to "Deliverable" from the project management baseline. "Platform" includes state-level mappings (reaching "Operational" contributes to "Built" on Deliverable; reaching "Adopted" contributes to "Accepted"). "Migration Path" contributes at the alpha level only — no state correspondence is declared.
+
+**Alpha binding example (variant):**
+
+```json
+{
+  "relationship": "variant",
+  "targetAlpha": {
+    "baselineName": "Sales Essentials",
+    "alphaName": "Sales Play"
+  },
+  "sourceAlphas": [
+    {
+      "baselineName": "AI Adoption Essentials",
+      "alphaName": "AI Sales Play",
+      "stateContributions": [
+        { "fromState": "Opportunity Qualified", "toState": "Selected" },
+        { "fromState": "Solution Mapped", "toState": "Activated" },
+        { "fromState": "Proof Delivered", "toState": "Executing" },
+        { "fromState": "Deal Closed", "toState": "Measured" }
+      ]
+    }
+  ]
+}
+```
+
+Here the AI baseline uses 4 states with different names while Sales Essentials uses 5. The mapping declares which correspond; the unmapped target state "Optimized" is not directly expressed by the AI variant.
+
+**Work product binding example (contribution):**
+
+```json
+{
+  "workProductBindings": [
+    {
+      "relationship": "contribution",
+      "targetWorkProduct": {
+        "baselineName": "Project Management Essentials",
+        "workProductName": "Project Documentation"
+      },
+      "sourceWorkProducts": [
         {
           "baselineName": "Platform Adoption Essentials",
-          "alphaName": "Migration Path"
+          "workProductName": "Architecture",
+          "lodContributions": [
+            { "fromLevelOfDetail": "Validated", "toLevelOfDetail": "Complete" }
+          ]
         }
       ]
     }
@@ -897,45 +965,112 @@ An alpha binding has two parts:
 }
 ```
 
-In this example, the method composes project management and platform adoption practices. The binding declares that "Platform" and "Migration Path" from the platform adoption baseline contribute to "Deliverable" from the project management baseline. "Platform" includes state-level mappings (reaching "Operational" contributes to "Built" on Deliverable; reaching "Adopted" contributes to "Accepted"). "Migration Path" contributes at the alpha level only — no state correspondence is declared.
+**Work product binding example (variant):**
 
-#### Two Levels of State Mapping
+```json
+{
+  "relationship": "variant",
+  "targetWorkProduct": {
+    "baselineName": "Platform Adoption Essentials",
+    "workProductName": "Architecture"
+  },
+  "sourceWorkProducts": [
+    {
+      "baselineName": "Cloud Essentials",
+      "workProductName": "Cloud Architecture",
+      "lodContributions": [
+        { "fromLevelOfDetail": "Cloud Blueprint", "toLevelOfDetail": "Outlined" },
+        { "fromLevelOfDetail": "Cloud Design Document", "toLevelOfDetail": "Detailed" },
+        { "fromLevelOfDetail": "Validated Cloud Architecture", "toLevelOfDetail": "Validated" }
+      ]
+    }
+  ]
+}
+```
 
-State contribution mapping operates at two levels:
+#### Two Levels of State/LOD Mapping
 
-1. **Within-baseline (`State.contributesToState`)** — When an alpha declares `contributesTo` within its own baseline or practice, individual states can declare `contributesToState` directly on the State object. The practice author declares the mapping at authoring time because the alpha knows its parent. See Section 6.2.
+State and LOD mapping operates at two levels:
 
-2. **Cross-baseline (`ContributingAlpha.stateContributions`)** — When the contribution relationship is declared via an alpha binding, the contributing alpha was authored independently of the target. Its states cannot declare `contributesToState` because they didn't know about the target alpha. Instead, the method author declares state mappings in the binding itself via `stateContributions`.
+1. **Within-baseline** — When an alpha declares `contributesTo` or `mapsTo` within its own baseline or practice, individual states can declare `contributesToState` directly on the State object. Similarly, work products use `partOf` or `mapsTo` within their baseline. The practice author declares mappings at authoring time because the elements know each other. See Sections 6.2 and 7.4.
 
-Both express the same concept — which states on a child alpha correspond to states on a parent alpha — but at different levels appropriate to their context.
+2. **Cross-baseline** — When the relationship is declared via a binding, the source element was authored independently of the target. Its states/LODs cannot declare direct mappings because they didn't know about the target. Instead, the method author declares mappings in the binding itself via `stateContributions` (for alphas) or `lodContributions` (for work products).
+
+Both levels express the same concept — which states/LODs on a source correspond to states/LODs on a target — but at different levels appropriate to their context.
+
+#### Mapping Guidance and Gap Semantics
+
+Cross-baseline elements are authored independently, so they may use different terminology and different granularity for their states/LODs. The method author must reconcile these differences through explicit mappings.
+
+**Authoring rule:** Map every source state/LOD to its closest semantic equivalent on the target. Prefer full coverage of the target side. Many-to-one mappings are expected and normal — multiple fine-grained source states/LODs may map to one coarser target state/LOD. One-to-many mappings are valid for contribution bindings (one source state advances multiple target states).
+
+**When gaps remain despite best-effort mapping:**
+
+| Gap type | Contribution semantics | Variant semantics |
+|---|---|---|
+| **Unmapped source** state/LOD | Progress within the source that hasn't reached a contribution threshold — no signal to target | Variant-specific granularity with no parent equivalent — visible only when viewing through the variant lens |
+| **Unmapped target** state/LOD | This source doesn't advance that target state/LOD — other sources or evidence must cover it | The variant doesn't distinguish this parent state/LOD — tooling interpolates it between the nearest mapped states/LODs before and after |
+
+**Interpolation rule for variant bindings:** When a variant source reaches a mapped target state/LOD T(n), all unmapped target states/LODs between T(n) and the previously mapped target state/LOD T(n-1) are considered implicitly reached. This follows from IS-A semantics: if the variant has progressed past a point, the parent has too.
+
+**Example:** Source reaches "Implemented" → maps to target "Built". Target "Designed" (unmapped, between "Scoped" and "Built") is implicitly reached because the source has progressed past it.
+
+**Many-to-one example (source more granular):**
+
+```
+Source:  Qualified → Assessed → Designed → Validated → Adopted
+Target:  Selected  →           Built     →             Accepted
+```
+
+```json
+"stateContributions": [
+  { "fromState": "Qualified", "toState": "Selected" },
+  { "fromState": "Assessed",  "toState": "Selected" },
+  { "fromState": "Designed",  "toState": "Built" },
+  { "fromState": "Validated", "toState": "Built" },
+  { "fromState": "Adopted",   "toState": "Accepted" }
+]
+```
 
 #### Design Principles
 
-- **Bind baselines, not practices.** Alpha bindings reference baseline names. All practices built on those baselines automatically inherit the linkage, keeping everything consistent without per-practice declarations.
-- **State mapping is optional.** Only map states where there is a clear correspondence. Not every state on a contributing alpha maps to a state on the target — gaps are expected and valid.
-- **Bindings are additive.** They declare new contribution edges that emerge from the composition. They do not replace existing `contributesTo` relationships within either baseline.
-- **Bindings are directional.** Contributing alphas contribute TO the target baseline alpha. Progress on the contributing alphas drives progress on the target.
+- **Bind baselines, not practices.** Bindings reference baseline names. All practices built on those baselines automatically inherit the linkage, keeping everything consistent without per-practice declarations.
+- **Map to the closest match.** When source and target use different terminology or granularity, map each state/LOD to its closest semantic equivalent. Many-to-one mappings are preferred over leaving gaps.
+- **Bindings are additive.** They declare new edges that emerge from the composition. They do not replace existing `contributesTo`, `partOf`, or `mapsTo` relationships within either baseline.
+- **Bindings are directional.** Source elements relate TO the target element. For contribution bindings, progress on sources drives progress on the target. For variant bindings, sources are domain-specific versions of the target.
 
-#### When to Use Alpha Bindings
+#### When to Use Bindings
 
 | Scenario | Mechanism |
 |----------|-----------|
 | Alpha specialization within a baseline | `Alpha.contributesTo` (string naming parent alpha) |
+| Alpha variant within a baseline | `Alpha.mapsTo` (string naming parent alpha) |
 | State mapping within a baseline | `State.contributesToState` (string naming parent state) |
-| Cross-baseline alpha contribution in a method | `AlphaBinding` on Method |
+| Work product containment within a baseline | `WorkProduct.partOf` (string naming parent work product) |
+| Work product variant within a baseline | `WorkProduct.mapsTo` (string naming parent work product) |
+| Cross-baseline alpha contribution in a method | `AlphaBinding` with `relationship: "contribution"` |
+| Cross-baseline alpha variant in a method | `AlphaBinding` with `relationship: "variant"` |
 | Cross-baseline state mapping in a method | `stateContributions` on `ContributingAlpha` |
+| Cross-baseline work product contribution in a method | `WorkProductBinding` with `relationship: "contribution"` |
+| Cross-baseline work product variant in a method | `WorkProductBinding` with `relationship: "variant"` |
+| Cross-baseline LOD mapping in a method | `lodContributions` on `ContributingWorkProduct` |
 
 #### Relationship to Merge
 
-Alpha bindings are consumed **after** the merge algorithm produces the unified document. The merge layers baselines and practices in dependency order (Section 4.2). Alpha bindings provide additional contribution edges that tooling should inject into the merged result. The merge algorithm itself does not process bindings — they are post-merge metadata that tooling interprets when rendering or analysing the composed method.
+Bindings are consumed **after** the merge algorithm produces the unified document. The merge layers baselines and practices in dependency order (Section 4.2). Bindings provide additional edges that tooling should inject into the merged result. The merge algorithm itself does not process bindings — they are post-merge metadata that tooling interprets when rendering or analysing the composed method.
 
 #### Validation Rules
 
 1. Each `baselineName` in a binding must reference a baseline accessible to the method — either the method's own baseline, a baseline it depends on via `baselinePracticeNames`, or a baseline of one of its composed practices.
-2. Each `alphaName` must exist within the referenced baseline.
-3. Each `fromState` in a `stateContributions` entry must be a valid state name within the contributing alpha.
-4. Each `toState` must be a valid state name within the target baseline alpha.
-5. The same contributing alpha (same baselineName + alphaName) should not appear in multiple bindings targeting the same baseline alpha.
+2. Each `alphaName` must exist within the referenced baseline (for alpha bindings).
+3. Each `workProductName` must exist within the referenced baseline (for work product bindings).
+4. Each `fromState` in a `stateContributions` entry must be a valid state name within the source alpha.
+5. Each `toState` must be a valid state name within the target alpha.
+6. Each `fromLevelOfDetail` in a `lodContributions` entry must be a valid LOD name within the source work product.
+7. Each `toLevelOfDetail` must be a valid LOD name within the target work product.
+8. The same source element (same baselineName + alphaName/workProductName) should not appear in multiple bindings targeting the same target element.
+9. Unmapped target states/LODs in contribution bindings produce a warning — confirm the gap is intentional.
+10. Unmapped target states/LODs in variant bindings produce an informational notice — interpolation will apply.
 
 ## 5 PracticeElement Foundations
 
