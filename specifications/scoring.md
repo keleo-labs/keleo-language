@@ -245,8 +245,125 @@ The blue intensity scale was chosen for its performance under the most common fo
 - Score information is never conveyed by colour alone — numerical scores or textual labels must be available as alternatives
 - Focus identity colours include non-colour differentiators (labels, icons, or spatial grouping) for users who cannot distinguish the hues
 
-## Open Questions
+## Behavioural Scenarios
 
-1. **Weighting dimensions.** The current scoring treats all dimensions as contributing equally to the raw score. Should certain dimensions (e.g., State Checklist Coverage) carry more weight than others to better reflect practice quality?
-2. **Extension alpha cap.** The cap on combined baseline + extension alpha scores prevents inflation but may undervalue practices that make significant extensions to a sparsely defined baseline. Should the cap be configurable or context-dependent?
-3. **Project tracking aggregation.** Should composite project progress weight alpha instances differently from work product instances, and if so, by what heuristic?
+### Feature: Alpha Coverage Score Calculation
+
+```gherkin
+Scenario: Alpha with no coverage scores zero
+  Given an alpha with no narratives
+  And no states have checklists
+  And no work product LOD contributes to this alpha
+  And no activity contributes to this alpha
+  And no other alpha declares contributesTo this alpha
+  When the alpha coverage score is calculated
+  Then the raw score is 0
+  And the normalised score is 0
+
+Scenario: Alpha with full coverage across all dimensions scores 5
+  Given an alpha with 2 or more narratives
+  And all states have non-empty checklists
+  And at least one work product LOD contributes to this alpha
+  And at least one activity contributes to this alpha
+  And at least 2 other alphas declare contributesTo this alpha
+  When the alpha coverage score is calculated
+  Then the raw score is 12
+  And the normalised score is round((5 × 12) / 12) = 5
+
+Scenario: Normalisation rounding
+  Given an alpha with a raw score of 7
+  When the alpha coverage score is normalised
+  Then the normalised score is round((5 × 7) / 12) = round(2.917) = 3
+```
+
+### Feature: Extension Alpha Cap
+
+```gherkin
+Scenario: Extension alphas cannot inflate a baseline alpha's score beyond its own completeness
+  Given a baseline alpha "Platform" with a coverage score of 2
+  And an extension practice adds alpha "Platform Capability" with contributesTo "Platform"
+  And "Platform Capability" has a coverage score of 5
+  When the combined score for "Platform" is calculated
+  Then the combined score is capped at 2
+  Because extension alphas fill gaps but cannot compensate for baseline deficiencies
+
+Scenario: Extension fills gaps in a partially-covered baseline alpha
+  Given a baseline alpha "Platform" with a raw score of 4 (no work product contribution, no activity contribution)
+  And an extension practice adds activities and work products that contribute to "Platform"
+  When the combined score for "Platform" is calculated
+  Then the extension's contributions increase the raw score up to the baseline's structural ceiling
+```
+
+### Feature: ActivitySpace Coverage Score (Differential)
+
+```gherkin
+Scenario: Extension adds no activities to a space
+  Given a baseline activity space "Architect and Build the Foundation"
+  And the extension practice does not add any activities to this space
+  When the activity space coverage score is calculated
+  Then the score is 0
+  Because the differential score measures only what the extension adds
+
+Scenario: Extension adds activities with broad contributions
+  Given a baseline activity space "Architect and Build the Foundation"
+  And the extension practice adds 5 activities to this space
+  And the added activities contribute to 2 unique alphas
+  And the added activities reference 2 new competencies
+  And the added activities introduce a new persona group reference
+  When the activity space coverage score is calculated
+  Then the raw score includes 3 points for activity count (5+ threshold)
+  And 2 points for alpha contribution diversity
+  And 2 points for competency diversity
+  And 1 point for persona group involvement
+```
+
+### Feature: Project Tracking Progress
+
+```gherkin
+Scenario: All required checklist items complete
+  Given an alpha instance in state "Operational" with 5 checklist items
+  And the target section marks all 5 items as required
+  And the current section marks all 5 items as "complete"
+  When the alpha instance progress is calculated
+  Then progress is 5 / 5 = 1.0
+
+Scenario: Some items marked not required are excluded from denominator
+  Given an alpha instance in state "Operational" with 5 checklist items
+  And the target section marks 2 items as "not required"
+  And the current section marks the remaining 3 items as "complete"
+  When the alpha instance progress is calculated
+  Then the required count is 3 (5 total minus 2 not required)
+  And progress is 3 / 3 = 1.0
+
+Scenario: No checklist items defined
+  Given an alpha instance in a state with no checklist items defined
+  When the alpha instance progress is calculated
+  Then progress is 0
+  Because there are no items to evaluate (zero denominator yields zero, not an error)
+```
+
+## Resolved Design Decisions
+
+1. **Dimension weighting**
+
+   **Question:** Should certain scoring dimensions (e.g., State Checklist Coverage) carry more weight than others to better reflect practice quality?
+
+   **Decision:** Keep equal weighting as the default.
+
+   **Rationale:** Equal weighting is the simplest approach and avoids embedding subjective quality judgements into the algorithm. If weighting is needed in future, it should be introduced as a schema extension (e.g., a configurable weight property on dimensions), not baked into the scoring formula. This follows the design principle of keeping it simple — complexity should be justified by a concrete need, not a hypothetical one.
+
+2. **Extension alpha cap**
+
+   **Question:** Should the cap on combined baseline + extension alpha scores be configurable or context-dependent?
+
+   **Decision:** Keep the cap fixed.
+
+   **Rationale:** The cap prevents extension practices from inflating a baseline alpha's score beyond what the baseline's own structural completeness warrants. Context-dependent caps add complexity without clear benefit — a well-structured practice should not need to override the cap. If a baseline alpha is sparsely defined, the correct fix is to improve the baseline, not to relax the cap.
+
+3. **Project tracking aggregation**
+
+   **Question:** Should composite project progress weight alpha instances differently from work product instances?
+
+   **Decision:** Weight equally by instance count.
+
+   **Rationale:** Equal weighting by instance count is the simplest heuristic and avoids privileging one element type over another without clear justification. If weighting is needed in future, it belongs in the Project type as explicit configuration (e.g., a weighting property on instances), keeping the scoring algorithm itself clean.

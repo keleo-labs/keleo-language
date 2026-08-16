@@ -22,7 +22,7 @@ The diagram renders the compositional relationships expressed by symbolic name r
 - **`practiceNames` / `practices`** — on a Method, names the extension practices composed into the method.
 - **`baselinePracticeNames`** — on a PracticeBaseline, names other baselines this baseline builds upon.
 
-These are the same symbolic references that the packaging specification's dependency mechanism resolves. The diagram visualises the resolution tree that the merge algorithm traverses during practice composition.
+These are the same symbolic references that the [packaging specification's](packaging.md) dependency mechanism resolves. The diagram visualises the resolution tree that the [merge algorithm](../references/merge.md) traverses during practice composition.
 
 ## Relationship to Other Diagrams
 
@@ -308,8 +308,19 @@ Differences between the two forms:
 | Scroll | Horizontally scrollable container | Fixed viewport |
 | Font | Theme font variable | `RedHatText, Helvetica, Arial, sans-serif` |
 
-## Open Questions
+## Resolved Design Decisions
 
-1. **Transitive depth limit.** The tree is expanded transitively with no depth limit. Should there be a configurable maximum depth to prevent excessively wide diagrams for deeply nested dependency chains?
-2. **Ungrouped nodes.** Nodes with no `baselineName` are placed in a synthetic ungrouped cluster with no background. Should these be visually distinguished (e.g., a labeled "Standalone" group)?
-3. **Method vs practice root styling.** The root node uses the same visual treatment regardless of whether the viewed document is a practice, method, or baseline. Should the root card's icon or border style vary by document kind?
+1. **Transitive depth limit.**
+   - **Question:** Should there be a configurable maximum depth to prevent excessively wide diagrams for deeply nested dependency chains?
+   - **Decision:** No depth limit. The existing cycle prevention via the `visited` set (see [Cycle Prevention](#cycle-prevention)) already prevents infinite recursion. Practice Language dependency chains are inherently shallow (typically 2-4 levels).
+   - **Rationale:** A configurable limit adds complexity for a problem that doesn't exist in practice. If pathological depth is encountered in future, a fixed limit (e.g., 20) can be added without configuration.
+
+2. **Ungrouped nodes.**
+   - **Question:** Should nodes with no `baselineName` (placed in a synthetic ungrouped cluster) be visually distinguished with a labelled group background?
+   - **Decision:** Ungrouped nodes render without a group background, consistent with their lack of baseline identity.
+   - **Rationale:** Ungrouped nodes are rare edge cases. Adding visual treatment for a synthetic category adds noise without informational value.
+
+3. **Method vs practice root styling.**
+   - **Question:** Should the root card's icon or border style vary by document kind (practice, method, baseline)?
+   - **Decision:** Yes — vary the root icon by document kind. Layer-group (■) for baselines, puzzle-piece (◆) for practices, and a distinct method icon (e.g., sitemap) for methods.
+   - **Rationale:** Gives immediate visual context about what the user is viewing. This is an implementation change for keleo-studio, not a schema change.

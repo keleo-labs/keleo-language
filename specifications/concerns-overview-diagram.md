@@ -83,19 +83,10 @@ In the interactive form, cards use `foreignObject` to embed HTML content (suppor
 
 ### Layout Constants
 
+This diagram uses the [shared layout constants](shared-diagram-primitives.md#layout-constants). Additional constants specific to the Concerns Overview Diagram:
+
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `CARD_WIDTH` | 180px | Width of every alpha card |
-| `CARD_HEIGHT` | 48px | Height of every alpha card |
-| `CARD_GAP` | 12px | Vertical gap between sibling cards |
-| `VERTICAL_PADDING` | 12px | Extra padding after a subtree before the next sibling |
-| `INDENT` | 42px | Horizontal indent per tree depth level |
-| `LINE_OFFSET` | 21px | X-offset of the vertical connector line from the parent card's left edge (half of `INDENT`) |
-| `FOCUS_HEADING_HEIGHT` | 40px | Vertical space reserved for focus heading + description |
-| `FOCUS_GAP` | 32px | Vertical gap between focus groups |
-| `WRAP_WIDTH` | 1100px | Maximum row width before trees wrap to a new row (static export) |
-| `TREE_GAP_X` | 24px | Horizontal gap between sibling trees in a row |
-| `ROW_GAP` | 24px | Vertical gap between wrapped rows of trees |
 | `COLUMN_GAP` | 24px | Horizontal gap between columns within a multi-column tree |
 | `MULTI_COL_THRESHOLD` | 420px | Height threshold (7 × card slot) before multi-column layout activates |
 | `MAPS_TO_BAR_WIDTH` | 6px | Width of the vertical bar connector for `mapsTo` relationships |
@@ -164,18 +155,9 @@ The connector lines and bar are rendered as a separate pass before the cards, en
 
 ## Score Colouring (Interactive Only)
 
-In the interactive form, each card's fill colour is determined by its alpha coverage score, as defined in the Scoring specification. The score-to-colour mapping uses the score intensity scale:
+This diagram uses the [shared score colouring system](shared-diagram-primitives.md#score-colouring). Scores are sourced from the Alpha Coverage scoring pipeline (see the [Scoring specification](scoring.md#alpha-coverage-score)).
 
-| Score | Fill |
-|-------|------|
-| 0 | `#FFFFFF` (white) |
-| 1 | `#E7F1FA` (light blue) |
-| 2 | `#BEE1F4` (mid blue) |
-| 3+ | `#73BCF7` (dark blue) |
-
-The selected card overrides this with a primary-colour tinted background and a 3px primary-colour border.
-
-The static export does not include score colouring — all cards use a white fill with a `#d2d2d2` border. This is because the static export is a snapshot of structure, not a live analysis tool, and scores require the full scoring pipeline which is not available at export time.
+The selected card overrides score colouring with a primary-colour tinted background (`color-mix(in srgb, var(--pf-v6-global--primary-color--100) 10%, #ffffff)`) and a 3px primary-colour border.
 
 ## Selection Behaviour (Interactive Only)
 
@@ -188,23 +170,15 @@ Selection triggers the `onSelectElement` callback, which typically opens the ele
 
 ## Icon Rendering
 
-Cards may display an icon to the left of the alpha name. Icons are resolved from the alpha's `assetNames` array by finding the entry where `type === "icon"` and looking up the corresponding Asset object.
-
-In the interactive form, icons are rendered via the `IconAsset` React component at 18px size. In the static form, icons are rendered as inline HTML within `foreignObject`, with font-character assets generating the appropriate `@import` CSS rules in the SVG's `<defs>` block. Icon font CDN URLs are collected from all referenced assets and deduplicated.
+Icons are resolved and rendered using the [shared icon rendering strategy](shared-diagram-primitives.md#icon-rendering). Icons are resolved from the alpha's `assetNames` array by finding the entry where `type === "icon"`.
 
 ## Text Handling
 
-Alpha names are displayed using the display alias system (`AliasedName` in the interactive form, `DisplayAliasFn` in the static form), which allows practices to define shorter display names for elements. In the static form, names are truncated to 22 characters with an ellipsis to prevent overflow.
+This diagram uses the [shared text handling](shared-diagram-primitives.md#text-handling) conventions. In the static form, names are truncated to 22 characters with an ellipsis to prevent overflow.
 
 ## Static Export Specifics
 
-The static SVG export (`generateConcernsOverviewSvg`) produces a self-contained SVG string with:
-
-- An explicit `xmlns` declaration for standalone SVG file compatibility
-- `width` and `height` attributes set to the computed dimensions (minimum 400px wide)
-- A matching `viewBox` for proper scaling
-- Optional `<defs>` block with `@import` CSS rules for icon font families
-- All coordinates computed in pixels, no CSS variables or theme dependencies
+The static SVG export (`generateConcernsOverviewSvg`) follows the [shared static export conventions](shared-diagram-primitives.md#static-export-conventions).
 
 ## Implementation Parity
 
@@ -216,19 +190,21 @@ Both implementations must produce the same visual layout. The shared invariants 
 4. Same connector geometry: orthogonal lines for `contributesTo`, vertical bar for `mapsTo`
 5. Same focus group ordering and partitioning
 
-Differences between the two forms are limited to:
+Differences between the two forms follow the [shared implementation parity template](shared-diagram-primitives.md#implementation-parity). The concerns-specific text truncation length is 22 characters (vs the shared default).
 
-| Concern | Interactive | Static |
-|---------|------------|--------|
-| Card fill | Score-based colouring | White (`#ffffff`) |
-| Selection | Click-to-select with visual feedback | None |
-| Icons | `IconAsset` React component | Inline HTML in `foreignObject` + `<text>` fallback |
-| Text | `AliasedName` component | Plain text with 22-char truncation |
-| Row wrapping | CSS flexbox | Computed `wrapLayout` with `WRAP_WIDTH` |
-| Font loading | Browser-managed | `@import` rules in SVG `<defs>` |
+## Resolved Design Decisions
 
-## Open Questions
+1. **Score colouring in static export.**
+   - **Question:** Should the static export include score colouring?
+   - **Decision:** No. Static exports remain white-fill.
+   - **Rationale:** Static exports are structural snapshots. Scores are a runtime concern requiring the full scoring pipeline; pre-computing them would create stale data. Scores are available in the interactive form where they are always current.
 
-1. **Score colouring in static export.** Should the static export include score colouring? This would require either pre-computing scores at export time or accepting that static scores become stale.
-2. **Accessibility.** The interactive form uses `cursor: pointer` but does not provide keyboard navigation or ARIA labels for the SVG cards. Should the cards be rendered as focusable elements with `role="button"`?
-3. **MapsTo card styling.** Currently, mapsTo and contributesTo children use identical card styling (same dimensions, fill, border). Should mapsTo children have a distinct card appearance (e.g., a subtle blue tint or dashed border) to reinforce the connector colour distinction?
+2. **Accessibility.**
+   - **Question:** Should cards provide keyboard navigation and ARIA labels?
+   - **Decision:** Yes. Cards in the interactive form should be rendered as focusable elements with `role="button"` and `aria-label` set to the alpha name.
+   - **Rationale:** Click-to-select behaviour without keyboard equivalence excludes keyboard and assistive technology users. This is an implementation requirement for the interactive form only; the static export does not support interaction.
+
+3. **MapsTo card styling.**
+   - **Question:** Should mapsTo children have a distinct card appearance (e.g., blue tint, dashed border)?
+   - **Decision:** No. Keep uniform card styling.
+   - **Rationale:** The connector type (vertical bar vs orthogonal lines) already provides sufficient visual distinction between mapsTo and contributesTo relationships. Adding card-level differentiation would create redundant signals and increase visual complexity without improving comprehension.

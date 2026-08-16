@@ -47,6 +47,7 @@
     - 10.1 [Method Resolution](#101-method-resolution)
     - 10.2 [Practice Resolution with Pruning](#102-practice-resolution-with-pruning)
     - 10.3 [Baseline Resolution](#103-baseline-resolution)
+11. [Behavioural Scenarios](#11-behavioural-scenarios)
 
 ---
 
@@ -534,6 +535,105 @@ Elements not in the closure are removed from the merged output, producing a focu
 ### 10.3 Baseline Resolution
 
 When resolving a PracticeBaseline with `baselinePracticeNames`, the system creates a synthetic Method from the dependency chain and composes it. The result is a fully resolved baseline with all parent baseline content merged in.
+
+---
+
+## 11 Behavioural Scenarios
+
+The following Gherkin scenarios illustrate the merge rules that are most likely to surprise consumers. They supplement the algorithmic prose above — refer to the referenced sections for full detail.
+
+### Feature: Description preservation (Section 4.2)
+
+```gherkin
+Scenario: Extension practice cannot override baseline description
+  Given a baseline alpha "Platform" with description "Core platform concern"
+  And an extension practice with alpha "Platform" with description "Cloud platform concern"
+  When the practices are merged
+  Then the merged alpha "Platform" has description "Core platform concern"
+```
+
+### Feature: Scalar field first-writer-wins (Section 4.3)
+
+```gherkin
+Scenario: First substantive value wins for scalar fields
+  Given a baseline alpha "Platform" with focusName "Solution"
+  And an extension practice with alpha "Platform" with focusName "Technology"
+  When the practices are merged
+  Then the merged alpha "Platform" has focusName "Solution"
+
+Scenario: Vacant base filled by overlay
+  Given a baseline alpha "Platform" with no focusName set
+  And an extension practice with alpha "Platform" with focusName "Solution"
+  When the practices are merged
+  Then the merged alpha "Platform" has focusName "Solution"
+```
+
+### Feature: Checklist merging (Section 6.2)
+
+```gherkin
+Scenario: Extension adds new checklist items to existing state
+  Given a baseline alpha "Platform" with state "Architecture Selected"
+  And state "Architecture Selected" contains checklist item "Architecture documented"
+  And an extension practice adds checklist item "Security review completed" to state "Architecture Selected"
+  When the practices are merged
+  Then state "Architecture Selected" contains both "Architecture documented" and "Security review completed"
+
+Scenario: Existing checklist items are not duplicated
+  Given a baseline alpha "Platform" with state "Architecture Selected"
+  And state "Architecture Selected" contains checklist item "Architecture documented"
+  And an extension practice also declares checklist item "Architecture documented"
+  When the practices are merged
+  Then state "Architecture Selected" contains exactly one "Architecture documented" item
+```
+
+### Feature: Binding resolution (Section 7.1)
+
+```gherkin
+Scenario: Contribution binding injects contributesTo
+  Given a method composing baselines "Project Management Essentials" and "Platform Adoption Essentials"
+  And a contribution binding maps source alpha "Platform" (from "Platform Adoption Essentials") to target alpha "Deliverable" (from "Project Management Essentials")
+  When the method is resolved
+  Then alpha "Platform" has contributesTo set to "Deliverable"
+
+Scenario: Variant binding injects mapsTo
+  Given a method composing baselines "Sales Essentials" and "AI Adoption Essentials"
+  And a variant binding maps source alpha "AI Sales Play" (from "AI Adoption Essentials") to target alpha "Sales Play" (from "Sales Essentials")
+  When the method is resolved
+  Then alpha "AI Sales Play" has mapsTo set to "Sales Play"
+
+Scenario: Binding does not override existing within-baseline relationship
+  Given alpha "Platform Capability" already has contributesTo set to "Platform" (from its own baseline)
+  And a method-level binding attempts to set contributesTo to "Deliverable"
+  When the method is resolved
+  Then alpha "Platform Capability" retains contributesTo "Platform"
+  And a warning is emitted about the conflicting binding
+```
+
+### Feature: Name canonicalization (Section 9)
+
+```gherkin
+Scenario: Case-insensitive name matching during merge
+  Given a baseline alpha named "Platform"
+  And an extension practice with alpha named "platform"
+  When the practices are merged
+  Then the two are merged as the same element, not duplicated
+```
+
+### Feature: Tag merging (Section 4.4)
+
+```gherkin
+Scenario: Tags union within each dimension
+  Given a baseline alpha with domainTags ["Security"]
+  And an extension practice with the same alpha with domainTags ["Architecture"]
+  When the practices are merged
+  Then the merged alpha has domainTags ["Security", "Architecture"]
+
+Scenario: Duplicate tags are deduplicated
+  Given a baseline alpha with domainTags ["Security"]
+  And an extension practice with the same alpha with domainTags ["Security", "Architecture"]
+  When the practices are merged
+  Then the merged alpha has domainTags ["Security", "Architecture"]
+```
 
 ---
 

@@ -241,34 +241,109 @@ When processing documents from untrusted sources (e.g., user uploads, package re
 
 ## 9 Testing Requirements
 
-Implementations MUST include test cases covering:
+Implementations MUST include test cases covering the following scenarios. Each subsection corresponds to a Feature; scenarios use Gherkin Given/When/Then syntax to express verifiable behaviours.
 
 ### 9.1 Cycle Detection Tests
 
-For each property in Section 4:
+For each property in Section 4, implementations must pass the following scenarios:
 
-1. **Self-reference:** Element X references itself (e.g., Alpha "A" with `contributesTo: "A"`)
-2. **Mutual cycle:** Two elements reference each other (A→B, B→A)
-3. **Transitive cycle:** Three or more elements form a chain that loops (A→B→C→A)
-4. **Valid DAG:** A deep but acyclic hierarchy is accepted without error
+```gherkin
+Feature: Cycle detection for hierarchical properties
+
+  Scenario: Self-reference is detected (9.1.1)
+    Given a practice containing Alpha "A" with contributesTo set to "A"
+    When acyclicity validation runs on the Alpha.contributesTo graph
+    Then a cycle error is reported with chain ["A" → "A"]
+
+  Scenario: Mutual cycle is detected (9.1.2)
+    Given a practice containing Alpha "A" with contributesTo "B"
+    And Alpha "B" with contributesTo "A"
+    When acyclicity validation runs on the Alpha.contributesTo graph
+    Then a cycle error is reported with chain ["A" → "B" → "A"]
+
+  Scenario: Transitive cycle is detected (9.1.3)
+    Given a practice containing Alpha "A" with contributesTo "B"
+    And Alpha "B" with contributesTo "C"
+    And Alpha "C" with contributesTo "A"
+    When acyclicity validation runs on the Alpha.contributesTo graph
+    Then a cycle error is reported with chain ["A" → "B" → "C" → "A"]
+
+  Scenario: Valid DAG is accepted (9.1.4)
+    Given a practice containing a 10-level deep acyclic Alpha hierarchy
+    When acyclicity validation runs on the Alpha.contributesTo graph
+    Then no cycle error is reported
+    And all alphas are accepted as valid
+```
 
 ### 9.2 Cross-Property Cycle Tests
 
-1. **Mixed `contributesTo`/`mapsTo` cycle:** A cycle spanning both properties
-2. **Cross-element prerequisite cycle:** A Background.alphaStates entry on State X requires a state whose own Background requires State X
-3. **Cross-type prerequisite cycle:** A state requiring a work product level whose background requires that state
+```gherkin
+Feature: Cross-property and cross-element cycle detection
+
+  Scenario: Mixed contributesTo/mapsTo cycle is detected (9.2.1)
+    Given a practice containing Alpha "A" with contributesTo "B"
+    And Alpha "B" with mapsTo "A"
+    When acyclicity validation runs on the combined Alpha.contributesTo/mapsTo graph
+    Then a cycle error is reported spanning both properties
+
+  Scenario: Cross-element prerequisite cycle is detected (9.2.2)
+    Given State "S1" on Alpha "A" with a Background.alphaStates entry requiring State "S2" on Alpha "B"
+    And State "S2" on Alpha "B" with a Background.alphaStates entry requiring State "S1" on Alpha "A"
+    When acyclicity validation runs on the Background prerequisite graph
+    Then a cycle error is reported identifying the cross-element prerequisite loop
+
+  Scenario: Cross-type prerequisite cycle is detected (9.2.3)
+    Given State "S1" on Alpha "A" with a Background.workProductLevels entry requiring LOD "L1" on WorkProduct "W"
+    And LOD "L1" on WorkProduct "W" with a Background.alphaStates entry requiring State "S1" on Alpha "A"
+    When acyclicity validation runs on the Background prerequisite graph
+    Then a cycle error is reported identifying the cross-type prerequisite loop
+```
 
 ### 9.3 Depth Limit Tests
 
-1. **At limit:** A chain of exactly MAX_DEPTH elements is accepted
-2. **Exceeds limit:** A chain of MAX_DEPTH + 1 elements is rejected with a clear error
-3. **No crash:** A chain of 10× MAX_DEPTH elements does not cause a crash or hang
+```gherkin
+Feature: Depth limit enforcement
+
+  Scenario: Chain at exactly the depth limit is accepted (9.3.1)
+    Given a practice containing an Alpha contributesTo chain of exactly MAX_DEPTH elements
+    When the chain is traversed
+    Then traversal completes successfully
+    And no depth limit error is reported
+
+  Scenario: Chain exceeding the depth limit is rejected (9.3.2)
+    Given a practice containing an Alpha contributesTo chain of MAX_DEPTH + 1 elements
+    When the chain is traversed
+    Then a depth limit exceeded error is reported
+    And the error identifies the element at which the limit was reached
+
+  Scenario: Extremely deep chain does not crash (9.3.3)
+    Given a practice containing an Alpha contributesTo chain of 10 × MAX_DEPTH elements
+    When the chain is traversed
+    Then a depth limit exceeded error is reported
+    And the implementation does not crash, hang, or exhaust the call stack
+```
 
 ### 9.4 Error Reporting Tests
 
-1. **Cycle chain accuracy:** The reported cycle chain exactly matches the actual cycle
-2. **Property identification:** The error correctly identifies which property created the cycle
-3. **Document context:** The error names the document(s) containing the cycle
+```gherkin
+Feature: Error reporting accuracy
+
+  Scenario: Reported cycle chain matches the actual cycle (9.4.1)
+    Given a practice containing Alpha "X" → "Y" → "Z" → "X" via contributesTo
+    When the cycle is detected
+    Then the error includes the chain ["X" → "Y" → "Z" → "X"]
+    And the chain starts and ends at the same element
+
+  Scenario: Error identifies the property that created the cycle (9.4.2)
+    Given a practice containing a cycle via the partOf property on WorkProducts
+    When the cycle is detected
+    Then the error identifies "WorkProduct.partOf" as the property forming the cycle
+
+  Scenario: Error names the containing document (9.4.3)
+    Given a practice named "Cloud Platform Engineering" containing a contributesTo cycle
+    When the cycle is detected
+    Then the error includes the document name "Cloud Platform Engineering"
+```
 
 ## 10 Compliance Levels
 
@@ -298,3 +373,9 @@ Required for software processing untrusted input (registries, APIs, import tools
 - Memory exhaustion protection (Section 8.2)
 - Time and size limits on untrusted input (Section 8.4)
 - Fuzzing or property-based testing with randomly generated cyclic graphs
+
+## Coverage Status
+
+- **Schema:** Acyclicity constraints defined in `language.schema.json` (`contributesTo`, `mapsTo`, `partOf`, `supersedes` properties)
+- **Semantics:** Covered in `references/semantics.md` Section 14
+- **Validation:** Partially implemented in `validate/validate-practice.py` (cycle detection for `contributesTo`/`mapsTo` chains)

@@ -16,8 +16,10 @@ keleo-language/
 ├── references/
 │   ├── semantics.md              # Semantic guidance for the schema
 │   ├── design-principles.md      # Design principles for schema evolution and project changes
+│   ├── merge.md                  # Merge algorithm specification
 │   └── domain-framework.md       # Enterprise analysis framework (referenced by semantics.md)
 ├── specifications/
+│   ├── shared-diagram-primitives.md  # Shared constants and patterns for diagram specs
 │   └── projects.md               # Project type specification
 ├── validate/
 │   ├── validate-schema.js        # Node.js AJV schema validator
@@ -34,8 +36,10 @@ keleo-language/
 | `language.schema.json` | JSON Schema (Draft 2020-12) defining Practice, PracticeBaseline, Method, and Project structures |
 | `references/semantics.md` | Operational architecture and semantic guidance — the "why" behind schema structures |
 | `references/design-principles.md` | Project-specific design principles for schema evolution (supplements global coding standards) |
+| `references/merge.md` | Merge algorithm specification for practice and method composition |
 | `references/domain-framework.md` | Four-perspective enterprise analysis framework used during practice authoring |
 | `specifications/projects.md` | Design specification for the Project type |
+| `specifications/shared-diagram-primitives.md` | Shared layout constants and rendering patterns for diagram specifications |
 
 ## Validation
 

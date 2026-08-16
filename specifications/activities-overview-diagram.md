@@ -24,7 +24,7 @@ Unlike alphas, which form arbitrary-depth trees via `contributesTo`, the activit
 
 ## Relationship to the Concerns Overview Diagram
 
-The Activities Overview Diagram shares the same focus-group organisation, layout constants, connector line style, icon rendering strategy, and row-wrapping logic as the Concerns Overview Diagram. The key differences are:
+The Activities Overview Diagram shares [common diagram primitives](shared-diagram-primitives.md) with the [Concerns Overview Diagram](concerns-overview-diagram.md). The key differences are:
 
 1. **Card shape.** Activity spaces and activities use a chevron (arrow) shape instead of a rectangle, visually distinguishing "things you do" from "things you track."
 2. **Tree depth.** Always two levels (space → activities), never deeper.
@@ -57,7 +57,7 @@ The Activities Overview Diagram shares the same focus-group organisation, layout
 
 ### Focus Groups
 
-Activity spaces are partitioned by `focusName` and rendered identically to the Concerns Overview Diagram's focus groups: a bold heading, optional italic description, and the same ordering rules. See the Concerns Overview Diagram specification for details.
+Activity spaces are partitioned by `focusName` and rendered using the [shared focus group rendering](shared-diagram-primitives.md#focus-group-rendering) rules.
 
 ### Activity Space Trees
 
@@ -66,7 +66,7 @@ Each activity space is rendered as an independent two-level tree:
 1. A **space card** (chevron shape, dashed border) at the top
 2. **Activity cards** (chevron shape, solid border) indented below, connected by tree lines
 
-Trees within a focus group wrap onto new rows using the same wrapping logic as the Concerns Overview Diagram.
+Trees within a focus group wrap onto new rows using the [shared row wrapping](shared-diagram-primitives.md#row-wrapping) logic.
 
 ## Card Shape
 
@@ -105,16 +105,7 @@ The dashed border on activity space cards signals that they are abstract contain
 
 ### Layout Constants
 
-The Activities Overview Diagram uses the same constants as the Concerns Overview Diagram (see that specification for the full table). The relevant subset:
-
-| Constant | Value | Purpose |
-|----------|-------|---------|
-| `CARD_WIDTH` | 180px | Width of every card (space and activity) |
-| `CARD_HEIGHT` | 48px | Height of every card |
-| `CARD_GAP` | 12px | Vertical gap between sibling activity cards |
-| `VERTICAL_PADDING` | 12px | Extra padding after the last activity before the next tree |
-| `INDENT` | 42px | Horizontal indent of activity cards from their space card |
-| `LINE_OFFSET` | 21px | X-offset of the vertical connector line (half of `INDENT`) |
+This diagram uses the [shared layout constants](shared-diagram-primitives.md#layout-constants). The constants most relevant to the activities layout are `CARD_WIDTH`, `CARD_HEIGHT`, `CARD_GAP`, `VERTICAL_PADDING`, `INDENT`, and `LINE_OFFSET`.
 
 ### Tree Building
 
@@ -130,11 +121,11 @@ For each activity space:
 
 ### Row Wrapping
 
-Trees are arranged horizontally within each focus group and wrap to new rows using the same `wrapLayout` algorithm as the Concerns Overview Diagram. In the interactive form, CSS flexbox handles wrapping; in the static form, the computed layout positions trees within a `WRAP_WIDTH` of 1100px.
+Trees are arranged horizontally within each focus group and wrap to new rows using the [shared row wrapping algorithm](shared-diagram-primitives.md#row-wrapping).
 
 ## Connector Lines
 
-Activity spaces connect to their activities using the same orthogonal connector style as the Concerns Overview Diagram:
+Activity spaces connect to their activities using orthogonal connectors (the `contributesTo` style from the [Concerns Overview Diagram](concerns-overview-diagram.md#contributesto-connectors-orthogonal-lines)):
 
 1. **Vertical trunk.** A single vertical line from the bottom edge of the space card (`spaceY + CARD_HEIGHT`) to the vertical centre of the last activity card.
 2. **Horizontal branch.** For each activity, a horizontal line from the trunk's x-position (`LINE_OFFSET`) to the activity card's left edge (`INDENT`), at the activity's vertical centre.
@@ -145,21 +136,10 @@ Connector lines are only rendered when the space has at least one activity. Empt
 
 ## Score Colouring (Interactive Only)
 
-In the interactive form, both space and activity cards receive score-based fill colouring. The scores come from the ActivitySpace Coverage scoring pipeline (see the Scoring specification):
+This diagram uses the [shared score colouring](shared-diagram-primitives.md#score-colouring) system. The activities-specific mapping:
 
-- **Space cards** are coloured by the composite activity space score.
+- **Space cards** are coloured by the composite activity space score (see [Scoring specification](scoring.md#composite-space-score)).
 - **Activity cards** are coloured by their individual activity score.
-
-The score-to-colour mapping uses the same intensity scale as the Concerns Overview Diagram:
-
-| Score | Fill |
-|-------|------|
-| 0 | `#FFFFFF` (white) |
-| 1 | `#E7F1FA` (light blue) |
-| 2 | `#BEE1F4` (mid blue) |
-| 3+ | `#73BCF7` (dark blue) |
-
-The static export does not include score colouring — all cards use a white fill.
 
 ## Selection Behaviour (Interactive Only)
 
@@ -169,43 +149,49 @@ Selecting a space card and selecting an activity card are independent — select
 
 ## Icon Rendering
 
-Cards may display an icon to the left of the element name, resolved from the element's `assetNames` array. The rendering strategy is identical to the Concerns Overview Diagram: `IconAsset` component in the interactive form, inline HTML with `foreignObject` and `<text>` fallback in the static form.
+Cards may display an icon to the left of the element name, resolved from the element's `assetNames` array. See [shared icon rendering](shared-diagram-primitives.md#icon-rendering) for the rendering strategy.
 
 ## Text Handling
 
-Element names use the display alias system. In the static form, names are truncated to 20 characters (slightly shorter than the Concerns diagram's 22 characters, to account for the reduced content width in chevron cards).
+Element names use the [shared text handling](shared-diagram-primitives.md#text-handling) system. In the static form, names are truncated to 20 characters (shorter than the standard 22, to account for the reduced content width in chevron cards).
 
 ## Static Export Specifics
 
-The static SVG export (`generateActivitiesOverviewSvg`) produces a self-contained SVG string with the same characteristics as the Concerns export: explicit `xmlns`, computed `width`/`height` (minimum 400px wide), matching `viewBox`, and optional `<defs>` block for icon font CSS.
-
-The chevron path is pre-computed as a constant string and reused for all cards. Activity cards within a space are positioned using a `transform="translate(x, y)"` attribute on the `<path>` element.
+The static SVG export (`generateActivitiesOverviewSvg`) follows the [shared static export conventions](shared-diagram-primitives.md#static-export-conventions). The chevron path is pre-computed as a constant string and reused for all cards. Activity cards within a space are positioned using a `transform="translate(x, y)"` attribute on the `<path>` element.
 
 ## Implementation Parity
 
-Both implementations must produce the same visual layout. The shared invariants are:
+Both implementations follow the [shared implementation parity template](shared-diagram-primitives.md#implementation-parity). The activities-specific invariants are:
 
-1. Same layout constants
-2. Same chevron path geometry
-3. Same two-level tree structure (space → activities)
-4. Same connector line geometry
-5. Same focus group ordering and partitioning
-6. Same row-wrapping logic
+1. Same chevron path geometry
+2. Same two-level tree structure (space → activities)
+3. Same connector line geometry (orthogonal only — no `mapsTo` bar connectors)
+4. Same dashed border on space cards (`stroke-dasharray="4"`)
 
-Differences between the two forms:
+The only activities-specific difference beyond the [shared differences](shared-diagram-primitives.md#implementation-parity) is the dashed border style on space cards, which uses `strokeDasharray="4"` in the interactive form and `stroke-dasharray="4"` in the static form.
 
-| Concern | Interactive | Static |
-|---------|------------|--------|
-| Card fill | Score-based colouring | White (`#ffffff`) |
-| Border style (space) | Dashed (`strokeDasharray="4"`) | Dashed (`stroke-dasharray="4"`) |
-| Selection | Click-to-select with visual feedback | None |
-| Icons | `IconAsset` React component | Inline HTML in `foreignObject` + `<text>` fallback |
-| Text | `AliasedName` component | Plain text with 20-char truncation |
-| Row wrapping | CSS flexbox | Computed `wrapLayout` with `WRAP_WIDTH` |
-| Font loading | Browser-managed | `@import` rules in SVG `<defs>` |
+## Resolved Design Decisions
 
-## Open Questions
+### 1. Score colouring in static export
 
-1. **Score colouring in static export.** Same question as the Concerns Overview Diagram — should pre-computed scores be baked into the static SVG?
-2. **Empty activity spaces.** An activity space with no activities renders as a standalone chevron. Should empty spaces be visually distinguished further (e.g., a different fill or a "no activities" label)?
-3. **Activity ordering.** Activities within a space are currently rendered in array order. Should they support a `seq` property for explicit ordering, consistent with how alphas and activity spaces are ordered within focuses?
+**Question:** Should pre-computed scores be baked into the static SVG?
+
+**Decision:** No. Static export remains white-fill for all cards.
+
+**Rationale:** The static export is a structural snapshot, not a live analysis tool. Scores require the full scoring pipeline, which is not available at export time. Baking stale scores would mislead users. Consistent with the [Concerns Overview Diagram](concerns-overview-diagram.md#resolved-design-decisions) decision.
+
+### 2. Empty activity spaces
+
+**Question:** Should empty activity spaces (no activities) be visually distinguished further (different fill, "no activities" label)?
+
+**Decision:** No further distinction needed. Empty spaces render as standalone chevron cards with no additional styling.
+
+**Rationale:** The absence of connector lines and child cards already signals "no activities defined." Adding labels or different fills would add visual noise for a rare edge case. If an activity space has no activities, the practice author should either add activities or remove the space — the visual gap is the signal.
+
+### 3. Activity ordering
+
+**Question:** Should activities support a `seq` property for explicit ordering, consistent with how alphas and activity spaces are ordered within focuses?
+
+**Decision:** Yes, activities should use `seq` for ordering when available. Current behaviour (array order) is the fallback.
+
+**Rationale:** Consistent with the ordering mechanism used by alphas, states, checklist items, and activity spaces. The schema does not currently define `seq` on `Activity` — this is an identified schema gap to be addressed in a future minor version bump.

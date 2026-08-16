@@ -116,30 +116,153 @@ Dependencies are package-level, not document-level. A practice's `baselinePracti
 
 ## Validation Rules
 
-### Structural Validation
+### Feature: Structural validation
 
-1. `manifest.json` MUST exist at the ZIP root
-2. `manifest.json` MUST validate against `$defs/PackageManifest`
-3. Every `path` in the `documents` array MUST correspond to an existing ZIP entry
-4. At least one document SHOULD have `entryPoint: true`
-5. No two entries in `documents` may share the same `documentName` within the same `documentType`
+```gherkin
+Scenario: Manifest exists at ZIP root (1)
+  Given a .keleo ZIP archive
+  When the package is opened
+  Then a "manifest.json" entry MUST exist at the ZIP root
 
-### Document Validation
+Scenario: Missing manifest (1)
+  Given a .keleo ZIP archive with no "manifest.json" at the root
+  When the package is validated
+  Then a validation error is reported: "manifest.json not found at package root"
 
-6. Each JSON file referenced by `documents` MUST validate against the Practice Language schema (`language.schema.json`)
-7. Each document's root discrimination result MUST match the declared `documentType` in the manifest
-8. Each document's root `name` property MUST match the declared `documentName` in the manifest
+Scenario: Manifest validates against schema (2)
+  Given a package with a "manifest.json" file
+  When the manifest is validated against language.schema.json#/$defs/PackageManifest
+  Then validation succeeds with no schema errors
 
-### Asset Validation
+Scenario: Invalid manifest schema (2)
+  Given a package with a "manifest.json" missing the required "package" field
+  When the manifest is validated against language.schema.json#/$defs/PackageManifest
+  Then a validation error is reported identifying the missing required field
 
-9. Every file-based `Asset.path` in any document MUST resolve to an existing ZIP entry
-10. Asset checksums (when present) MUST match the SHA-256 hash of the corresponding ZIP entry content
-11. Files in the `assets/` directory that are not referenced by any document's `assets` array SHOULD generate a warning (orphan detection)
+Scenario: Document paths resolve to ZIP entries (3)
+  Given a manifest declaring document path "documents/practice-a.json"
+  And the ZIP archive contains an entry at "documents/practice-a.json"
+  When the package is validated
+  Then structural validation succeeds for that document entry
 
-### Dependency Validation
+Scenario: Missing document path (3)
+  Given a manifest declaring document path "documents/missing.json"
+  And no ZIP entry exists at "documents/missing.json"
+  When the package is validated
+  Then a validation error is reported: unresolvable document path "documents/missing.json"
 
-12. Every symbolic name reference (`baselinePracticeName`, `practiceNames`, `practiceDependencyNames`, `practiceName`, `methodName`) MUST resolve to either a document within this package or a document available from a declared dependency
-13. Package dependencies MUST NOT be circular
+Scenario: At least one entry point declared (4)
+  Given a manifest with three document entries
+  And none have entryPoint set to true
+  When the package is validated
+  Then a validation warning is reported: "no document marked as entryPoint"
+
+Scenario: Unique document names within type (5)
+  Given a manifest with two entries both declaring documentType "practice" and documentName "Platform Engineering"
+  When the package is validated
+  Then a validation error is reported: duplicate documentName "Platform Engineering" within documentType "practice"
+```
+
+### Feature: Document validation
+
+```gherkin
+Scenario: Documents validate against Practice Language schema (6)
+  Given a package with document "documents/practice-a.json"
+  When the document is validated against language.schema.json
+  Then schema validation succeeds
+
+Scenario: Invalid document content (6)
+  Given a package with document "documents/practice-a.json" containing invalid JSON structure
+  When the document is validated against language.schema.json
+  Then a validation error is reported identifying the schema violation
+
+Scenario: Document type matches manifest declaration (7)
+  Given a manifest entry declaring documentType "practice" for "documents/practice-a.json"
+  And the document's root discrimination resolves to "practice"
+  When the package is validated
+  Then document type validation succeeds
+
+Scenario: Document type mismatch (7)
+  Given a manifest entry declaring documentType "practice" for "documents/baseline.json"
+  And the document's root discrimination resolves to "practiceBaseline"
+  When the package is validated
+  Then a validation error is reported: document type "practiceBaseline" does not match declared "practice"
+
+Scenario: Document name matches manifest declaration (8)
+  Given a manifest entry declaring documentName "Platform Engineering" for "documents/practice-a.json"
+  And the document's root name property is "Platform Engineering"
+  When the package is validated
+  Then document name validation succeeds
+
+Scenario: Document name mismatch (8)
+  Given a manifest entry declaring documentName "Platform Engineering" for "documents/practice-a.json"
+  And the document's root name property is "Cloud Platform Engineering"
+  When the package is validated
+  Then a validation error is reported: document name "Cloud Platform Engineering" does not match declared "Platform Engineering"
+```
+
+### Feature: Asset validation
+
+```gherkin
+Scenario: Asset paths resolve to ZIP entries (9)
+  Given a document declaring an Asset with path "assets/diagrams/platform-states.svg"
+  And the ZIP archive contains an entry at "assets/diagrams/platform-states.svg"
+  When the package is validated
+  Then asset path validation succeeds
+
+Scenario: Missing asset path (9)
+  Given a document declaring an Asset with path "assets/diagrams/missing.svg"
+  And no ZIP entry exists at "assets/diagrams/missing.svg"
+  When the package is validated
+  Then a validation error is reported: unresolvable asset path "assets/diagrams/missing.svg"
+
+Scenario: Asset checksum matches (10)
+  Given a document declaring an Asset with path "assets/diagrams/states.svg" and a checksum value
+  And the SHA-256 hash of the ZIP entry content matches the declared checksum
+  When the package is validated
+  Then asset checksum validation succeeds
+
+Scenario: Asset checksum mismatch (10)
+  Given a document declaring an Asset with path "assets/diagrams/states.svg" and a checksum value
+  And the SHA-256 hash of the ZIP entry content does not match the declared checksum
+  When the package is validated
+  Then a validation error is reported: checksum mismatch for "assets/diagrams/states.svg"
+
+Scenario: Orphan asset detection (11)
+  Given a ZIP archive containing "assets/icons/unused-icon.svg"
+  And no document in the package references "assets/icons/unused-icon.svg" in its assets array
+  When the package is validated
+  Then a validation warning is reported: orphan asset "assets/icons/unused-icon.svg"
+```
+
+### Feature: Dependency validation
+
+```gherkin
+Scenario: Symbolic name references resolve (12)
+  Given a practice document with baselinePracticeName "Platform Adoption Kernel"
+  And the package contains a document with documentName "Platform Adoption Kernel" and documentType "practiceBaseline"
+  When the package is validated
+  Then symbolic name resolution succeeds
+
+Scenario: Symbolic name resolves via declared dependency (12)
+  Given a practice document with baselinePracticeName "Platform Adoption Kernel"
+  And the package does not contain that document
+  But a declared dependency provides documentName "Platform Adoption Kernel"
+  When the package is validated
+  Then symbolic name resolution succeeds
+
+Scenario: Unresolvable symbolic name (12)
+  Given a practice document with baselinePracticeName "Unknown Baseline"
+  And no document in the package or declared dependencies provides that name
+  When the package is validated
+  Then a validation error is reported: unresolvable reference "Unknown Baseline"
+
+Scenario: No circular package dependencies (13)
+  Given package "A" declares a dependency on package "B"
+  And package "B" declares a dependency on package "A"
+  When the dependency graph is validated
+  Then a validation error is reported: circular dependency between "A" and "B"
+```
 
 ## Package as Library
 
@@ -328,3 +451,9 @@ The package format adds four `$defs` to `language.schema.json`:
 | `PackageDependency` | `packageName`, `versionRange` | External package reference |
 
 No changes to root-level type discrimination, the `kind` enum, or any existing definitions. The manifest schema is referenced directly as `language.schema.json#/$defs/PackageManifest` — it does not participate in the root `if/then/else` chain.
+
+## Coverage Status
+
+- **Schema:** Complete — `PackageManifest`, `PackageIdentity`, `PackageDocument`, `PackageDependency` defined in `language.schema.json`
+- **Semantics:** Covered in `references/semantics.md` Section 11.4
+- **Validation:** Not yet implemented — planned as `validate/validate-package.py`

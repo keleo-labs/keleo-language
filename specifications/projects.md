@@ -211,21 +211,186 @@ A Project should include the same provenance metadata as Practice and PracticeBa
 
 ## Validation Rules
 
-1. Exactly one of `practiceName` or `methodName` must be present (xor)
-2. The embedded `pattern` in `plan` must be a valid Pattern object conforming to the existing Pattern schema definition
-3. All `alphaInstanceNames` in the plan's Pattern must reference valid alphas from the resolved practice/method scope
-4. All `workProductInstanceNames` in the plan's Pattern must reference valid work products from the resolved practice/method scope
-5. AlphaContributions within the plan's Pattern must reference valid alphas and states from the resolved practice/method scope
-6. All AlphaInstance entries in `current` and `target` must reference alpha instance names declared in the plan's Pattern
-7. All WorkProductInstance entries in `current` and `target` must reference work product instance names declared in the plan's Pattern
-8. All ChecklistState entries on AlphaInstance objects must reference valid checklist items within the parent instance's referenced Alpha State
-9. All ChecklistState entries on WorkProductInstance objects must reference valid checklist items within the parent instance's referenced WorkProduct LevelOfDetail
-10. Team `personaName` entries in TeamMember objects must reference Personas defined in the resolved practice/method scope
-11. Cycle names within the `cycles` array must be unique
-12. If `currentCycleName` is present, it must match the `name` of an entry in the `cycles` array
-13. All AlphaInstance entries in `cycles` must reference alpha instance names declared in the plan's Pattern
-14. All WorkProductInstance entries in `cycles` must reference work product instance names declared in the plan's Pattern
+### Feature: Practice or Method reference (rules 1)
+
+```gherkin
+Scenario: Valid project with practice reference
+  Given a Project with "practiceName" set to "Cloud Platform Adoption"
+  And "methodName" is absent
+  When the project is validated
+  Then validation succeeds
+
+Scenario: Valid project with method reference
+  Given a Project with "methodName" set to "Platform Engineering Method"
+  And "practiceName" is absent
+  When the project is validated
+  Then validation succeeds
+
+Scenario: Both practice and method reference present
+  Given a Project with "practiceName" set to "Cloud Platform Adoption"
+  And "methodName" set to "Platform Engineering Method"
+  When the project is validated
+  Then a validation error is reported: exactly one of practiceName or methodName must be present
+
+Scenario: Neither practice nor method reference present
+  Given a Project with neither "practiceName" nor "methodName"
+  When the project is validated
+  Then a validation error is reported: exactly one of practiceName or methodName must be present
+```
+
+### Feature: Plan validation (rules 2–5)
+
+```gherkin
+Scenario: Embedded pattern is a valid Pattern object
+  Given a Project with a "plan" section containing a "pattern" object
+  When the project is validated
+  Then the pattern must conform to the Pattern schema definition
+
+Scenario: Alpha instance names reference valid alphas
+  Given a plan Pattern declaring alphaInstanceNames including "My Platform Instance"
+  And the resolved practice scope contains an alpha named "Platform"
+  And "My Platform Instance" references alphaName "Platform"
+  When the project is validated
+  Then validation succeeds for that alpha instance name
+
+Scenario: Alpha instance names reference non-existent alpha
+  Given a plan Pattern declaring alphaInstanceNames including "Ghost Instance"
+  And "Ghost Instance" references alphaName "Non-Existent Alpha"
+  And no alpha named "Non-Existent Alpha" exists in the resolved scope
+  When the project is validated
+  Then a validation error is reported: alphaInstanceName references unknown alpha "Non-Existent Alpha"
+
+Scenario: Work product instance names reference valid work products
+  Given a plan Pattern declaring workProductInstanceNames including "My Architecture Doc"
+  And the resolved practice scope contains a work product named "Architecture"
+  And "My Architecture Doc" references workProductName "Architecture"
+  When the project is validated
+  Then validation succeeds for that work product instance name
+
+Scenario: AlphaContributions reference valid alphas and states
+  Given a plan Pattern with a PatternView containing alphaStates
+  And an AlphaContribution referencing alphaName "Platform" and stateName "Provisioned"
+  And alpha "Platform" exists with state "Provisioned" in the resolved scope
+  When the project is validated
+  Then validation succeeds for that alpha contribution
+
+Scenario: AlphaContributions reference non-existent state
+  Given a plan Pattern with a PatternView containing alphaStates
+  And an AlphaContribution referencing alphaName "Platform" and stateName "Imaginary State"
+  And alpha "Platform" exists but has no state "Imaginary State"
+  When the project is validated
+  Then a validation error is reported: AlphaContribution references unknown state "Imaginary State" on alpha "Platform"
+```
+
+### Feature: Current and target state validation (rules 6–9)
+
+```gherkin
+Scenario: AlphaInstance in current references declared instance name
+  Given a plan Pattern declaring alphaInstanceNames including "My Platform"
+  And the "current" section contains an AlphaInstance with instanceName "My Platform"
+  When the project is validated
+  Then validation succeeds for that alpha instance
+
+Scenario: AlphaInstance in current references undeclared instance name
+  Given a plan Pattern with no alphaInstanceName "Undeclared Instance"
+  And the "current" section contains an AlphaInstance with instanceName "Undeclared Instance"
+  When the project is validated
+  Then a validation error is reported: AlphaInstance references undeclared instance name "Undeclared Instance"
+
+Scenario: WorkProductInstance in target references declared instance name
+  Given a plan Pattern declaring workProductInstanceNames including "My Architecture"
+  And the "target" section contains a WorkProductInstance with instanceName "My Architecture"
+  When the project is validated
+  Then validation succeeds for that work product instance
+
+Scenario: ChecklistState on AlphaInstance references valid checklist item
+  Given an AlphaInstance in "current" referencing alpha "Platform" at state "Provisioned"
+  And state "Provisioned" defines a checklist item named "Infrastructure deployed"
+  And a ChecklistState entry with checklistName "Infrastructure deployed"
+  When the project is validated
+  Then validation succeeds for that checklist state
+
+Scenario: ChecklistState on AlphaInstance references non-existent checklist item
+  Given an AlphaInstance in "current" referencing alpha "Platform" at state "Provisioned"
+  And state "Provisioned" has no checklist item named "Nonexistent Check"
+  And a ChecklistState entry with checklistName "Nonexistent Check"
+  When the project is validated
+  Then a validation error is reported: ChecklistState references unknown checklist item "Nonexistent Check" on state "Provisioned"
+
+Scenario: ChecklistState on WorkProductInstance references valid checklist item
+  Given a WorkProductInstance in "target" referencing work product "Architecture" at LOD "Detailed"
+  And LOD "Detailed" defines a checklist item named "Integration patterns specified"
+  And a ChecklistState entry with checklistName "Integration patterns specified"
+  When the project is validated
+  Then validation succeeds for that checklist state
+```
+
+### Feature: Team validation (rule 10)
+
+```gherkin
+Scenario: TeamMember personaName references defined persona
+  Given the resolved practice scope defines a Persona named "Platform Engineer"
+  And a TeamMember with personaName "Platform Engineer"
+  When the project is validated
+  Then validation succeeds for that team member
+
+Scenario: TeamMember personaName references undefined persona
+  Given the resolved practice scope does not define a Persona named "Unknown Role"
+  And a TeamMember with personaName "Unknown Role"
+  When the project is validated
+  Then a validation error is reported: personaName "Unknown Role" does not match any Persona in scope
+```
+
+### Feature: Cycle validation (rules 11–14)
+
+```gherkin
+Scenario: Unique cycle names
+  Given a Project with cycles named "Sprint 1", "Sprint 2", "Sprint 3"
+  When the project is validated
+  Then validation succeeds for cycle name uniqueness
+
+Scenario: Duplicate cycle names
+  Given a Project with two cycles both named "Sprint 1"
+  When the project is validated
+  Then a validation error is reported: duplicate cycle name "Sprint 1"
+
+Scenario: currentCycleName matches an existing cycle
+  Given a Project with cycles named "Sprint 1", "Sprint 2"
+  And currentCycleName set to "Sprint 2"
+  When the project is validated
+  Then validation succeeds for currentCycleName
+
+Scenario: currentCycleName does not match any cycle
+  Given a Project with cycles named "Sprint 1", "Sprint 2"
+  And currentCycleName set to "Sprint 3"
+  When the project is validated
+  Then a validation error is reported: currentCycleName "Sprint 3" does not match any cycle name
+
+Scenario: Cycle AlphaInstance references declared instance name
+  Given a plan Pattern declaring alphaInstanceNames including "My Platform"
+  And a cycle containing an AlphaInstance with instanceName "My Platform"
+  When the project is validated
+  Then validation succeeds for that cycle alpha instance
+
+Scenario: Cycle AlphaInstance references undeclared instance name
+  Given a plan Pattern with no alphaInstanceName "Undeclared"
+  And a cycle containing an AlphaInstance with instanceName "Undeclared"
+  When the project is validated
+  Then a validation error is reported: cycle AlphaInstance references undeclared instance name "Undeclared"
+
+Scenario: Cycle WorkProductInstance references declared instance name
+  Given a plan Pattern declaring workProductInstanceNames including "My Docs"
+  And a cycle containing a WorkProductInstance with instanceName "My Docs"
+  When the project is validated
+  Then validation succeeds for that cycle work product instance
+```
 
 ## Open Questions
 
 None currently outstanding.
+
+## Coverage Status
+
+- **Schema:** Complete — Project, ProjectCycle, ProjectStateSection, TeamEntry, TeamMember, CommunicationChannel, ChecklistState, Note defined in `language.schema.json`
+- **Semantics:** Covered in [`references/semantics.md` Section 12](../references/semantics.md#12-project-execution-tracking)
+- **Validation:** Not yet implemented — planned as `validate/validate-project.py`
