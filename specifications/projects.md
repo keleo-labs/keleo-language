@@ -122,6 +122,7 @@ A ProjectCycle extends ProjectStateSection (inheriting `alphaInstances`, `workPr
 - `description` (optional) — what this cycle covers or aims to achieve
 - `startedAt` (optional) — ISO timestamp recording when the cycle began
 - `completedAt` (optional) — ISO timestamp recording when the cycle ended. Absent while the cycle is still active
+- `patternViewName` (optional) — symbolic link to a PatternView.name within the project plan's Pattern. Identifies which phase of the overarching plan this cycle is contributing to. Multiple cycles may reference the same pattern view (e.g. several sprints contributing to the same phase)
 
 #### Relationship Between Sections
 
@@ -383,6 +384,24 @@ Scenario: Cycle WorkProductInstance references declared instance name
   And a cycle containing a WorkProductInstance with instanceName "My Docs"
   When the project is validated
   Then validation succeeds for that cycle work product instance
+
+Scenario: Cycle patternViewName references valid pattern view
+  Given a plan Pattern with PatternViews named "Assess", "Build", "Operate"
+  And a cycle with patternViewName "Build"
+  When the project is validated
+  Then validation succeeds for that cycle's patternViewName
+
+Scenario: Cycle patternViewName references non-existent pattern view
+  Given a plan Pattern with PatternViews named "Assess", "Build", "Operate"
+  And a cycle with patternViewName "Decommission"
+  When the project is validated
+  Then a validation error is reported: patternViewName "Decommission" does not match any PatternView in the plan pattern
+
+Scenario: Multiple cycles reference the same pattern view
+  Given a plan Pattern with PatternViews named "Assess", "Build"
+  And cycles "Sprint 1" and "Sprint 2" both with patternViewName "Build"
+  When the project is validated
+  Then validation succeeds — multiple cycles may contribute to the same phase
 ```
 
 ## Open Questions

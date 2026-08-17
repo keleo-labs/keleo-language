@@ -3096,7 +3096,9 @@ The `cycles` section is where a project tracks its operational work — the conc
 
 **Cycle Model:**
 
-A ProjectCycle extends ProjectStateSection with cycle-specific metadata (`name`, `description`, `startedAt`, `completedAt`). The term "cycle" avoids methodology-specific connotations (sprint, iteration, increment) while clearly conveying a repeatable work period. Teams name cycles according to their own cadence: "Sprint 1", "Q3 2026", "August", "Release 2.0", etc.
+A ProjectCycle extends ProjectStateSection with cycle-specific metadata (`name`, `description`, `startedAt`, `completedAt`, `patternViewName`). The term "cycle" avoids methodology-specific connotations (sprint, iteration, increment) while clearly conveying a repeatable work period. Teams name cycles according to their own cadence: "Sprint 1", "Q3 2026", "August", "Release 2.0", etc.
+
+The optional `patternViewName` links a cycle to a phase in the project plan's Pattern. This establishes traceability between operational work periods and the overarching lifecycle plan — a team can see which plan phase each cycle contributes to, and multiple cycles may contribute to the same phase (e.g. several sprints within a "Build" phase).
 
 A cycle progresses through three phases:
 
@@ -3135,6 +3137,7 @@ An alpha instance may appear in multiple sections simultaneously:
     {
       "name": "Sprint 1",
       "description": "Foundation and architecture selection",
+      "patternViewName": "Assess",
       "startedAt": "2026-07-01T00:00:00Z",
       "completedAt": "2026-07-14T00:00:00Z",
       "alphaInstances": [
@@ -3156,6 +3159,7 @@ An alpha instance may appear in multiple sections simultaneously:
     {
       "name": "Sprint 2",
       "description": "Provisioning and initial deployment",
+      "patternViewName": "Build",
       "startedAt": "2026-07-15T00:00:00Z",
       "alphaInstances": [
         {
@@ -3170,7 +3174,7 @@ An alpha instance may appear in multiple sections simultaneously:
 }
 ```
 
-In this example, Sprint 1 is closed (has `completedAt`) — its objective was "Architecture Selected" for the Core Platform. Sprint 2 is the active cycle (matches `currentCycleName`, lacks `completedAt`) — the team is now pursuing "Provisioned". The `current` section (not shown) would reflect the latest assessed state of the Core Platform independent of these cycle-level objectives.
+In this example, Sprint 1 is closed (has `completedAt`) — its objective was "Architecture Selected" for the Core Platform, contributing to the "Assess" phase of the plan. Sprint 2 is the active cycle (matches `currentCycleName`, lacks `completedAt`) — the team is now pursuing "Provisioned" as part of the "Build" phase. The `patternViewName` on each cycle establishes which plan phase the work period contributes to. The `current` section (not shown) would reflect the latest assessed state of the Core Platform independent of these cycle-level objectives.
 
 ## 13 Change Requests
 

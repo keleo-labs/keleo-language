@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/language.schema.json",
-  "$comment": "schemaVersion:2.0.0",
+  "$comment": "schemaVersion:2.1.0",
   "title": "Practice language (from language.mmd)",
   "description": "JSON Schema derived from the Mermaid classDiagram in language.mmd. Identity is by name; most cross-links are string names (not embedded objects). Root validation discriminates Practice vs Method vs PracticeBaseline. Method can use embedded objects (baselinePractice + practices) or string references (baselinePracticeName + practiceNames) or a mix.",
   "$defs": {
@@ -2215,6 +2215,10 @@
             "completedAt": {
               "type": "string",
               "description": "ISO timestamp recording when this cycle was completed. Absent while the cycle is still active."
+            },
+            "patternViewName": {
+              "type": "string",
+              "description": "Symbolic link to a PatternView.name within the project plan's Pattern. Identifies which phase of the overarching plan this cycle is contributing to."
             }
           }
         }
