@@ -11,6 +11,7 @@
    - 3.1 [Accumulator Initialization from Baseline](#31-accumulator-initialization-from-baseline)
    - 3.2 [Extension Practice Overlay](#32-extension-practice-overlay)
    - 3.3 [Embedded Method Recursion](#33-embedded-method-recursion)
+   - 3.4 [Cross-Baseline Extension Practice Resolution](#34-cross-baseline-extension-practice-resolution)
 4. [Element-Level Merge Rules](#4-element-level-merge-rules)
    - 4.1 [The Core Merge Function](#41-the-core-merge-function)
    - 4.2 [Description Preservation](#42-description-preservation)
@@ -90,9 +91,10 @@ A Practice may declare `practiceDependencyNames` — an array of other practice 
 
 A Method document declares a `baselinePractice` (or `baselinePracticeName` for library resolution) and a `practices` array (or `practiceNames` for library resolution). The composition function:
 
-1. Resolves the baseline (including its transitive baseline dependencies).
-2. Resolves extension practices (including their transitive practice dependencies).
-3. Merges all layers in order: baseline first, then extensions.
+1. Resolves the primary baseline (including its transitive baseline dependencies via `baselinePracticeNames`).
+2. Resolves extension practices (including their transitive practice dependencies via `practiceDependencyNames`). This produces the full flattened set of all practices in the dependency tree.
+3. Resolves secondary baselines: walks the full set of transitively resolved practices from step 2 and collects every distinct `baselinePracticeName` that differs from the primary baseline. Each secondary baseline is resolved once, including its own transitive baseline dependencies (step 1 applied recursively).
+4. Merges all layers in order: primary baseline first, then secondary baselines, then extensions.
 
 When the Method uses name-based references instead of embedded data, a library lookup index is required. The index maps practice and baseline names to their full document bodies, preferring standalone artifacts over embedded duplicates when the same name appears in multiple library roots.
 
@@ -132,6 +134,24 @@ The `practices` array of a Method may contain not only plain Practice objects bu
 2. Its nested `practices` array is recursively processed using the same merge logic.
 
 This enables hierarchical method composition — a Method can include sub-Methods whose baselines and practices all fold into a single unified document.
+
+### 3.4 Cross-Baseline Extension Practice Resolution
+
+Extension practices may reference a baseline different from the method's primary baseline via their `baselinePracticeName` property. This occurs when a method composes practices authored against independent baselines — for example, a method whose primary baseline is "Partner Ecosystem Essentials" that includes extension practices extending "Red Hat Sales Essentials".
+
+Before extension practices are overlaid onto the accumulator, the composition function collects all distinct secondary baselines by walking the full transitively resolved practice tree (Section 2.3, step 2 — which includes all practices reachable through `practiceDependencyNames` chains, not just the method's direct practices):
+
+1. For each practice in the transitively resolved set, read `baselinePracticeName`. If it differs from the primary baseline (compared using normalized, case-insensitive matching), mark it as a secondary baseline.
+2. Deduplicate: each distinct secondary baseline name is resolved once.
+3. Resolve each secondary baseline from the library, including its own transitive baseline dependencies (Section 2.1). This is the same recursive resolution applied to the primary baseline — if a secondary baseline declares `baselinePracticeNames`, those parent baselines are resolved and merged into it first.
+4. Merge each resolved secondary baseline into the accumulator using the same secondary baseline kernel merge (Section 3.3, step 1) — contributing its full element set (alphas, focuses, activity spaces, competencies, work products, patterns, etc.).
+5. Include each secondary baseline's activity spaces in the ordering prefix so they appear in a predictable position in the final output.
+
+This step runs after the primary baseline seeds the accumulator (Section 3.1) and before extension practice overlay (Section 3.2). It ensures the full element set from all referenced baselines is present before any extension practice overlays. Without this step, alphas and other elements defined only in the secondary baseline would be missing from the merged output — extension practices would overlay onto the accumulator without the structural foundation they were authored against.
+
+**Recursive coverage**: Because step 1 operates on the full transitive practice closure (not just the method's direct practices), deeply nested dependencies are covered. If practice A depends on practice B, which depends on practice C, and C extends baseline "X" while A and B extend the primary baseline, baseline "X" will be discovered and merged.
+
+Both paths to secondary baselines — embedded Method objects (Section 3.3) and cross-baseline extension practices (this section) — converge on the same merge function for the secondary kernel. The secondary baseline merge is idempotent per baseline name: if the same secondary baseline is encountered through both paths, the second merge is a no-op.
 
 ---
 
@@ -609,6 +629,35 @@ Scenario: Binding does not override existing within-baseline relationship
   And a warning is emitted about the conflicting binding
 ```
 
+### Feature: Cross-baseline extension practice resolution (Section 3.4)
+
+```gherkin
+Scenario: Secondary baseline alphas are included when extension practices reference a different baseline
+  Given a method with primary baseline "Partner Ecosystem Essentials" containing alphas ["Partner", "Opportunity"]
+  And extension practice "Sales Play Framework" with baselinePracticeName "Red Hat Sales Essentials"
+  And baseline "Red Hat Sales Essentials" contains alphas ["Sales Play", "Deal", "Customer"]
+  When the method is resolved
+  Then the merged document contains alphas from both baselines: ["Partner", "Opportunity", "Sales Play", "Deal", "Customer"]
+
+Scenario: Secondary baseline focuses are included
+  Given a method with primary baseline "Partner Ecosystem Essentials" with focuses ["Partner Value"]
+  And extension practice "Sales Play Framework" with baselinePracticeName "Red Hat Sales Essentials"
+  And baseline "Red Hat Sales Essentials" has focuses ["Customer Value", "Sales Execution"]
+  When the method is resolved
+  Then the merged document contains focuses from both baselines: ["Partner Value", "Customer Value", "Sales Execution"]
+
+Scenario: Secondary baseline is resolved only once when multiple practices reference it
+  Given extension practices "Sales Play Framework" and "Server Cloud OS TDP" both with baselinePracticeName "Red Hat Sales Essentials"
+  When the method is resolved
+  Then baseline "Red Hat Sales Essentials" is resolved and merged exactly once
+
+Scenario: Secondary baseline's own transitive dependencies are resolved
+  Given extension practice "X" with baselinePracticeName "Derived Baseline"
+  And baseline "Derived Baseline" has baselinePracticeNames ["Foundation Baseline"]
+  When the method is resolved
+  Then "Foundation Baseline" is resolved and merged into "Derived Baseline" before the secondary merge
+```
+
 ### Feature: Name canonicalization (Section 9)
 
 ```gherkin
@@ -657,4 +706,5 @@ Scenario: Duplicate tags are deduplicated
 | **Focus names** | Prefer non-implicit values; propagate from parent |
 | **Practice provenance** | First practice to introduce element retains credit |
 | **Pattern provenance** | First pattern to introduce or reference element retains credit |
-| **Layer ordering** | Baseline → transitive deps (post-order) → direct practices |
+| **Layer ordering** | Primary baseline → secondary baselines → transitive deps (post-order) → direct practices |
+| **Cross-baseline deps** | Extension practices referencing a different baseline trigger recursive secondary baseline resolution |
