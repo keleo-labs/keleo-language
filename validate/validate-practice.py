@@ -2468,74 +2468,83 @@ class PracticeValidator:
 
 def main():
     """Main entry point"""
-    if len(sys.argv) < 4:
-        print("Usage: validate-practice-json.py <practice.json> <baseline.json> <schema.json> [dep1.json dep2.json ...]", file=sys.stderr)
-        print("\nExample:", file=sys.stderr)
-        print("  validate-practice-json.py practices/my-practice/my-practice.json \\", file=sys.stderr)
-        print("                            deps/platform-adoption-kernel.json \\", file=sys.stderr)
-        print("                            deps/language.schema.json", file=sys.stderr)
-        print("\nWith dependency practices:", file=sys.stderr)
-        print("  validate-practice-json.py practices/child/child.json \\", file=sys.stderr)
-        print("                            deps/baseline.json \\", file=sys.stderr)
-        print("                            deps/language.schema.json \\", file=sys.stderr)
-        print("                            practices/parent/_effective-parent.json", file=sys.stderr)
-        print("\nNote: If _effective-parent.json or _effective-context.json exists in the", file=sys.stderr)
-        print("      practice directory, it is auto-loaded as a dependency for validation.", file=sys.stderr)
-        sys.exit(1)
+    import argparse as _argparse
 
-    practice_file = Path(sys.argv[1])
-    baseline_file = Path(sys.argv[2])
-    schema_file = Path(sys.argv[3])
+    parser = _argparse.ArgumentParser(
+        description="Validate Practice/Method JSON against schema, baseline, and integrity rules"
+    )
+    parser.add_argument("practice", help="Practice or method JSON file")
+    parser.add_argument("baseline", help="Baseline practice JSON file")
+    parser.add_argument("schema", help="Language schema JSON file")
+    parser.add_argument("deps", nargs="*", help="Additional dependency practice JSON files")
+    parser.add_argument("--quiet", "-q", action="store_true",
+                        help="Suppress progress messages to stderr")
+    parser.add_argument("--brief", action="store_true",
+                        help="Print one-line summary instead of full JSON report")
+    args = parser.parse_args()
 
-    # Collect explicit dependency practice files from additional arguments
-    dependency_files = [Path(arg) for arg in sys.argv[4:]]
+    practice_file = Path(args.practice)
+    baseline_file = Path(args.baseline)
+    schema_file = Path(args.schema)
+
+    dependency_files = [Path(d) for d in (args.deps or [])]
+
+    def progress(msg):
+        if not args.quiet:
+            print(msg, file=sys.stderr)
 
     # Auto-discover dependency files in the practice directory
     for auto_name in ('_effective-parent.json', '_effective-context.json'):
         auto_path = practice_file.parent / auto_name
         if auto_path.exists() and auto_path not in dependency_files:
-            print(f"Auto-discovered dependency: {auto_path}", file=sys.stderr)
+            progress(f"Auto-discovered dependency: {auto_path}")
             dependency_files.append(auto_path)
 
     # Validate
     validator = PracticeValidator(practice_file, baseline_file, schema_file, dependency_files)
 
     # Run all validations
-    print("Validating schema...", file=sys.stderr)
+    progress("Validating schema...")
     schema_valid = validator.validate_schema()
 
-    print("Validating baseline references...", file=sys.stderr)
+    progress("Validating baseline references...")
     baseline_valid = validator.validate_baseline_references()
 
-    print("Validating method-level bindings...", file=sys.stderr)
+    progress("Validating method-level bindings...")
     bindings_valid = validator.validate_bindings()
 
-    print("Validating redeclaration vs new alpha classification...", file=sys.stderr)
+    progress("Validating redeclaration vs new alpha classification...")
     redeclaration_valid = validator.validate_redeclaration_vs_new()
 
-    print("Validating internal integrity...", file=sys.stderr)
+    progress("Validating internal integrity...")
     integrity_valid = validator.validate_internal_integrity()
 
-    print("Validating background references...", file=sys.stderr)
+    progress("Validating background references...")
     backgrounds_valid = validator.validate_backgrounds()
 
-    print("Validating acyclicity constraints...", file=sys.stderr)
+    progress("Validating acyclicity constraints...")
     acyclicity_valid = validator.validate_acyclicity()
 
-    print("Validating semantic alignment...", file=sys.stderr)
+    progress("Validating semantic alignment...")
     semantic_valid = validator.validate_semantic_alignment()
 
-    print("Validating version constraints...", file=sys.stderr)
+    progress("Validating version constraints...")
     validator.validate_version_constraints()
 
-    print("Validating schema version...", file=sys.stderr)
+    progress("Validating schema version...")
     schema_version_valid = validator.validate_schema_version()
 
     # Generate report
     report = validator.generate_report()
 
-    # Output JSON report
-    print(json.dumps(report, indent=2))
+    if args.brief:
+        status = "PASS" if report["valid"] else "FAIL"
+        errs = report.get("error_count", 0)
+        warns = report.get("warning_count", 0)
+        warn_str = f" ({warns} warnings)" if warns else ""
+        print(f"{status} {errs} errors{warn_str} — {practice_file.name}")
+    else:
+        print(json.dumps(report, indent=2))
 
     # Exit code
     sys.exit(0 if report['valid'] else 1)
