@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/language.schema.json",
-  "$comment": "schemaVersion:2.1.0",
+  "$comment": "schemaVersion:2.2.0",
   "title": "Practice language (from language.mmd)",
   "description": "JSON Schema derived from the Mermaid classDiagram in language.mmd. Identity is by name; most cross-links are string names (not embedded objects). Root validation discriminates Practice vs Method vs PracticeBaseline. Method can use embedded objects (baselinePractice + practices) or string references (baselinePracticeName + practiceNames) or a mix.",
   "$defs": {
@@ -1712,8 +1712,8 @@
         },
         "uri": {
           "type": "string",
-          "format": "uri",
-          "description": "URI of the external resource, when available."
+          "format": "uri-reference",
+          "description": "URI of the external resource, when available. Accepts absolute URLs (e.g. an RHSC record) or relative references (e.g. a markdown file beside the Project JSON)."
         }
       },
       "additionalProperties": false
@@ -2119,6 +2119,10 @@
         "finished": {
           "type": "string",
           "description": "Optional ISO timestamp recording when this member left the project."
+        },
+        "role": {
+          "type": "string",
+          "description": "Optional free-text description of this member's specific role or responsibility on this project, complementing the generic personaName (e.g. 'Sponsor / escalation path' alongside personaName 'ESA Manager')."
         }
       },
       "additionalProperties": false
@@ -2167,6 +2171,26 @@
           "type": "array",
           "items": { "$ref": "#/$defs/Note" },
           "description": "Optional notes for plan-level commentary, decisions, and rationale about the planning process itself."
+        },
+        "sync": {
+          "type": "object",
+          "description": "Remembered sync configuration for mirroring this plan to an external planning tool (e.g. Smartsheet, Jira). Tool-agnostic: the linked tool's own sync contract (e.g. specifications/project-plan.md for Smartsheet) defines vocabulary such as 'layout'.",
+          "required": ["tool", "link"],
+          "properties": {
+            "tool": {
+              "type": "string",
+              "description": "Name of the external planning tool this plan syncs with (e.g. 'Smartsheet')."
+            },
+            "layout": {
+              "type": "string",
+              "description": "Tool-specific layout/view identifier for the active sync (e.g. Smartsheet's 'traditional' or 'agile'). Meaning is defined by the tool's own sync contract, not this schema."
+            },
+            "link": {
+              "$ref": "#/$defs/ExternalLink",
+              "description": "Link to the live external plan (e.g. the active Smartsheet sheet) that this project's plan syncs with — the single source of truth for the active sync target."
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -2308,6 +2332,11 @@
               "type": "string",
               "pattern": "^\\d+\\.\\d+\\.\\d+$",
               "description": "Version of the Practice Language schema this document was authored against (e.g. '1.0.0'). Consumers use this to determine compatibility before parsing."
+            },
+            "links": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ExternalLink" },
+              "description": "Optional project-wide external links not specific to a tracked alpha/work-product instance (e.g. remembered Smartsheet workspace/folder/plan URLs, team charter, way-of-working document)."
             }
           },
           "oneOf": [

@@ -12,6 +12,8 @@ A Project is distinct from Practice, Method, and PracticeBaseline — it is not 
 
 A Project includes a top-level `notes` array (of Note objects) for project-wide observations, decisions, and commentary that are not specific to the plan, current state, target state, or team.
 
+A Project also includes an optional top-level `links` array (of ExternalLink objects) for project-wide external references that are not specific to a tracked alpha/work-product instance — e.g. a remembered Smartsheet workspace/folder/plan URL, a team charter document, or a way-of-working document. Instance-specific links belong on that AlphaInstance's or WorkProductInstance's own `links` instead.
+
 ## Practice/Method Reference
 
 A Project MUST name exactly one Practice or Method on which it is based, using an exclusive-or reference:
@@ -52,6 +54,7 @@ Each TeamMember identifies a person, their role within the methodology, and how 
 - `contact` — a contact address (e.g. email, chat handle, phone). Format is not constrained — the value is whatever the team considers the best way to reach this person
 - `started` — optional ISO timestamp string recording when this member joined the project
 - `finished` — optional ISO timestamp string recording when this member left the project
+- `role` — optional free-text description of this member's specific role or responsibility on this project, for when the generic `personaName` doesn't capture project-specific nuance (e.g. `personaName: "ESA Manager"` with `role: "Sponsor / escalation path"`)
 
 This connects real people to the methodology's Persona definitions, enabling role-based views of project progress while keeping contact details immediately accessible. The optional `started`/`finished` timestamps support temporal membership tracking without overcomplicating the structure.
 
@@ -78,6 +81,7 @@ The Pattern type is extended with optional `alphaInstanceNames` and `workProduct
 
 - `pattern` — an embedded Pattern object defining the project's lifecycle plan. This is a new instance using the existing Pattern type, owned by the project. As a full declaration rather than a reference, the user is free to add, remove, or reorder PatternViews, adjust alpha state targets, and extend the pattern with objectives or requirements specific to their project. The Pattern's `alphaInstanceNames` and `workProductInstanceNames` arrays declare the instances being tracked.
 - `notes` — optional array of Note objects for plan-level commentary, decisions, and rationale. These capture changes, updates, and context that are about the planning process itself rather than the plan content (which lives in the Pattern).
+- `sync` — optional object remembering the configuration for mirroring this plan to an external planning tool, tool-agnostic by design: `{ "tool": string, "layout"?: string, "link": ExternalLink }`. `tool` names the external system (e.g. "Smartsheet"); `link` is the single ExternalLink to the live external plan that is the current sync target; `layout` is an optional, tool-defined view/layout identifier whose vocabulary is owned by that tool's own sync contract (e.g. Smartsheet's `"traditional" | "agile"`, per `specifications/project-plan.md` in keleo-userskillz), not this schema. Historical/secondary sync targets (e.g. a second sheet from a prior layout) belong on the Project's top-level `links`, not here — `sync.link` only ever holds the currently active one.
 
 **Tooling guidance:** Systems supporting this schema should allow the user to clone an existing Pattern from the resolved practice/method scope as a starting point for their plan. The cloned Pattern becomes an independent copy owned by the project. Such a system would need to ensure all tracked items are represented as AlphaInstanceName or WorkProductInstanceName declarations within the Pattern, and may default instance names to names derived from the alpha/work product name when the user has not explicitly named them.
 

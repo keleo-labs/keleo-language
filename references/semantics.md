@@ -2962,6 +2962,8 @@ Any system managing a Project would need to resolve all of the referenced Practi
 
 **Metadata:** Projects carry the same provenance metadata as Practice and PracticeBaseline: `authors`, `createdAt`, `updatedAt`, `version`, and `keywords`. Projects may also include `citations`, `acknowledgements`, and `assets`.
 
+**Project-wide links:** The optional `links` array (ExternalLink objects) holds external references that describe the project as a whole rather than a specific tracked alpha/work-product instance — for example a remembered Smartsheet workspace/folder/plan URL, a team charter document, or a way-of-working document. Instance-specific links belong on that AlphaInstance/WorkProductInstance's own `links` instead.
+
 ### 12.2 Team Structure and Team API Principles
 
 The Project's `team` property is inspired by the Team API concept from Team Topologies (Skelton & Pais). The Team API's core objective is to reduce cognitive load by making a team's purpose, membership, and communication preferences immediately discoverable. The Project schema distils this into three types:
@@ -2977,6 +2979,7 @@ The Project's `team` property is inspired by the Team API concept from Team Topo
 
 - `name` and `contact` make the person findable and reachable
 - `personaName` links the member to a Persona defined in the resolved practice/method scope, connecting real people to methodology-defined roles
+- `role` (optional) is free text describing this member's specific responsibility on this project, complementing `personaName` when the generic persona doesn't capture project-specific nuance (e.g. `personaName: "ESA Manager"` with `role: "Sponsor / escalation path"`)
 - `started` and `finished` (both optional) record when the member joined and left the project, supporting temporal membership tracking without overcomplicating the structure
 
 **CommunicationChannel** — a team interaction point:
@@ -2997,6 +3000,8 @@ The `plan` section establishes the project's lifecycle objectives. It contains a
 **Plan Notes:** The plan's `notes` array captures changes, updates, and rationale about the planning process itself — commentary that is about the plan rather than part of the plan content (which lives in the Pattern).
 
 **Tooling Guidance:** Systems supporting this schema should allow users to clone an existing Pattern from the resolved practice/method scope as a starting point for their plan. The cloned Pattern becomes an independent copy owned by the project. Tooling should ensure all tracked items are represented as AlphaInstanceName or WorkProductInstanceName declarations within the Pattern, defaulting instance names to names derived from the alpha/work product name when the user has not explicitly named them.
+
+**External Planning Tool Sync:** The plan's optional `sync` object remembers the configuration for mirroring this plan to an external planning tool (e.g. Smartsheet, Jira) — tool-agnostic by design, so this schema does not encode any one vendor's vocabulary. `sync.tool` names the tool; `sync.link` (an `ExternalLink`) is the single source of truth for the live external plan this project currently syncs with; `sync.layout` is an optional, tool-defined view/layout identifier (e.g. Smartsheet's `"traditional" | "agile"`, per that tool's own sync contract — see `specifications/project-plan.md` in keleo-userskillz). Historical or secondary sync targets (e.g. a second sheet from a prior layout) belong on `Project.links`, not here — `sync.link` only ever holds the currently active target.
 
 ### 12.4 Current, Target, and Cycles
 
