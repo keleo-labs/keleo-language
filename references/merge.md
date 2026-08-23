@@ -37,11 +37,14 @@
    - 6.10 [Asset Merging](#610-asset-merging)
    - 6.11 [Alias Merging](#611-alias-merging)
    - 6.12 [Instance Declaration Merging](#612-instance-declaration-merging)
+   - 6.13 [Acknowledgement Merging](#613-acknowledgement-merging)
+   - 6.14 [Reference Merging](#614-reference-merging)
 7. [Post-Merge Finalization](#7-post-merge-finalization)
    - 7.1 [Binding Resolution](#71-binding-resolution)
    - 7.2 [Supporting Alpha Aggregation](#72-supporting-alpha-aggregation)
    - 7.3 [Focus Name Propagation](#73-focus-name-propagation)
    - 7.4 [Baseline Description Re-stamping](#74-baseline-description-re-stamping)
+   - 7.5 [Synthesized Element Stub Generation](#75-synthesized-element-stub-generation)
 8. [Source Provenance Tracking](#8-source-provenance-tracking)
 9. [Name Canonicalization](#9-name-canonicalization)
 10. [Practice Resolution Modes](#10-practice-resolution-modes)
@@ -109,22 +112,22 @@ The merge begins by seeding an accumulator document from the resolved baseline:
 - **Focuses, alphas, competencies**: Cloned directly from the baseline.
 - **Activity spaces**: Converted into an internal slot map (space → activities) for efficient merging.
 - **Work products, patterns, personas, persona groups, narrative types, citations, assets**: Initialized from the baseline arrays.
-- **Alpha instances, work product instances, aliases**: Initialized if present on the baseline.
+- **Alpha instances, work product instances, aliases, acknowledgements, references**: Initialized if present on the baseline.
 - **Metadata fields**: `authors`, `keywords`, `createdAt`, `updatedAt`, `version` are seeded from the baseline.
 - **Method-level fields**: The Method's own `name`, `description`, `tags`, `narratives`, `citations`, and `assets` are applied at initialization, with the Method's description taking precedence.
 
-A `mergesBaselinePracticeName` provenance field records which baseline was used, enabling tooling to distinguish merged composites from raw baselines.
+A `mergesBaselinePracticeName` provenance field records which baseline was used, enabling tooling to distinguish merged composites from raw baselines. Notably, the merged output does **not** carry a `baselinePracticeName` field — it is structurally shaped as a kernel (with direct `alphas`, `focuses`, etc.) so that library resolution and enrichment stubs (Section 7.5) are not re-applied if the merged document is loaded again.
 
 ### 3.2 Extension Practice Overlay
 
 Each extension practice is merged onto the accumulator in dependency-resolved order. The first extension in the array is closest to the baseline (highest precedence among extensions); the last is the leaf practice (lowest precedence). For each extension, every element collection is merged:
 
 - Activity spaces and activities merge into the slot map.
-- Alphas, competencies, focuses, work products, patterns, personas, persona groups, narrative types, citations, assets, alpha instances, work product instances, and aliases all merge using their respective merge functions.
+- Alphas, competencies, focuses, work products, patterns, personas, persona groups, narrative types, citations, acknowledgements, assets, alpha instances, work product instances, references, and aliases all merge using their respective merge functions.
 - `authors`, `keywords`, and `practiceDependencyNames` are unioned as string arrays.
 - `updatedAt` is updated if the extension provides a newer timestamp.
 
-**Narrative isolation**: Extension practice root-level narratives are NOT merged into the composite root. Only the Method's own narratives appear at root level. Practice-specific narratives remain within their respective practice elements.
+**Narrative isolation**: Extension practice root-level narratives are NOT merged into the composite root. Secondary baseline root-level narratives are also excluded. Only the Method's own narratives appear at root level. Practice-specific narratives remain within their respective practice elements (patterns, pattern views, etc.).
 
 ### 3.3 Embedded Method Recursion
 
@@ -151,7 +154,7 @@ This step runs after the primary baseline seeds the accumulator (Section 3.1) an
 
 **Recursive coverage**: Because step 1 operates on the full transitive practice closure (not just the method's direct practices), deeply nested dependencies are covered. If practice A depends on practice B, which depends on practice C, and C extends baseline "X" while A and B extend the primary baseline, baseline "X" will be discovered and merged.
 
-Both paths to secondary baselines — embedded Method objects (Section 3.3) and cross-baseline extension practices (this section) — converge on the same merge function for the secondary kernel. The secondary baseline merge is idempotent per baseline name: if the same secondary baseline is encountered through both paths, the second merge is a no-op.
+Both paths to secondary baselines — embedded Method objects (Section 3.3) and cross-baseline extension practices (this section) — converge on the same merge function for the secondary kernel. The secondary baseline merge is **idempotent per baseline name**: if the normalized name of the secondary baseline matches the accumulator's `mergesBaselinePracticeName`, the merge is a no-op. This comparison uses case-insensitive, whitespace-normalized matching (Section 9).
 
 ---
 
@@ -189,6 +192,10 @@ This means the first layer to provide a substantive value for a scalar field own
 ### 4.4 Tag Merging
 
 Structured tags (`domainTags`, `lifecycleTags`, `organizationalTags`) merge by **union within each dimension**. If the base has `domainTags: ["Security"]` and the overlay has `domainTags: ["Architecture"]`, the result is `domainTags: ["Security", "Architecture"]`. Tags are deduplicated.
+
+**Legacy normalization**: When `tags` is a plain string array (legacy format) rather than a structured tag object, it is normalized into `{ lifecycleTags: [...] }` before merging. This ensures backward compatibility — legacy tag arrays participate in the same union logic as structured tags.
+
+**Synthesized marker**: The tag value `"synthesized"` under `lifecycleTags` is a system-internal marker indicating auto-generated stub elements (see Section 7.5). It participates in tag merging like any other tag value but has special significance for rendering: elements carrying this marker with no description are suppressed in display contexts.
 
 ---
 
@@ -268,9 +275,12 @@ Activity spaces use a **slot map** representation during merging. Each activity 
 
 **Activity merging** (within a space):
 
-- `activitySpaceName` from the overlay takes precedence.
-- `focusName` prefers non-implicit values.
-- `contributesTo`, `requiredCompetencies`, `worksOn`, and `recommendedCompetencyLevels` arrays are unioned/merged.
+- `activitySpaceName` from the overlay takes precedence (allows reassignment to a different space).
+- `focusName` prefers non-implicit values (see Section 7.3 for the special merge function used).
+- `contributesTo` arrays are unioned by `alphaName::stateName` key.
+- `requiredCompetencies` string arrays are unioned and deduplicated.
+- `worksOn` arrays are concatenated (and merged by `workProductName::levelOfDetailName` composite key when both sides contain keyed entries).
+- `recommendedCompetencyLevels` arrays are concatenated (and merged by `competencyName::competencyLevelName` composite key).
 
 **Activity space ordering**: The final output preserves the ordering of activity spaces as they appear across the baseline and extensions. Baseline spaces appear first, followed by spaces introduced by each extension in dependency order. Spaces not referenced in any ordering hint are sorted alphabetically at the end.
 
@@ -347,17 +357,55 @@ Assets merge by canonical name with **atomic replacement**: a later asset defini
 
 ### 6.11 Alias Merging
 
-Practice element aliases are deduplicated by composite key `practiceElementType + practiceElementName + aliasName`. The first occurrence of each unique key is kept; duplicates are discarded.
+Practice element aliases provide **display-layer name substitution** without altering structural identity. An alias maps an element's canonical name to an alternative display name within a specific method context.
+
+**Merge rule**: Alias lists from all layers (baseline, secondary baselines, extension practices) are concatenated and deduplicated by composite key `practiceElementType + practiceElementName + aliasName`. The first occurrence of each unique key is kept; duplicates are discarded.
+
+**Structural invariant**: Aliases are purely presentational — they **never** affect merge keying, element matching, or structural references within the document. All merge operations use the element's canonical `name` field (via canonicalization, Section 9). The alias does not change:
+
+- How elements are matched during merge (canonical name keying is unaffected).
+- `contributesTo`, `mapsTo`, `partOf`, `supportingAlphas`, or any other cross-element reference.
+- `focusName` propagation or any other structural inference.
+
+**Display semantics**: The alias lookup is keyed by `practiceElementType + practiceElementName` (not by alias name). When an alias exists for a given element type and name:
+
+- The alias name is shown as the **primary display name**.
+- The canonical name is shown alongside it (typically in parentheses) so the structural identity remains visible.
+- Layout and measurement utilities account for both names when computing widths.
+
+**Example**: If alpha "Sales Play" has an alias with `aliasName: "Partner Play"`, the alpha is still keyed as "Sales Play" in all merge operations, `contributesTo` references, and binding resolution. The UI renders it as "Partner Play (Sales Play)".
 
 ### 6.12 Instance Declaration Merging
 
 **AlphaInstanceName** and **WorkProductInstanceName** declarations merge by canonical name using the core record merge function. These are keyed practice element overlays — same-named declarations combine their metadata; unique declarations are preserved.
 
+### 6.13 Acknowledgement Merging
+
+Acknowledgements merge by canonical name. When two acknowledgements share the same name:
+
+- `url` from the overlay takes precedence.
+- Other fields merge using the core record merge function.
+
+### 6.14 Reference Merging
+
+References merge by canonical name using the core record merge function. Same-named references combine their metadata; unique references from either array are preserved.
+
 ---
 
 ## 7 Post-Merge Finalization
 
-After all extension layers have been merged into the accumulator, several finalization passes run.
+After all extension layers have been merged into the accumulator, several finalization passes run **in the following strict order**:
+
+1. Alpha binding resolution (Section 7.1.1)
+2. Supporting alpha aggregation (Section 7.2)
+3. Alpha variant aggregation (Section 7.2a)
+4. Work product binding resolution (Section 7.1.2)
+5. Work product variant aggregation (Section 7.2b)
+6. Focus name propagation (Section 7.3, Phase 1)
+7. Implicit focus placeholder finalization (Section 7.3, Phase 2)
+8. Baseline description re-stamping (Section 7.4)
+
+This ordering is load-bearing: binding resolution must precede aggregation so that injected `contributesTo`/`mapsTo`/`partOf` relationships are picked up by the supporting-alpha and variant passes. Focus propagation must follow aggregation so that all structural relationships are in place before inferring swimlane assignments. Description re-stamping runs last to guarantee no intermediate operation can leave extension-layer prose on baseline-defined elements.
 
 ### 7.1 Binding Resolution
 
@@ -373,9 +421,9 @@ For each `AlphaBinding` in the Method's `bindings.alphaBindings` array:
 
    - If `relationship` is `"contribution"`: set the source alpha's `contributesTo` property to the target alpha's name.
    - If `relationship` is `"variant"`: set the source alpha's `mapsTo` property to the target alpha's name.
-   - If the source alpha already has the relevant property set (from its own baseline), emit a warning — method-level bindings should not override existing within-baseline relationships.
+   - If the source alpha already has the relevant property set (from its own baseline), the binding is **silently skipped** — method-level bindings do not override existing within-baseline relationships.
 
-3. **Inject `contributesToState` on source alpha states.** For each `stateContributions` entry on the source alpha, find the state matching `fromState` within the source alpha's `states` array and set its `contributesToState` property to the `toState` value. If the state already has a `contributesToState` value, emit a warning and do not override. This step applies to both `contribution` and `variant` bindings — for contribution bindings, the state mapping means "reaching fromState advances toState"; for variant bindings, it means "fromState corresponds to toState" (equivalence across different terminology or granularity).
+3. **Inject `contributesToState` on source alpha states.** For each `stateContributions` entry on the source alpha, find the state matching `fromState` within the source alpha's `states` array and set its `contributesToState` property to the `toState` value. If the state already has a `contributesToState` value, the mapping is **silently skipped** (existing mappings are not overridden). This step applies to both `contribution` and `variant` bindings — for contribution bindings, the state mapping means "reaching fromState advances toState"; for variant bindings, it means "fromState corresponds to toState" (equivalence across different terminology or granularity).
 
 **Example (contribution):** Given a Method with this binding:
 
@@ -440,10 +488,12 @@ For each `WorkProductBinding` in the Method's `bindings.workProductBindings` arr
 
    - If `relationship` is `"contribution"`: set the source work product's `partOf` property to the target work product's name.
    - If `relationship` is `"variant"`: set the source work product's `mapsTo` property to the target work product's name.
-   - If the source work product already has the relevant property set (from its own baseline), emit a warning — method-level bindings should not override existing within-baseline relationships.
-   - `partOf` and `mapsTo` are mutually exclusive — if a binding would set one while the other is already present, emit a warning and do not override.
+   - If the source work product already has the relevant property set (from its own baseline), the binding is **silently skipped** — method-level bindings do not override existing within-baseline relationships.
+   - `partOf` and `mapsTo` are mutually exclusive — if a binding would set one while the other is already present, the binding is silently skipped.
 
-3. **Inject LOD-to-state contribution mappings.** For each `lodContributions` entry on the source work product, find the level of detail matching `fromLevelOfDetail` within the source work product's `levelsOfDetail` array. Add an `AlphaContribution` entry to that LOD's `contributesTo` array, mapping to the target work product's corresponding alpha state via the `toLevelOfDetail` mapping. If the LOD already contributes to the target alpha state, deduplicate.
+3. **Inject LOD-to-state contribution mappings** *(specified but not yet implemented)***.** For each `lodContributions` entry on the source work product, find the level of detail matching `fromLevelOfDetail` within the source work product's `levelsOfDetail` array. Add an `AlphaContribution` entry to that LOD's `contributesTo` array, mapping to the target work product's corresponding alpha state via the `toLevelOfDetail` mapping. If the LOD already contributes to the target alpha state, deduplicate.
+
+> **Implementation note:** The current implementation resolves work product bindings for `partOf` and `mapsTo` relationships only. LOD-level contribution injection from `lodContributions` is not yet implemented.
 
 **Ordering dependency:** This step must run before Section 7.2 (Supporting Alpha Aggregation) and Sections 7.2a/7.2b (Variant Aggregation) because those passes walk `contributesTo`, `mapsTo`, and `partOf` declarations. By injecting relationships first, supporting alpha arrays and variant arrays are built automatically without additional logic.
 
@@ -471,17 +521,48 @@ Work product `variants` does NOT participate in LOD rollup or maturity calculati
 
 ### 7.3 Focus Name Propagation
 
-Two passes resolve focus names on the merged document:
+Focus name resolution runs as a multi-pass inference engine after all layers have merged. A focus name is considered **unresolved** if it is empty, whitespace-only, or the sentinel value `"Implicit focus"`.
 
-1. **Derived focus name propagation**: Alphas with a `contributesTo` or `mapsTo` relationship inherit their parent's `focusName` if they do not declare one explicitly. Activities inherit focus from their containing activity space or from the alphas they contribute to.
+**Phase 1 — Derived focus name propagation**: Five sub-propagators run in a fixed order, repeated for up to 10 iterations to reach a fixpoint across cross-dependencies:
 
-2. **Implicit focus placeholder finalization**: Any element still carrying an implicit/unresolved focus name after propagation is assigned a default placeholder value so that visualization tooling can render it in a catch-all swimlane.
+1. **Alpha focus from `contributesTo`/`mapsTo` parents**: An alpha with an unresolved focus copies the `focusName` from its `contributesTo` or `mapsTo` target alpha, if that target has a concrete focus. Runs to fixpoint for chains (e.g., alpha A → B → C where C is resolved first; A gets C's focus after two iterations).
+
+2. **Activity space focus from `contributesTo` alphas**: An activity space with an unresolved focus copies the `focusName` from the first alpha referenced in its `contributesTo` array that has a concrete focus.
+
+3. **Activity focus from `contributesTo` alphas**: An activity with an unresolved focus copies the `focusName` from the first alpha referenced in its `contributesTo` array that has a concrete focus. This covers both nested activities (within `activitySpaces[].activities`) and legacy flat activities.
+
+4. **Activity space focus from nested activities**: An activity space that still has no concrete focus copies the `focusName` from the first nested activity within its `activities` array that has a concrete focus. This handles the bottom-up case where an activity's `contributesTo` resolved its focus in sub-propagator 3.
+
+5. **Activity focus from parent space**: An activity with an unresolved focus copies the `focusName` from its parent activity space (matched by `activitySpaceName`). This handles the top-down case where the space was resolved but the activity was not.
+
+The five sub-propagators run as a group up to 10 times. Each iteration may resolve additional elements as their upstream sources become resolved, until no further changes occur (fixpoint).
+
+**Phase 2 — Implicit focus placeholder finalization**: After propagation converges, any element still carrying an unresolved focus name is assigned the sentinel value `"Implicit focus"`. This ensures visualization tooling can render every element in a swimlane — unresolved elements appear in a catch-all lane rather than being dropped.
+
+The sentinel is applied only during finalization, never during intermediate merge steps. This prevents `"Implicit focus"` from being treated as a substantive value during merge (which would cause it to win over a real focus from a later layer under the "first substantive value wins" scalar rule).
+
+**During merge** (before post-merge finalization): The `focusName` field on alphas, activity spaces, and activities uses a special merge function that prefers a concrete (non-implicit) value from either side. If one side has a real focus name and the other has an empty/implicit value, the real value is always kept regardless of base/overlay precedence. If neither side has a real focus, the result is left empty (not stamped with the implicit sentinel) for the propagation passes to resolve.
 
 ### 7.4 Baseline Description Re-stamping
 
 A final pass walks every element type (focuses, alphas, states, checklist items, activity spaces, activities, competencies, competency levels, narrative types, narrative elements, patterns, pattern views, work products, levels of detail, LOD checklist items, personas, and persona groups) and re-stamps the `description` from the original kernel baseline document onto any same-named element in the merged output.
 
 This pass runs last to guarantee that no intermediate operation (cloning, spreading, focus placeholder insertion) can leave extension-layer prose on elements that are structurally defined by the baseline. It is the authoritative enforcement of Section 4.2 (Description Preservation).
+
+### 7.5 Synthesized Element Stub Generation
+
+When resolving a standalone Practice (Section 10.2), extension practices may reference elements by name (e.g., `activitySpaceName`, `contributesTo`, `focusName`, `competencyName`) that do not exist in the resolved baseline. Before merge, the system enriches the baseline with **synthesized stub elements** for every referenced name that is missing.
+
+**Stub generation covers four element types**:
+
+- **Focuses**: A stub Focus is created for every `focusName` referenced by alphas, activity spaces, or activities in the extension practice that does not match an existing focus in the baseline.
+- **Alphas**: A stub Alpha is created for every `contributesTo` or `mapsTo` target name that does not match an existing alpha.
+- **Activity Spaces**: A stub ActivitySpace is created for every `activitySpaceName` referenced by activities that does not match an existing activity space.
+- **Competencies**: A stub Competency is created for every `competencyName` referenced in `requiredCompetencies` or `recommendedCompetencyLevels` that does not match an existing competency.
+
+**Synthesized marker**: Stub elements are tagged with `lifecycleTags: ["synthesized"]` to distinguish them from authored elements. This marker enables rendering tooling to suppress stubs that carry no real content (empty description) while still showing stubs that have been enriched by merge (e.g., a stub alpha that gained checklists from an extension practice).
+
+**Purpose**: Without stub generation, extension practices that reference elements outside their baseline would produce broken cross-references in the merged output. The stubs provide structural anchors so that merge, focus propagation, and rendering can proceed without missing-element errors.
 
 ---
 
@@ -503,27 +584,35 @@ This provenance information enables tooling to display element origins, show whi
 
 ### 8.2 Pattern-Level Provenance (`contributingPatternName`)
 
-The merge algorithm also tracks which pattern introduced or enriched each element via the `contributingPatternName` property on PracticeElement. This provides finer-grained attribution within a practice — while `sourcePracticeName` identifies the practice, `contributingPatternName` identifies the specific pattern within that practice that contributed the element.
+> **Status: Specified but not yet implemented.** The merge algorithm does not currently stamp `contributingPatternName` on elements. This section describes the intended design for future implementation.
 
-**Provenance rules**:
+The merge algorithm would track which pattern introduced or enriched each element via the `contributingPatternName` property on PracticeElement. This provides finer-grained attribution within a practice — while `sourcePracticeName` identifies the practice, `contributingPatternName` identifies the specific pattern within that practice that contributed the element.
 
-- When an element is introduced by a pattern (e.g., an alpha instance declared within a pattern's `alphaInstanceNames`, or a work product instance within `workProductInstanceNames`), its `contributingPatternName` is set to that pattern's name.
-- When a pattern view references elements (alpha states, activities, activity spaces) that already exist in the accumulator, those elements' `contributingPatternName` is set to the pattern's name only if they do not already have one. The first pattern to reference an element retains pattern-level provenance credit.
-- Elements introduced directly by a practice or baseline (outside any pattern context) have no `contributingPatternName` — the property remains absent.
+**Intended provenance rules**:
 
-**Use cases**:
+- When an element is introduced by a pattern (e.g., an alpha instance declared within a pattern's `alphaInstanceNames`, or a work product instance within `workProductInstanceNames`), its `contributingPatternName` would be set to that pattern's name.
+- When a pattern view references elements (alpha states, activities, activity spaces) that already exist in the accumulator, those elements' `contributingPatternName` would be set to the pattern's name only if they do not already have one. The first pattern to reference an element retains pattern-level provenance credit.
+- Elements introduced directly by a practice or baseline (outside any pattern context) would have no `contributingPatternName` — the property remains absent.
 
-- **Pattern-aware navigation**: Tooling can filter or highlight elements by contributing pattern, showing which elements belong to which lifecycle orchestration.
-- **Impact analysis**: When modifying a pattern, tooling can identify all elements that trace back to it via `contributingPatternName`.
-- **Documentation closure**: Pattern-level provenance supports tracing which patterns are responsible for which content in a merged document.
+**Intended use cases**:
+
+- **Pattern-aware navigation**: Tooling could filter or highlight elements by contributing pattern, showing which elements belong to which lifecycle orchestration.
+- **Impact analysis**: When modifying a pattern, tooling could identify all elements that trace back to it via `contributingPatternName`.
+- **Documentation closure**: Pattern-level provenance would support tracing which patterns are responsible for which content in a merged document.
 
 ---
 
 ## 9 Name Canonicalization
 
-All name-based merging and keying uses **canonical name comparison**. The canonicalization function normalizes element names to provide case-insensitive, whitespace-normalized matching. This ensures that minor variations in element naming across practices (e.g., different capitalization or extra whitespace) do not prevent proper merging.
+All name-based merging and keying uses **canonical name comparison**. The canonicalization function transforms names as follows:
 
-Activity spaces have an additional identity key normalization that accounts for the structural distinction between activity spaces (containers) and practice activity nodes (leaf activities declared at the space level).
+1. Convert to lowercase.
+2. Trim leading and trailing whitespace.
+3. Collapse all internal whitespace sequences to a single space.
+
+The resulting canonical key is used for map lookups during merge. The original casing of the element's `name` field is preserved on the element itself — canonicalization affects keying only, not the stored name. When an element enters the merge map for the first time, its `name` field is whitespace-normalized (trimmed and collapsed) but retains its original casing.
+
+Activity spaces have an additional identity key normalization that accounts for the structural distinction between activity spaces (containers) and practice activity nodes (leaf activities declared at the space level). A practice activity node is identified by having a string-valued `activitySpaceName` property — these are treated as activities assigned to a space, not as spaces themselves.
 
 ---
 
@@ -544,13 +633,27 @@ The output is a kernel-shaped document suitable for rendering.
 
 ### 10.2 Practice Resolution with Pruning
 
-When resolving a standalone Practice (not within a Method), the merge produces a full composite but then **prunes** it to the documentation closure — the set of elements actually referenced by the primary practice and its dependencies.
+When resolving a standalone Practice (not within a Method), the system builds a synthetic Method from the practice's `baselinePracticeName` and its transitive dependencies, produces a full composite via the merge algorithm, and then **prunes** it to the documentation closure — the set of elements actually referenced by the primary practice and its dependencies.
 
-**Documentation closure**: The system collects all element names referenced by the primary practice (alphas, activity spaces, activities, competencies, work products, personas, persona groups, patterns) across all structural fields (contributesTo, activitySpaceName, worksOn, alphaStates, etc.). This closure is expanded transitively along contribution edges and persona/group membership.
+**Documentation closure**: The system collects all element names referenced by the primary practice across all structural fields:
+
+- **Alphas**: Direct declarations, `contributesTo` targets, `mapsTo` targets, `supportingAlphas` entries.
+- **Activity spaces**: Direct declarations, `activitySpaceName` references from activities.
+- **Activities**: Direct declarations within activity spaces.
+- **Competencies**: `requiredCompetencies` entries, `recommendedCompetencyLevels` entries.
+- **Work products**: Direct declarations, `worksOn` entries from activities.
+- **Personas and persona groups**: Direct declarations, `personaNames` within groups.
+- **Patterns**: Direct declarations, including nested pattern view references.
+
+This closure is expanded transitively: if alpha A is in the closure and alpha B declares `contributesTo: "A"`, then B enters the closure too. Persona group membership is similarly expanded — if a group is in the closure, all its member personas are included.
 
 All baseline alphas and activity spaces are always included in the closure to provide a complete view of the baseline coverage, even if the extension practice does not explicitly reference them.
 
 Elements not in the closure are removed from the merged output, producing a focused document that shows the practice in the context of its baseline without including unrelated baseline content.
+
+**Post-pruning finalization**: After pruning, focus name propagation (Section 7.3) and implicit focus placeholder finalization run again. This second pass is necessary because pruning may remove elements that were providing focus names to others via `contributesTo` chains, and the remaining elements may need re-inference with the reduced element set.
+
+**Baseline name stripping**: The merged output's `baselinePracticeName` is removed after resolution so the document is shaped as a kernel composite (not as a practice requiring further resolution).
 
 ### 10.3 Baseline Resolution
 
@@ -626,7 +729,7 @@ Scenario: Binding does not override existing within-baseline relationship
   And a method-level binding attempts to set contributesTo to "Deliverable"
   When the method is resolved
   Then alpha "Platform Capability" retains contributesTo "Platform"
-  And a warning is emitted about the conflicting binding
+  And the conflicting binding is silently skipped
 ```
 
 ### Feature: Cross-baseline extension practice resolution (Section 3.4)
@@ -668,6 +771,70 @@ Scenario: Case-insensitive name matching during merge
   Then the two are merged as the same element, not duplicated
 ```
 
+### Feature: Alias display-only semantics (Section 6.11)
+
+```gherkin
+Scenario: Alias does not affect merge keying
+  Given a baseline alpha named "Sales Play"
+  And a method-level alias maps practiceElementType "alpha", practiceElementName "Sales Play" to aliasName "Partner Play"
+  And an extension practice with alpha named "Sales Play" with additional checklist items
+  When the practices are merged
+  Then the merged alpha is keyed as "Sales Play"
+  And the additional checklist items are merged into "Sales Play"
+  And the alias "Partner Play" is available for display rendering only
+
+Scenario: Alias does not affect structural references
+  Given a baseline alpha "Deliverable" with supportingAlphas including "Sales Play"
+  And a method-level alias maps "Sales Play" to aliasName "Partner Play"
+  When the method is resolved
+  Then "Deliverable" supportingAlphas still references "Sales Play"
+  And contributesTo, mapsTo, and focusName references are unchanged
+```
+
+### Feature: Focus name propagation (Section 7.3)
+
+```gherkin
+Scenario: Alpha inherits focus from contributesTo parent
+  Given a baseline alpha "Deliverable" with focusName "Solution"
+  And an extension alpha "Platform" with contributesTo "Deliverable" and no focusName
+  When the method is resolved
+  Then alpha "Platform" has focusName "Solution"
+
+Scenario: Activity inherits focus from contributesTo alpha
+  Given a baseline alpha "Deliverable" with focusName "Solution"
+  And an activity "Build Platform" with contributesTo referencing "Deliverable" and no focusName
+  When the method is resolved
+  Then activity "Build Platform" has focusName "Solution"
+
+Scenario: Unresolved focus receives implicit placeholder
+  Given an alpha "Orphan" with no focusName and no contributesTo relationship
+  When the method is resolved
+  Then alpha "Orphan" has focusName "Implicit focus"
+
+Scenario: Implicit focus sentinel does not win over real focus during merge
+  Given a baseline alpha "Platform" with focusName "Implicit focus"
+  And an extension practice with alpha "Platform" with focusName "Solution"
+  When the practices are merged
+  Then the merged alpha "Platform" has focusName "Solution"
+```
+
+### Feature: Synthesized element stubs (Section 7.5)
+
+```gherkin
+Scenario: Stub alpha created for unresolved contributesTo target
+  Given a baseline with no alpha named "Deliverable"
+  And an extension practice with alpha "Platform" with contributesTo "Deliverable"
+  When the practice is resolved
+  Then a synthesized stub alpha "Deliverable" is created
+  And it has lifecycleTags including "synthesized"
+
+Scenario: Stub activity space created for unresolved activitySpaceName
+  Given a baseline with no activity space named "Deploy"
+  And an extension practice with an activity whose activitySpaceName is "Deploy"
+  When the practice is resolved
+  Then a synthesized stub activity space "Deploy" is created
+```
+
 ### Feature: Tag merging (Section 4.4)
 
 ```gherkin
@@ -701,10 +868,13 @@ Scenario: Duplicate tags are deduplicated
 | **Assets** | Last writer wins (atomic replacement) |
 | **Citations** | Field-level merge; authors union; later date/source wins |
 | **Narratives** | Merge by name; narrative context prose concatenates |
-| **Aliases** | Deduplicate by composite key |
+| **Aliases** | Deduplicate by composite key; display-only — do not affect merge keying or structural references |
+| **Acknowledgements** | Field-level merge; later `url` wins |
+| **References** | Field-level merge by canonical name |
 | **Bindings** | Resolved post-merge; contribution injects `contributesTo`/`partOf`, variant injects `mapsTo`; state/LOD mappings injected as `contributesToState` |
 | **Focus names** | Prefer non-implicit values; propagate from parent |
 | **Practice provenance** | First practice to introduce element retains credit |
-| **Pattern provenance** | First pattern to introduce or reference element retains credit |
+| **Pattern provenance** | First pattern to introduce or reference element retains credit *(not yet implemented)* |
+| **Synthesized stubs** | Auto-generated for extension-referenced names missing from baseline; tagged `"synthesized"` |
 | **Layer ordering** | Primary baseline → secondary baselines → transitive deps (post-order) → direct practices |
 | **Cross-baseline deps** | Extension practices referencing a different baseline trigger recursive secondary baseline resolution |

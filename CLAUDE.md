@@ -7,6 +7,7 @@
 This project is consumed by other keleo projects via symlinks:
 - **keleo-studio** — uses the schema for validation and rendering
 - **keleo-pgen-llm** — uses the schema and semantics for LLM-driven practice generation
+- **keleo-userskillz** — Agent Skills pack; resolves schema/semantics/validators via `create-project/scripts/lib/keleo_language.py` (see `keleo-userskillz/keleo-project/references/keleo-language.md`)
 
 ## Project Structure
 
