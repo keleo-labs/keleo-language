@@ -1192,6 +1192,92 @@ class PracticeValidator:
             }
         }
 
+    def validate_work_product_purpose(self) -> bool:
+        """Validate work product purpose hub: contributesToAlphaNames and LOD contributesTo coherence"""
+        has_errors = False
+
+        is_method = 'practices' in self.practice or 'baselinePractice' in self.practice
+        practices = self.practice.get('practices', []) if is_method else [self.practice]
+
+        all_alphas = set(self.baseline_alphas.keys()) | set(self.dep_alphas.keys())
+        for practice in practices:
+            for alpha in practice.get('alphas', []):
+                all_alphas.add(alpha['name'])
+
+        for practice_idx, practice in enumerate(practices):
+            prefix = f"practices[{practice_idx}]" if is_method else ""
+            practice_name = practice.get('name')
+            has_cross_practice_deps = bool(practice.get('practiceDependencyNames', []))
+
+            for wp_idx, wp in enumerate(practice.get('workProducts', [])):
+                wp_path = f"{prefix}.workProducts[{wp_idx}]" if prefix else f"workProducts[{wp_idx}]"
+                wp_name = wp.get('name', f'workProduct[{wp_idx}]')
+                wp_alpha_names = wp.get('contributesToAlphaNames', [])
+                has_wp_purpose = bool(wp_alpha_names)
+
+                lod_alpha_names = set()
+                any_lod_has_contributes_to = False
+                for lod in wp.get('levelsOfDetail', []):
+                    contributes_to = lod.get('contributesTo', [])
+                    if contributes_to:
+                        any_lod_has_contributes_to = True
+                        for contrib in contributes_to:
+                            alpha_name = contrib.get('alphaName')
+                            if alpha_name:
+                                lod_alpha_names.add(alpha_name)
+
+                # Floating WP check: must have purpose via contributesToAlphaNames or LOD contributesTo
+                if not has_wp_purpose and not any_lod_has_contributes_to:
+                    # Skip if this is a baseline redeclaration (name exists in baseline)
+                    baseline_wp_names = set()
+                    for bl in self._resolve_baseline_chain():
+                        for bwp in bl.get('workProducts', []):
+                            baseline_wp_names.add(bwp['name'])
+                    if wp_name not in baseline_wp_names:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": wp_path,
+                            "issue": f"Floating work product '{wp_name}': no contributesToAlphaNames and no LOD has contributesTo",
+                            "expected": "contributesToAlphaNames array OR at least one LOD with non-empty contributesTo",
+                            "actual": "No alpha purpose declared",
+                            "suggestion": f"Add contributesToAlphaNames listing the alphas this work product serves, or add contributesTo on at least one LOD"
+                        })
+                        has_errors = True
+
+                # Alpha existence: every name in contributesToAlphaNames must resolve
+                if has_wp_purpose and not has_cross_practice_deps:
+                    for name_idx, alpha_name in enumerate(wp_alpha_names):
+                        if alpha_name not in all_alphas:
+                            self.errors.append({
+                                "category": "integrity",
+                                "severity": "error",
+                                "path": f"{wp_path}.contributesToAlphaNames[{name_idx}]",
+                                "issue": f"contributesToAlphaNames references undefined alpha: '{alpha_name}'",
+                                "expected": f"One of: {sorted(all_alphas)}",
+                                "actual": alpha_name,
+                                "suggestion": "Use exact alpha name (case-sensitive)"
+                            })
+                            has_errors = True
+
+                # LOD ⊆ WP check: LOD alphaNames must be subset of contributesToAlphaNames
+                if has_wp_purpose and lod_alpha_names:
+                    wp_alpha_set = set(wp_alpha_names)
+                    missing = lod_alpha_names - wp_alpha_set
+                    if missing:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{wp_path}.contributesToAlphaNames",
+                            "issue": f"LOD contributesTo references alphas not in contributesToAlphaNames: {sorted(missing)}",
+                            "expected": f"contributesToAlphaNames must be superset of all LOD alphaNames",
+                            "actual": f"WP alphas: {sorted(wp_alpha_set)}, LOD alphas: {sorted(lod_alpha_names)}",
+                            "suggestion": f"Add {sorted(missing)} to contributesToAlphaNames"
+                        })
+                        has_errors = True
+
+        return not has_errors
+
     def validate_semantic_alignment(self) -> bool:
         """
         Validate semantic appropriateness of contributesTo relationships.
@@ -2524,6 +2610,9 @@ def main():
 
     progress("Validating acyclicity constraints...")
     acyclicity_valid = validator.validate_acyclicity()
+
+    progress("Validating work product purpose hub...")
+    wp_purpose_valid = validator.validate_work_product_purpose()
 
     progress("Validating semantic alignment...")
     semantic_valid = validator.validate_semantic_alignment()

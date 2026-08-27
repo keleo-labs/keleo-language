@@ -42,6 +42,7 @@
 7. [Post-Merge Finalization](#7-post-merge-finalization)
    - 7.1 [Binding Resolution](#71-binding-resolution)
    - 7.2 [Supporting Alpha Aggregation](#72-supporting-alpha-aggregation)
+   - 7.2c [Work Product Component Aggregation](#72c-work-product-component-aggregation)
    - 7.3 [Focus Name Propagation](#73-focus-name-propagation)
    - 7.4 [Baseline Description Re-stamping](#74-baseline-description-re-stamping)
    - 7.5 [Synthesized Element Stub Generation](#75-synthesized-element-stub-generation)
@@ -401,11 +402,12 @@ After all extension layers have been merged into the accumulator, several finali
 3. Alpha variant aggregation (Section 7.2a)
 4. Work product binding resolution (Section 7.1.2)
 5. Work product variant aggregation (Section 7.2b)
-6. Focus name propagation (Section 7.3, Phase 1)
-7. Implicit focus placeholder finalization (Section 7.3, Phase 2)
-8. Baseline description re-stamping (Section 7.4)
+6. Work product component aggregation (Section 7.2c)
+7. Focus name propagation (Section 7.3, Phase 1)
+8. Implicit focus placeholder finalization (Section 7.3, Phase 2)
+9. Baseline description re-stamping (Section 7.4)
 
-This ordering is load-bearing: binding resolution must precede aggregation so that injected `contributesTo`/`mapsTo`/`partOf` relationships are picked up by the supporting-alpha and variant passes. Focus propagation must follow aggregation so that all structural relationships are in place before inferring swimlane assignments. Description re-stamping runs last to guarantee no intermediate operation can leave extension-layer prose on baseline-defined elements.
+This ordering is load-bearing: binding resolution must precede aggregation so that injected `contributesTo`/`mapsTo`/`partOf` relationships are picked up by the supporting-alpha, variant, and component passes. Focus propagation must follow aggregation so that all structural relationships are in place before inferring swimlane assignments. Description re-stamping runs last to guarantee no intermediate operation can leave extension-layer prose on baseline-defined elements.
 
 ### 7.1 Binding Resolution
 
@@ -495,13 +497,13 @@ For each `WorkProductBinding` in the Method's `bindings.workProductBindings` arr
 
 > **Implementation note:** The current implementation resolves work product bindings for `partOf` and `mapsTo` relationships only. LOD-level contribution injection from `lodContributions` is not yet implemented.
 
-**Ordering dependency:** This step must run before Section 7.2 (Supporting Alpha Aggregation) and Sections 7.2a/7.2b (Variant Aggregation) because those passes walk `contributesTo`, `mapsTo`, and `partOf` declarations. By injecting relationships first, supporting alpha arrays and variant arrays are built automatically without additional logic.
+**Ordering dependency:** This step must run before Section 7.2 (Supporting Alpha Aggregation), Sections 7.2a/7.2b (Variant Aggregation), and Section 7.2c (Component Aggregation) because those passes walk `contributesTo`, `mapsTo`, and `partOf` declarations. By injecting relationships first, supporting alpha arrays, variant arrays, and component arrays are built automatically without additional logic.
 
 ### 7.2 Supporting Alpha Aggregation
 
-Every alpha that declares a `contributesTo` relationship is automatically added to the target (parent) alpha's `supportingAlphas` array. This ensures that the parent alpha's rollup calculation can discover all its children without requiring explicit `supportingAlphas` declarations across multiple practices.
+Every alpha that declares a `contributesTo` relationship is automatically added as a full Alpha object to the target (parent) alpha's `supportingAlphas` array. This ensures that the parent alpha's rollup calculation can discover all its children without requiring explicit `supportingAlphas` declarations across multiple practices.
 
-The aggregation walks all alphas, collects `contributesTo → child name` mappings, and unions them into each parent's `supportingAlphas` array (deduplicating with any explicitly declared entries).
+The aggregation walks all alphas, collects `contributesTo → child alpha` mappings, and appends the full child Alpha objects into each parent's `supportingAlphas` array (deduplicating by name). This follows the same pattern as `variants` (Section 7.2a) — the embedded object provides a pre-computed inverse of the `contributesTo` relationship for hierarchical rendering and state rollup computation.
 
 ### 7.2a Variant Aggregation
 
@@ -518,6 +520,14 @@ Every work product that declares a `mapsTo` relationship is automatically added 
 The aggregation walks all work products, collects `mapsTo → variant work product` mappings, and appends the full variant WorkProduct objects into each parent's `variants` array (deduplicating by name).
 
 Work product `variants` does NOT participate in LOD rollup or maturity calculations. A variant is a 1:1 type equivalence — it IS the parent artifact, viewed through a domain-specific lens (e.g., "Cloud Architecture" is an "Architecture" with cloud-specific checklists). UIs and renderers use the `variants` array to present related artifact types within the parent work product's context.
+
+### 7.2c Work Product Component Aggregation
+
+Every work product that declares a `partOf` relationship is automatically added as a full WorkProduct object to the target (parent) work product's `components` array. This mirrors the variant aggregation patterns (Sections 7.2a, 7.2b) and ensures that the parent work product can discover all its contained sub-artifacts without requiring consumers to scan the entire work product graph.
+
+The aggregation walks all work products, collects `partOf → component work product` mappings, and appends the full component WorkProduct objects into each parent's `components` array (deduplicating by name).
+
+Work product `components` models structural containment — the child is a trackable artifact physically contained within the parent (e.g., "Done Criteria" partOf "Definition of Done Specification"). This is distinct from `variants` (which models type equivalence) and does not participate in LOD rollup. UIs use the `components` array to render containment hierarchies and nested artifact structures.
 
 ### 7.3 Focus Name Propagation
 

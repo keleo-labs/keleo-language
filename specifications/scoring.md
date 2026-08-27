@@ -227,6 +227,14 @@ A card for an alpha in the Value focus would sit on a green-tinted background ba
 
 ## Implementation Notes
 
+### Evidence Gate vs Score Calculation
+
+The scoring system counts `ChecklistState` entries to derive progress ratios — it does not enforce evidence requirements. A checklist item marked `"complete"` contributes to the score regardless of whether evidence (work product instances in `evidenceBy`) is attached.
+
+Consuming systems may apply a stricter evidence gate: for example, keleo-userskillz enforces that `"complete"` is only valid when accompanied by evidence in the current section's `evidenceBy` arrays. This is a policy decision at the consumer level, not a scoring specification concern. The scoring system provides the quantitative measurement; consumers determine the qualitative threshold for what counts as legitimately complete.
+
+When implementing scoring alongside evidence-aware tooling, compute the score from checklist states as specified here, and let the evidence gate control which items are allowed to reach `"complete"` in the first place.
+
 ### Scoring is Computed, Not Stored
 
 Scores are derived at runtime from document structure. They are not persisted in Practice Language documents and must not be added to the schema. This ensures scores always reflect the current state of a document and avoids synchronisation problems between stored scores and document content.

@@ -22,6 +22,6 @@ Guiding principles specific to the Practice Language schema and its evolution. T
 The `$comment` field in `language.schema.json` contains the authoritative version string in the format `schemaVersion:X.Y.Z`. Document-level `schemaVersion` fields in practices, baselines, methods, and projects reference this version for compatibility checking.
 
 Version component examples specific to this schema:
-- **MAJOR** — removing or renaming a field, changing a required/optional boundary, altering enum values, restructuring type hierarchies.
-- **MINOR** — adding a new optional field, introducing a new `$defs` type, adding a new enum value to a non-exclusive set.
+- **MAJOR** — removing or renaming a field, restricting an optional field to required (rejects previously valid documents), altering existing enum values, restructuring type hierarchies.
+- **MINOR** — adding a new optional field, introducing a new `$defs` type, adding a new enum value to a non-exclusive set, relaxing a required field to optional (expands what is accepted; existing documents remain valid).
 - **PATCH** — correcting a description, fixing a typo in a `$comment`, updating documentation-only files (`semantics.md`, `merge.md`, this document).

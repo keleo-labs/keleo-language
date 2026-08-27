@@ -1643,18 +1643,28 @@ Beyond specialization (`contributesTo`) and variant mapping (`mapsTo`), alphas c
   "relationship": "string",
   "alphaName": "string",
   "direction": "outgoing | incoming | mutual",
+  "relationshipKind": "string (optional enum)",
   "description": "string (optional)"
 }
 ```
 
 **Field Definitions:**
 
-- **relationship**: The type of relationship (e.g., "depends on", "influences", "constrains", "validates", "precedes", "enables", "provides", "guides", "evidences", "funds", "impacts", "justifies", "demonstrates ROI for")
+- **relationship**: The type of relationship expressed as a domain-appropriate verb (e.g., "depends on", "influences", "constrains", "validates", "precedes", "enables", "provides", "guides", "evidences", "funds", "impacts", "justifies", "demonstrates ROI for"). This is the human-readable label; tooling should not parse this string programmatically.
 - **alphaName**: Name of the related alpha in the same baseline (symbolic link; must match Alpha.name exactly)
 - **direction**: Explicit directionality enabling programmatic traversal without semantic interpretation of the relationship verb:
   - `outgoing` — this alpha acts upon the target (e.g., A "depends on" B, A "constrains" B)
   - `incoming` — the target acts upon this alpha (e.g., A "is governed by" B, A "is supported by" B)
   - `mutual` — symmetric relationship in both directions (e.g., A "correlates with" B)
+- **relationshipKind** (optional): Machine-traversable classification from a closed enum. The `relationship` property remains the human-readable domain verb; `relationshipKind` provides a stable, parseable category for programmatic traversal without verb NLP. When absent, tooling falls back to `direction`-based traversal only. Values:
+  - `dependency` — this alpha requires the target's output, state, or existence (maps to: "depends on", "requires", "validated by", "evidenced by")
+  - `production` — this alpha creates, builds, or delivers the target (maps to: "produces", "delivers", "creates", "built by", "performed by")
+  - `guidance` — this alpha guides, drives, constrains, or governs the target (maps to: "guides", "drives", "directs", "constrains", "governs", "enforces policies on", "governed by")
+  - `information-flow` — this alpha provides information, feedback, or value to the target (maps to: "provides", "communicates value to", "provides feedback to")
+  - `enabling` — this alpha enables, facilitates, or supports the target (maps to: "enables", "facilitates", "supports", "enables access to", "exposes")
+  - `impact` — this alpha influences or impacts the target without direct control (maps to: "influences", "impacts", "justifies", "demonstrates ROI for")
+  - `consumption` — this alpha consumes, hosts, or runs on the target (maps to: "consumes", "hosts", "runs on", "realizes")
+  - `mutual` — symmetric relationship without a dominant direction (maps to: "correlates with", "interacts with")
 - **description** (optional): Human-readable explanation of the relationship — why it exists and what it means in this domain context
 
 **Purpose and Use Cases:**
@@ -1711,6 +1721,7 @@ The Practice Language uses domain-appropriate relationship verbs organized by pa
 - Relationship strings should use domain-appropriate verbs (no formal validation of relationship types)
 - Every relationship must declare a `direction` (`outgoing`, `incoming`, or `mutual`)
 - The `direction` must be consistent with the relationship verb — e.g., "depends on" should be `outgoing` (this alpha depends on the target), not `incoming`
+- `relationshipKind`, when present, must be one of the defined enum values and should be consistent with the `relationship` verb and the relationship type pattern it falls under
 
 #### Example: Platform Adoption Kernel Relationships
 
@@ -1724,23 +1735,27 @@ The Practice Language uses domain-appropriate relationship verbs organized by pa
       "relationship": "built by",
       "alphaName": "Team",
       "direction": "incoming",
+      "relationshipKind": "production",
       "description": "The platform is constructed and maintained by the team responsible for its delivery."
     },
     {
       "relationship": "hosts",
       "alphaName": "Platform Asset",
       "direction": "outgoing",
+      "relationshipKind": "consumption",
       "description": "The platform hosts individual platform assets such as services, tools, and infrastructure components."
     },
     {
       "relationship": "exposes",
       "alphaName": "Platform Consumption Interface",
-      "direction": "outgoing"
+      "direction": "outgoing",
+      "relationshipKind": "enabling"
     },
     {
       "relationship": "governed by",
       "alphaName": "Platform Governance",
-      "direction": "incoming"
+      "direction": "incoming",
+      "relationshipKind": "guidance"
     }
   ],
   "states": [...]
@@ -1764,10 +1779,10 @@ The Practice Language uses domain-appropriate relationship verbs organized by pa
 
 The `relatesTo` property enables advanced capabilities:
 
-- **Dependency Analysis**: "What alphas does Platform depend on?" → filter relatesTo for `outgoing` dependency relationships
+- **Dependency Analysis**: "What alphas does Platform depend on?" → filter relatesTo for `outgoing` dependency relationships, or use `relationshipKind: "dependency"` for precise filtering
 - **Impact Analysis**: "What alphas are affected if Requirements change?" → find all alphas with `incoming` relationships referencing Requirements
-- **Knowledge Graphs**: Each relationship becomes a directed semantic triple (`<Alpha> relationship <Alpha>`) for graph databases, with `direction` determining edge orientation
-- **Workflow Automation**: "guides" and "produces" relationships inform activity sequencing
+- **Knowledge Graphs**: Each relationship becomes a directed semantic triple (`<Alpha> relationship <Alpha>`) for graph databases, with `direction` determining edge orientation and `relationshipKind` providing categorical grouping
+- **Workflow Automation**: "guides" and "produces" relationships (or `relationshipKind: "guidance"` / `"production"`) inform activity sequencing
 - **Progress Tracking**: "evidenced by" relationships link abstract progress to concrete artifacts
 
 **Common Mistakes:**
@@ -1848,7 +1863,16 @@ For cross-baseline state mapping (where the contributing alpha was authored inde
 
 ### 6.3 Programmatic Transition Triggers and Alpha Rollups
 
-The schema natively supports hierarchical alpha dependencies through the supportingAlphas property. Child alpha states roll up into parent alpha evaluations; a parent Alpha cannot successfully transition to a higher state unless its designated supportingAlphas have met their calculated prerequisite maturity levels.
+The schema natively supports hierarchical alpha dependencies through the `supportingAlphas` property. Child alpha states roll up into parent alpha evaluations; a parent Alpha cannot successfully transition to a higher state unless its designated supportingAlphas have met their calculated prerequisite maturity levels.
+
+**`supportingAlphas` — Merge-Populated Inverse of `contributesTo`:**
+
+The `supportingAlphas` property on an Alpha is an array of full `Alpha` objects (the same pattern as `variants`). It provides a pre-computed inverse of the `contributesTo` relationship: for a given parent alpha, `supportingAlphas` contains all alphas that declare `contributesTo` this parent. This enables hierarchical rendering and state rollup computation without requiring consumers to scan the entire alpha graph.
+
+- **Populated during merge** (see `merge.md`): after all extension layers merge, the merge algorithm collects every alpha whose `contributesTo` names a given parent and embeds the full Alpha object in that parent's `supportingAlphas` array
+- **Do not set in source practice authoring**: authors declare `contributesTo` on child alphas; `supportingAlphas` is computed, not authored
+- **Rendering**: UIs use `supportingAlphas` to display hierarchical alpha trees and compute aggregate state rollups
+- **Rollup semantics**: a parent alpha's state progression depends on whether its supporting alphas have reached prerequisite maturity levels — the specific rollup algorithm is implementation-defined but the `supportingAlphas` array provides the input set
 
 ### **6.4 Abstract Concepts and Instantiation**
 
@@ -2032,14 +2056,53 @@ Each reference is an `AlphaInstance` anchored to an alpha at a specific state. W
 
 In this example, the reference illustrates the "Platform" alpha at the "Architecture Selected" state. It links to the TOGAF framework as context, and includes a work product instance — a template architecture document at the "Defined" level — that practitioners can use as a starting point.
 
+**Page-Level References with `ExternalLink.pages`:**
+
+When the relevant content (template, example, or guidance) is at a specific location within a larger document, use the `pages` property on ExternalLink to direct practitioners to the exact location. This follows APA 7th edition format conventions.
+
+```json
+{
+  "name": "ISO 27001 Security Controls Template",
+  "description": "Example of a security assessment that has achieved the Comprehensive state using ISO 27001 controls mapping.",
+  "alphaName": "Platform Risk And Compliance",
+  "stateName": "Mitigated",
+  "links": [
+    {
+      "name": "ISO/IEC 27001:2022 Information Security Standard",
+      "description": "Annex A controls checklist template for platform security assessment",
+      "uri": "https://www.iso.org/standard/27001",
+      "pages": "pp. 23-31"
+    }
+  ],
+  "evidenceBy": [
+    {
+      "name": "Platform Security Controls Register",
+      "workProductName": "Security Assessment",
+      "levelOfDetailName": "Comprehensive",
+      "links": [
+        {
+          "name": "NIST CSF Mapping Template",
+          "description": "Template for mapping controls to NIST Cybersecurity Framework categories",
+          "uri": "https://example.com/templates/nist-csf-mapping.xlsx",
+          "pages": "Section 3"
+        }
+      ]
+    }
+  ]
+}
+```
+
+In this example, `pages: "pp. 23-31"` directs the practitioner to the specific pages within the ISO standard where the Annex A controls checklist is located, and `pages: "Section 3"` points to the relevant section in the NIST mapping template.
+
 #### Authoring Guidance
 
 **When to use references:**
 
 - When a practice has access to real-world examples that would help practitioners understand what "good" looks like at a specific alpha state
-- When templates, starter documents, or sample artifacts exist that practitioners can adapt rather than creating from scratch
+- When templates, starter documents, or sample artifacts exist that practitioners can adapt rather than creating from scratch — references are the primary mechanism for giving practitioners a starting point for completing their work products
 - When case studies or exemplary implementations illustrate how an alpha progresses through states in practice
 - When external standards, frameworks, or reference architectures map to specific alpha states
+- When a large document contains a template or example at a specific location — use `ExternalLink.pages` to point practitioners directly to the relevant content
 
 **When NOT to use references:**
 
@@ -2105,9 +2168,40 @@ Well-designed LOD names answer the question: "What does this document look like 
 3. **No generic numbered labels**: Use meaningful names, never "Level 1", "Level 2", or "LOD 1". The schema requires a descriptive name string, not a number prefix.
 4. **Progressive sophistication**: Each LOD name should convey greater content depth, analytical rigour, or automation than the previous level.
 
+**The Purpose Hub: `contributesToAlphaNames`:**
+
+The `contributesToAlphaNames` property declares at the work product level which alphas this artifact exists to serve. It is the "purpose hub" — the single place consuming systems look to understand why this work product exists.
+
+- **Type**: array of `Alpha.name` symbolic links
+- **Optional in schema**: existing work products without this property remain valid
+- **Validator enforcement**: if `contributesToAlphaNames` is absent or empty AND no LOD on the work product has a non-empty `contributesTo`, the work product is floating (validation error)
+- **Superset rule**: every `alphaName` appearing in any LOD's `contributesTo` array must also appear in `contributesToAlphaNames` (when the WP-level array is present). The WP-level array is the union; individual LODs provide finer-grained state linkage
+- **Migration**: stamp from `union(levelsOfDetail[].contributesTo[].alphaName)` for existing work products
+- **Authoring guidance**: authors should always fill this property. Consuming systems (e.g., keleo-userskillz) use it as the primary purpose indicator for grouping next-steps and rendering work product context
+
+```json
+{
+  "name": "Architecture",
+  "description": "Technical blueprint detailing platform infrastructure.",
+  "contributesToAlphaNames": ["Platform"],
+  "levelsOfDetail": [
+    {
+      "name": "Outlined", "seq": 1,
+      "checklist": [],
+      "contributesTo": [{"alphaName": "Platform", "stateName": "Architecture Selected"}]
+    },
+    {
+      "name": "Detailed", "seq": 2,
+      "checklist": [],
+      "contributesTo": [{"alphaName": "Platform", "stateName": "Provisioned"}]
+    }
+  ]
+}
+```
+
 **Structural Requirements:**
 
-- Each LevelOfDetail MUST include a `contributesTo` array with at least one AlphaContribution (`{alphaName, stateName}`) linking this maturity level to the alpha state(s) it advances (see Section 4.6 for the semantic rationale)
+- Each LevelOfDetail MAY include a `contributesTo` array of AlphaContribution objects (`{alphaName, stateName}`) linking this maturity level to the alpha state(s) it advances (see Section 4.6 for the semantic rationale). `contributesTo` is optional on individual LODs — not every level needs to name a specific state. However, at least one LOD on the work product must have a non-empty `contributesTo`, OR the work product must have a non-empty `contributesToAlphaNames`. This ensures no work product floats without a purpose in the alpha graph.
 - Each LevelOfDetail MUST include a `checklist` array (may be empty) defining quality gates for achieving that level
 - LOD checklists describe characteristics the artifact must exhibit at this maturity level, not steps to create it
 - The `seq` integer determines ordering; lower LODs represent less mature content
@@ -2257,9 +2351,17 @@ Examples:
 
 Alpha `contributesTo` models specialization: a sub-concern contributing to the health of a parent concern (abstract progress rollup). WorkProduct `partOf` models composition: a sub-artifact physically contained within a parent artifact (tangible containment). The semantic distinction matters: `contributesTo` aggregates state progression; `partOf` declares structural nesting of deliverables.
 
+**`components` — Merge-Populated Inverse of `partOf`:**
+
+The `components` property on a WorkProduct is an array of full `WorkProduct` objects (the same pattern as `variants`). It provides a pre-computed inverse of the `partOf` relationship: for a given parent work product, `components` contains all work products that declare `partOf` this parent. This enables containment rendering without requiring consumers to scan the entire work product graph.
+
+- **Populated during merge** (see `merge.md`): after all extension layers merge, the merge algorithm collects every work product whose `partOf` names a given parent and embeds the full WorkProduct object in that parent's `components` array
+- **Do not set in source practice authoring**: authors declare `partOf` on child work products; `components` is computed, not authored
+- **Rendering**: UIs use `components` to display containment hierarchies and nested artifact structures
+
 **Merge Behavior**
 
-During practice composition (Section 4.2), `partOf` merges as a scalar field: the first non-empty value (from the kernel or earliest overlay) wins.
+During practice composition (Section 4.2), `partOf` merges as a scalar field: the first non-empty value (from the kernel or earliest overlay) wins. After all extension layers merge, work products with `partOf` are aggregated into the target work product's `components` array.
 
 **Example**
 
@@ -2367,7 +2469,7 @@ During practice composition (Section 4.2), `mapsTo` merges as a scalar field: th
 ### 8.1 Activity Spaces and Activities
 
 - **ActivitySpace**: A generalized boundary categorizing broad areas of effort. Crucially, the ActivitySpace object features an involves array that references PersonaGroup.name. This explicitly links broad execution boundaries directly to grouped organizational roles, ensuring macro-level responsibilities are programmatically mapped to specific talent pools.  
-- **Activity**: Extends the Activity Space, providing specific actionable swimlanes. It works on specific artifacts (worksOn) and defines strict recommendedCompetencyLevels.
+- **Activity**: Extends the Activity Space, providing specific actionable swimlanes. It works on specific artifacts (worksOn) and defines strict recommendedCompetencyLevels. The optional `seq` integer provides deterministic ordering of activities within an activity space — used by external planning tools (e.g., Smartsheet predecessor/seq mapping) to establish predictable sequencing. When absent, activities are unordered within their space.
 
 **Baseline Isolation Rules**: Practice authors should avoid creating new ActivitySpaces in extension practices. Instead, new tactical Activities should strictly map to existing overarching corporate governance boundaries by utilizing the activitySpaceName property to reference a baseline ActivitySpace.
 
@@ -2464,6 +2566,7 @@ PatternView {
   alphaStates: array (AlphaContribution objects - expected states)
   alphaInstances: array (AlphaInstance objects - instance tracking)
   workProducts: array (WorkProductContribution objects - deliverables)
+  workProductLevels: array (WorkProductContribution objects - WP LOD objectives)
   activities: array (strings - activity names active in this phase)
 }
 ```
@@ -2497,6 +2600,15 @@ The workProducts array identifies which work products should be developed to whi
 - levelOfDetailName: Target level of detail for this phase
 
 Purpose: WorkProductContribution objects answer "what artifacts should exist at what maturity by the end of this phase?" They establish deliverable milestones independent of evidence chains.
+
+**WorkProductLevels Array (Work Product LOD Objectives):**
+
+The `workProductLevels` array declares which work products should reach which levels of detail during this phase, using the same `WorkProductContribution` objects as `workProducts`. It complements `alphaStates` (which declares alpha state objectives) with work product maturity objectives.
+
+- workProductName: References baseline or practice-defined work product
+- levelOfDetailName: Target level of detail for this phase
+
+Purpose: `workProductLevels` answers "what work product maturity milestones should be reached by the end of this phase?" While `workProducts` within `alphaStates.evidenceBy` ties work product maturity to specific alpha state evidence chains, `workProductLevels` declares phase-level work product objectives independently of alpha evidence. This enables planning and tracking of work product maturity even when the alpha-to-LOD mapping is not one-to-one.
 
 **Activities Array (Active Work):**
 
@@ -2585,6 +2697,20 @@ To maintain focus and prevent matrix bloat, operational tooling and authors shou
       "levelOfDetailName": "Applied"
     }
   ],
+  "workProductLevels": [
+    {
+      "workProductName": "Architecture",
+      "levelOfDetailName": "Comprehensive"
+    },
+    {
+      "workProductName": "Infrastructure Code",
+      "levelOfDetailName": "Applied"
+    },
+    {
+      "workProductName": "Security Assessment",
+      "levelOfDetailName": "Defined"
+    }
+  ],
   "activities": [
     "Deploy Infrastructure",
     "Configure Networking",
@@ -2603,7 +2729,7 @@ To maintain focus and prevent matrix bloat, operational tooling and authors shou
 - Every instanceName in alphaInstances must match a declared AlphaInstanceName
 - narrativeElementName values must match elements from the Pattern's NarrativeType
 
-This comprehensive structure enables PatternViews to orchestrate methodology execution, tracking both abstract progression (alphaStates) and concrete instances (alphaInstances), coordinating deliverables (workProducts), and guiding work (activities), all while providing narrative context that connects the phase to stakeholder-friendly storytelling frameworks.
+This comprehensive structure enables PatternViews to orchestrate methodology execution, tracking both abstract progression (alphaStates) and concrete instances (alphaInstances), coordinating deliverables (workProducts), declaring work product maturity objectives (workProductLevels), and guiding work (activities), all while providing narrative context that connects the phase to stakeholder-friendly storytelling frameworks.
 
 ## 10 Narrative Management
 
@@ -2671,7 +2797,16 @@ The following are examples of NarrativeTypes that could be described in the base
 
 The schema provides native support for bibliographic references through the Citation type, enabling practices and methods to establish authoritative provenance and intellectual lineage. Citations are first-class objects within the Practice Language, ensuring proper attribution and enabling knowledge graph integration.
 
-**Citation Structure**: Each Citation must define a unique name (serving as the citation identifier), a description, an authors array (minimum one author), a publication date, and a source (publisher, journal, or retrieval URL). The name property acts as the symbolic key for cross-referencing within narratives and other elements.
+**Citation Structure**: Each Citation must define a unique name (serving as the citation identifier), a description, an authors array (minimum one author), a publication date, and a source (publisher, journal, or retrieval URL). The name property acts as the symbolic key for cross-referencing within narratives and other elements. The optional `pages` property records the page range or location within the cited work, following APA 7th edition format conventions:
+
+- Single page: `"p. 23"`
+- Page range: `"pp. 112-127"`
+- Chapter: `"Chapter 3"`
+- Section: `"Section 2.1"`
+- Paragraph (for online works without page numbers): `"para. 4"`
+- Table or figure: `"Table 2"`, `"Figure 5"`
+
+Use `pages` when the citation refers to a specific portion of a larger work — a chapter in an edited book, an article spanning specific pages in a journal, or a section within a standard.
 
 **Citation Scope and Aggregation**: Citations can be defined at multiple levels of the methodology hierarchy. PracticeBaseline documents may declare foundational citations for core concepts. Practice documents can add domain-specific citations relevant to the practice domain. Method documents aggregate citations from their baseline and constituent practices, providing a unified bibliography for the complete methodology composition.
 
@@ -3050,11 +3185,13 @@ The Note type provides timestamped commentary throughout the Project structure:
 
 **ExternalLink Structure:**
 
-The ExternalLink type provides a reusable reference to an external document or resource. It is used throughout the schema wherever an array of described external references is needed — on Notes, instance declarations, and instance tracking entries.
+The ExternalLink type provides a reusable reference to an external document or resource. It is used throughout the schema wherever an array of described external references is needed — on Notes, instance declarations, instance tracking entries, and practice references.
 
 - `name` — short label identifying the linked resource (e.g., "Sprint Backlog", "Architecture Decision Record", "Team Charter")
 - `description` — optional explanation of what this resource contains or why it is linked
 - `uri` — optional URI of the external resource, when available
+- `pages` — optional page or location reference within the linked resource, following APA 7th edition format (e.g., `"p. 5"`, `"pp. 12-15"`, `"Chapter 3"`, `"Section 2.1"`, `"para. 4"`, `"Table 2"`). Use when the relevant content is at a specific location within a larger document.
+- `kind` — optional classification of the linked resource type from a closed enum: `document`, `sheet`, `channel`, `crm`, `folder`. Tool-agnostic: describes what the resource IS, not which tool hosts it (e.g., a Google Sheet and an Excel file are both `sheet`). When absent, the link is unclassified.
 
 **Example: Note with Links**
 
@@ -3066,12 +3203,15 @@ The ExternalLink type provides a reusable reference to an external document or r
   "links": [
     {
       "name": "Architecture Review Meeting Transcript",
-      "uri": "https://docs.example.com/meetings/2026-07-25-arch-review"
+      "uri": "https://docs.example.com/meetings/2026-07-25-arch-review",
+      "kind": "document"
     },
     {
       "name": "ADR-042: Event-Driven Messaging",
       "description": "Architecture decision record for the event-driven messaging approach",
-      "uri": "https://wiki.example.com/adrs/042-event-driven-messaging"
+      "uri": "https://wiki.example.com/adrs/042-event-driven-messaging",
+      "kind": "document",
+      "pages": "Section 3"
     }
   ]
 }

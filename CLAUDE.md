@@ -25,7 +25,8 @@ keleo-language/
 ├── validate/
 │   ├── validate-schema.js        # Node.js AJV schema validator
 │   ├── validate-practice.py      # Practice/Method validator (schema + baseline + integrity)
-│   └── validate-baseline.py      # Baseline validator (schema + structure + integrity)
+│   ├── validate-baseline.py      # Baseline validator (schema + structure + integrity)
+│   └── validate-project.py       # Project validator (schema + internal integrity)
 ├── package.json                  # Node.js dependencies (ajv, ajv-formats)
 └── .gitignore
 ```
@@ -58,6 +59,14 @@ Validates against schema, baseline references, and internal cross-reference inte
 ```bash
 pip install jsonschema
 python3 validate/validate-practice.py <practice.json> <baseline.json> language.schema.json
+```
+
+### Project validation (Python)
+
+Validates project-specific structure (practice/method reference, cycle integrity, pattern view references):
+
+```bash
+python3 validate/validate-project.py <project.json> language.schema.json
 ```
 
 ### Baseline validation (Python)
