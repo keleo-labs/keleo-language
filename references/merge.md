@@ -39,6 +39,7 @@
    - 6.12 [Instance Declaration Merging](#612-instance-declaration-merging)
    - 6.13 [Acknowledgement Merging](#613-acknowledgement-merging)
    - 6.14 [Reference Merging](#614-reference-merging)
+   - 6.15 [PatternGroup Merging](#615-patterngroup-merging)
 7. [Post-Merge Finalization](#7-post-merge-finalization)
    - 7.1 [Binding Resolution](#71-binding-resolution)
    - 7.2 [Supporting Alpha Aggregation](#72-supporting-alpha-aggregation)
@@ -112,7 +113,7 @@ The merge begins by seeding an accumulator document from the resolved baseline:
 
 - **Focuses, alphas, competencies**: Cloned directly from the baseline.
 - **Activity spaces**: Converted into an internal slot map (space → activities) for efficient merging.
-- **Work products, patterns, personas, persona groups, narrative types, citations, assets**: Initialized from the baseline arrays.
+- **Work products, patterns, pattern groups, personas, persona groups, narrative types, citations, assets**: Initialized from the baseline arrays.
 - **Alpha instances, work product instances, aliases, acknowledgements, references**: Initialized if present on the baseline.
 - **Metadata fields**: `authors`, `keywords`, `createdAt`, `updatedAt`, `version` are seeded from the baseline.
 - **Method-level fields**: The Method's own `name`, `description`, `tags`, `narratives`, `citations`, and `assets` are applied at initialization, with the Method's description taking precedence.
@@ -124,7 +125,7 @@ A `mergesBaselinePracticeName` provenance field records which baseline was used,
 Each extension practice is merged onto the accumulator in dependency-resolved order. The first extension in the array is closest to the baseline (highest precedence among extensions); the last is the leaf practice (lowest precedence). For each extension, every element collection is merged:
 
 - Activity spaces and activities merge into the slot map.
-- Alphas, competencies, focuses, work products, patterns, personas, persona groups, narrative types, citations, acknowledgements, assets, alpha instances, work product instances, references, and aliases all merge using their respective merge functions.
+- Alphas, competencies, focuses, work products, patterns, pattern groups, personas, persona groups, narrative types, citations, acknowledgements, assets, alpha instances, work product instances, references, and aliases all merge using their respective merge functions.
 - `authors`, `keywords`, and `practiceDependencyNames` are unioned as string arrays.
 - `updatedAt` is updated if the extension provides a newer timestamp.
 
@@ -390,6 +391,18 @@ Acknowledgements merge by canonical name. When two acknowledgements share the sa
 ### 6.14 Reference Merging
 
 References merge by canonical name using the core record merge function. Same-named references combine their metadata; unique references from either array are preserved.
+
+### 6.15 PatternGroup Merging
+
+**PatternGroups** merge by canonical name. When two practices define a PatternGroup with the same canonical name, the groups merge into a single group:
+
+- **Description**: follows the baseline-preservation rule (Section 4.2).
+- **Tags**: union within each dimension (Section 4.4).
+- **Narratives**: merge additively by name (Section 6.8).
+- **Entries**: merge by canonical `patternName`. When two entries share the same pattern name, the overlay's `seq` takes precedence (allowing cross-practice reordering within a group). Entries with unique pattern names from either side are preserved.
+- **seq** (group ordering): overlay takes precedence, allowing extension practices to reorder groups contributed by earlier practices.
+
+PatternGroups with unique names from either the base or overlay are preserved as-is. A pattern name should appear in at most one PatternGroup; if the same pattern name appears in multiple groups after merge, tooling should warn and use the first occurrence.
 
 ---
 
@@ -881,6 +894,7 @@ Scenario: Duplicate tags are deduplicated
 | **Aliases** | Deduplicate by composite key; display-only — do not affect merge keying or structural references |
 | **Acknowledgements** | Field-level merge; later `url` wins |
 | **References** | Field-level merge by canonical name |
+| **PatternGroups** | Merge by canonical name; entries merge by `patternName` with overlay `seq` precedence; group `seq` from overlay takes precedence |
 | **Bindings** | Resolved post-merge; contribution injects `contributesTo`/`partOf`, variant injects `mapsTo`; state/LOD mappings injected as `contributesToState` |
 | **Focus names** | Prefer non-implicit values; propagate from parent |
 | **Practice provenance** | First practice to introduce element retains credit |

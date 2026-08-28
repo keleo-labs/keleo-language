@@ -27,7 +27,7 @@
       "description": "Common identity and prose fields for named practice artifacts. tags optional: omit, structured buckets, or legacy string[].",
       "required": ["name", "description"],
       "properties": {
-        "kind": { "type": "string", "enum": ["practice", "method", "practiceBaseline", "project", "practiceElementAlias", "workProduct", "workProductInstance", "alpha", "alphaInstance", "activitySpace", "activity", "persona", "personaGroup", "pattern", "patternView", "narrativeType", "citation", "acknowledgement", "test"] },
+        "kind": { "type": "string", "enum": ["practice", "method", "practiceBaseline", "project", "practiceElementAlias", "workProduct", "workProductInstance", "alpha", "alphaInstance", "activitySpace", "activity", "persona", "personaGroup", "pattern", "patternGroup", "patternView", "narrativeType", "citation", "acknowledgement", "test"] },
         "name": { "type": "string" },
         "description": { "type": "string" },
         "tags": {
@@ -997,6 +997,44 @@
       ],
       "unevaluatedProperties": false
     },
+    "PatternGroupEntry": {
+      "type": "object",
+      "description": "Ordered reference to a Pattern within a PatternGroup.",
+      "required": ["patternName", "seq"],
+      "properties": {
+        "patternName": {
+          "type": "string",
+          "description": "Pattern.name (symbolic link; must match a Pattern in the same practice or merged scope)."
+        },
+        "seq": {
+          "type": "integer",
+          "description": "Sort order of this pattern within its group (0-based)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "PatternGroup": {
+      "allOf": [
+        { "$ref": "#/$defs/PracticeElement" },
+        {
+          "type": "object",
+          "required": ["entries"],
+          "properties": {
+            "entries": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/PatternGroupEntry" },
+              "description": "Ordered list of patterns in this group."
+            },
+            "seq": {
+              "type": "integer",
+              "description": "Presentation order among groups (0-based). When absent, groups sort alphabetically by name."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
     "Focus": {
       "allOf": [{ "$ref": "#/$defs/PracticeElement" }],
       "unevaluatedProperties": false
@@ -1495,6 +1533,11 @@
               "items": { "$ref": "#/$defs/Pattern" },
               "description": "Patterns for this practice (language.mmd)."
             },
+            "patternGroups": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/PatternGroup" },
+              "description": "Named groups for organising patterns by theme or concern. Merged by canonical name when practices compose into a method."
+            },
             "references": {
               "type": "array",
               "items": { "$ref": "#/$defs/AlphaInstance" },
@@ -1618,6 +1661,11 @@
               "type": "array",
               "items": { "$ref": "#/$defs/Pattern" },
               "description": "Patterns for this practice (language.mmd)."
+            },
+            "patternGroups": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/PatternGroup" },
+              "description": "Named groups for organising patterns by theme or concern. Merged by canonical name when practices compose into a method."
             },
             "references": {
               "type": "array",

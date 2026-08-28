@@ -41,6 +41,7 @@
 9. [Lifecycle Orchestration: Patterns and Phase Models](#9-lifecycle-orchestration-patterns-and-phase-models)
    - 9.1 [Pattern Orchestration and Narrative Hooks](#91-pattern-orchestration-and-narrative-hooks)
    - 9.2 [The PatternView: Complete Structure and Semantics](#92-the-patternview-complete-structure-and-semantics)
+   - 9.3 [Pattern Groups: Organising Patterns for Navigation](#93-pattern-groups-organising-patterns-for-navigation)
 10. [Narrative Management](#10-narrative-management)
     - 10.1 [Narrative Tooling Synchronization and Execution Guidelines](#101-narrative-tooling-synchronization-and-execution-guidelines)
     - 10.2 [Cognitive Storytelling Frameworks](#102-cognitive-storytelling-frameworks)
@@ -2736,6 +2737,63 @@ To maintain focus and prevent matrix bloat, operational tooling and authors shou
 - narrativeElementName values must match elements from the Pattern's NarrativeType
 
 This comprehensive structure enables PatternViews to orchestrate methodology execution, tracking both abstract progression (alphaStates) and concrete instances (alphaInstances), coordinating deliverables (workProducts), declaring work product maturity objectives (workProductLevels), and guiding work (activities), all while providing narrative context that connects the phase to stakeholder-friendly storytelling frameworks.
+
+### 9.3 Pattern Groups: Organising Patterns for Navigation
+
+In methods composed of many practices, patterns from all practices are unioned into a flat list. A method with three practices contributing three patterns each produces nine patterns; a five-practice method may have fifteen or more. At this scale a flat list becomes unwieldy — users need navigational structure to find the patterns relevant to their current concern.
+
+**PatternGroup** provides this structure. A PatternGroup is a named element that contains an ordered list of pattern references (`entries`), each pairing a `patternName` with a `seq` for sort order within the group. The group itself carries an optional `seq` for ordering groups relative to each other.
+
+**When to use PatternGroups:**
+
+- When a practice contributes three or more patterns.
+- When a method will compose ten or more patterns from multiple practices.
+- Single-pattern practices generally do not need groups.
+
+**Grouping strategies:**
+
+The source practice is already visible via `sourcePracticeName` — grouping by source practice is redundant. Instead, group by the coordination intent that cuts across practices:
+
+- **By lifecycle archetype** — the most common strategy. Many practices naturally produce patterns that fall into archetypes: core lifecycles (the primary journey of each practice), optimisation cycles (iterative improvement patterns), and maturity progressions (patterns tracking growth along a maturity axis). For example, in a horticulture method with three practices, each contributing a primary lifecycle, an improvement cycle, and a maturity pathway, the nine patterns can be grouped into three groups of three — each group collecting one pattern from each practice.
+- **By concern area** — when patterns map to distinct stakeholder concerns that span practices (e.g., technical patterns, governance patterns, operational patterns).
+- **By engagement phase** — patterns relevant to getting started vs ongoing execution vs scaling and optimisation.
+
+**Naming guidance:**
+
+Group names should describe the organisational category, not duplicate practice names:
+
+- **Good**: "Core Lifecycles", "Maturity Progressions", "Governance & Compliance"
+- **Bad**: "Plant Biology Patterns", "Production Patterns" (restates the source practice)
+
+**Cross-practice groups:**
+
+When two practices define a PatternGroup with the same canonical name, they merge into a single group during method composition (see merge spec Section 6.15). This enables intentional category sharing — for example, two practices can each place their primary lifecycle pattern into a shared "Core Lifecycles" group.
+
+**Ordering:**
+
+- `PatternGroup.seq` orders groups relative to each other (e.g., Core Lifecycles before Maturity Progressions).
+- `PatternGroupEntry.seq` orders patterns within each group.
+- When `seq` is absent on a group, groups sort alphabetically by name.
+
+**Ungrouped patterns:**
+
+Patterns not referenced by any PatternGroup remain valid and accessible. Consuming systems should render them in a default or ungrouped section. A pattern should appear in at most one group.
+
+**Schema structure:**
+
+```
+PatternGroup {
+  name: string (group identifier)
+  description: string (explains what this group covers)
+  entries: PatternGroupEntry[] (required, minItems: 1)
+  seq: integer (optional — presentation order among groups)
+}
+
+PatternGroupEntry {
+  patternName: string (symbolic link to Pattern.name)
+  seq: integer (sort order within the group)
+}
+```
 
 ## 10 Narrative Management
 
