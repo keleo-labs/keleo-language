@@ -2000,9 +2000,9 @@ Pattern tracks progression:
 
 This design serves both guidance and execution: practices use instances to illustrate the kinds of concerns adopters will encounter and how they progress, while projects use the same structures to identify and track the specific real-world instances being managed.
 
-### 6.6 Reference Content: Curated Examples and Reusable Resources
+### 6.6 Reference Content: Actionable Examples and Reusable Resources
 
-Practices can curate concrete, real-world examples and reusable resources that illustrate alphas at specific states. The `references` array on a Practice contains `AlphaInstance` objects that serve as standalone reference content — templates, case studies, sample artifacts, or exemplary implementations that consuming systems can surface to practitioners as available resources.
+Practices curate actionable, reusable resources that give practitioners a concrete starting point for their work at specific alpha states. The `references` array on a Practice contains `AlphaInstance` objects — templates, sample artifacts, worked examples, reference architectures, or exemplary implementations that practitioners can directly use or adapt. References are NOT documentation explaining how to do work or describing what an alpha state means; they are things a practitioner can pick up and use.
 
 #### Purpose and Distinction from Other Instance Uses
 
@@ -2012,9 +2012,9 @@ The Practice Language uses `AlphaInstance` in three distinct contexts, each with
 |---------|----------|---------|
 | Pattern view instances | `PatternView.alphaInstances` | Illustrate expected progression across lifecycle phases |
 | Project instances | Project `current`/`target`/`cycles` | Track actual state in a live engagement |
-| **Reference content** | **`Practice.references`** | **Curate standalone exemplars — templates, case studies, sample artifacts** |
+| **Reference content** | **`Practice.references`** | **Curate actionable starting points — templates, sample artifacts, worked examples** |
 
-Pattern view instances are bound to a specific pattern's phase model — they show what states to target at each stage. Project instances record assessed or desired state in a live execution context. Reference content is neither — it provides curated, standalone examples that exist independently of any pattern phase or project timeline.
+Pattern view instances are bound to a specific pattern's phase model — they show what states to target at each stage. Project instances record assessed or desired state in a live execution context. Reference content is neither — it provides actionable, standalone resources that exist independently of any pattern phase or project timeline. The actionability test: "Could a practitioner pick this up and start working with it, or does it merely explain a concept?" If the latter, it is not a reference — it belongs in citations or narrative context instead.
 
 #### Structure
 
@@ -2055,11 +2055,11 @@ Each reference is an `AlphaInstance` anchored to an alpha at a specific state. W
 }
 ```
 
-In this example, the reference illustrates the "Platform" alpha at the "Architecture Selected" state. It links to the TOGAF framework as context, and includes a work product instance — a template architecture document at the "Defined" level — that practitioners can use as a starting point.
+In this example, the reference provides a usable template for the "Platform" alpha at the "Architecture Selected" state. It links to the TOGAF framework as the source, and includes a work product instance — a downloadable architecture document template at the "Defined" level — that practitioners can directly adapt for their own architecture documentation.
 
-**Page-Level References with `ExternalLink.pages`:**
+**Page-Level References with `ExternalLink.pages` (REQUIRED when applicable):**
 
-When the relevant content (template, example, or guidance) is at a specific location within a larger document, use the `pages` property on ExternalLink to direct practitioners to the exact location. This follows APA 7th edition format conventions.
+Most source documents are primarily explanatory — they describe how to do work, not provide reusable artifacts. But many contain templates, examples, checklists, or sample artifacts at specific locations within the larger document. When the actionable content (template, example, sample artifact) is at a specific location within a larger document, you MUST use the `pages` property on ExternalLink to direct practitioners to the exact reusable content. Without `pages`, the link points to the entire document — which is documentation, not a starting point. This follows APA 7th edition format conventions.
 
 ```json
 {
@@ -2099,17 +2099,21 @@ In this example, `pages: "pp. 23-31"` directs the practitioner to the specific p
 
 **When to use references:**
 
-- When a practice has access to real-world examples that would help practitioners understand what "good" looks like at a specific alpha state
 - When templates, starter documents, or sample artifacts exist that practitioners can adapt rather than creating from scratch — references are the primary mechanism for giving practitioners a starting point for completing their work products
-- When case studies or exemplary implementations illustrate how an alpha progresses through states in practice
-- When external standards, frameworks, or reference architectures map to specific alpha states
-- When a large document contains a template or example at a specific location — use `ExternalLink.pages` to point practitioners directly to the relevant content
+- When worked examples or exemplary implementations show a concrete result a practitioner can study and replicate
+- When external standards or reference architectures provide reusable structures (not just explanatory text) — use `ExternalLink.pages` to point to the specific reusable content within the document
+- When a large document contains a template, example, checklist, or sample artifact at a specific location — use `ExternalLink.pages` to direct practitioners to the actionable content, not the document as a whole
 
 **When NOT to use references:**
 
+- **For documentation that explains how to do work** — this is not a reference, it is a citation or narrative context. A link to a methodology guide's overview chapter is a citation, not a reference. A link to the template appendix within that guide (with `pages`) is a reference.
 - For showing expected progression across lifecycle phases — use pattern views with `AlphaInstance` entries instead
 - For tracking actual state in a project — use Project `current`/`target` sections
 - For declaring the kinds of instances adopters should anticipate — use `alphaInstances` (AlphaInstanceName) at the practice level
+
+**Actionability test (apply to every candidate):**
+
+Ask: "If a practitioner followed this link, would they find something they can directly use, adapt, or fill in — or would they find text explaining a concept?" Only the former qualifies as a reference. Documentation, conceptual overviews, and methodology descriptions belong in citations.
 
 **Naming conventions:**
 
@@ -2471,6 +2475,7 @@ During practice composition (Section 4.2), `mapsTo` merges as a scalar field: th
 
 - **ActivitySpace**: A generalized boundary categorizing broad areas of effort. Crucially, the ActivitySpace object features an involves array that references PersonaGroup.name. This explicitly links broad execution boundaries directly to grouped organizational roles, ensuring macro-level responsibilities are programmatically mapped to specific talent pools.  
 - **Activity**: Extends the Activity Space, providing specific actionable swimlanes. It works on specific artifacts (worksOn) and defines strict recommendedCompetencyLevels. The optional `seq` integer provides deterministic ordering of activities within an activity space — used by external planning tools (e.g., Smartsheet predecessor/seq mapping) to establish predictable sequencing. When absent, activities are unordered within their space.
+- **ledBy**: An optional property on ActivitySpaceCore (inherited by both ActivitySpace and Activity) that identifies the single Persona accountable for leading the work. While `involves` maps persona *groups* to the activity (answering "who participates?"), `ledBy` references a single `Persona.name` (answering "who is accountable?"). When omitted, the activity has no designated lead.
 
 **Baseline Isolation Rules**: Practice authors should avoid creating new ActivitySpaces in extension practices. Instead, new tactical Activities should strictly map to existing overarching corporate governance boundaries by utilizing the activitySpaceName property to reference a baseline ActivitySpace.
 
