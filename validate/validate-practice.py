@@ -1109,6 +1109,50 @@ class PracticeValidator:
                                     })
                                     has_errors = True
 
+        # Validate pattern group references
+        for practice_idx, practice in enumerate(practices):
+            prefix = f"practices[{practice_idx}]" if is_method else ""
+            all_pattern_names = set()
+            for p in practice.get('patterns', []):
+                all_pattern_names.add(p.get('name', ''))
+            for dep in self.dependencies:
+                for p in dep.get('patterns', []):
+                    all_pattern_names.add(p.get('name', ''))
+
+            seen_pattern_refs = {}
+            for pg_idx, pg in enumerate(practice.get('patternGroups', [])):
+                pg_path = f"{prefix}.patternGroups[{pg_idx}]" if prefix else f"patternGroups[{pg_idx}]"
+                pg_name = pg.get('name', f'patternGroup[{pg_idx}]')
+
+                for entry_idx, entry in enumerate(pg.get('entries', [])):
+                    entry_path = f"{pg_path}.entries[{entry_idx}]"
+                    pn = entry.get('patternName', '')
+
+                    if pn and pn not in all_pattern_names:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{entry_path}.patternName",
+                            "issue": f"PatternGroup '{pg_name}' references undefined pattern: '{pn}'",
+                            "expected": f"One of: {sorted(all_pattern_names)}",
+                            "actual": pn,
+                            "suggestion": "Define pattern or correct reference"
+                        })
+                        has_errors = True
+
+                    if pn and pn in seen_pattern_refs:
+                        self.warnings.append({
+                            "category": "integrity",
+                            "severity": "warning",
+                            "path": f"{entry_path}.patternName",
+                            "issue": f"Pattern '{pn}' appears in multiple groups: '{seen_pattern_refs[pn]}' and '{pg_name}'",
+                            "expected": "A pattern should appear in at most one group",
+                            "actual": f"'{pn}' in both '{seen_pattern_refs[pn]}' and '{pg_name}'",
+                            "suggestion": "Remove the duplicate entry from one group"
+                        })
+                    elif pn:
+                        seen_pattern_refs[pn] = pg_name
+
         # Build work product LOD index for reference validation
         all_wp_lods = defaultdict(set)
         for dep in self.dependencies:
@@ -1620,6 +1664,72 @@ class PracticeValidator:
                         act_bg, act_path, all_alphas, all_alpha_states,
                         all_work_products, all_wp_lods,
                         all_alpha_instance_names, all_wp_instance_names, has_deps)
+
+        return not has_errors
+
+    def validate_led_by(self) -> bool:
+        """Validate ledBy references on activities and activity spaces resolve to a Persona.name in scope"""
+        has_errors = False
+
+        is_method = 'practices' in self.practice or 'baselinePractice' in self.practice
+        practices = self.practice.get('practices', []) if is_method else [self.practice]
+
+        all_personas = set()
+        for dep in self.dependencies:
+            for persona in dep.get('personas', []):
+                all_personas.add(persona['name'])
+        for practice in practices:
+            for persona in practice.get('personas', []):
+                all_personas.add(persona['name'])
+
+        for practice_idx, practice in enumerate(practices):
+            prefix = f"practices[{practice_idx}]" if is_method else ""
+            has_deps = bool(practice.get('practiceDependencyNames', []))
+
+            for asp_idx, asp in enumerate(practice.get('activitySpaces', [])):
+                asp_path = f"{prefix}.activitySpaces[{asp_idx}]" if prefix else f"activitySpaces[{asp_idx}]"
+                led_by = asp.get('ledBy')
+                if led_by and led_by not in all_personas and not has_deps:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{asp_path}.ledBy",
+                        "issue": f"ledBy references undefined persona: '{led_by}'",
+                        "expected": f"One of: {sorted(all_personas)}",
+                        "actual": led_by,
+                        "suggestion": "Define persona or correct reference"
+                    })
+                    has_errors = True
+
+                for act_idx, act in enumerate(asp.get('activities', [])):
+                    act_path = f"{asp_path}.activities[{act_idx}]"
+                    led_by = act.get('ledBy')
+                    if led_by and led_by not in all_personas and not has_deps:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{act_path}.ledBy",
+                            "issue": f"ledBy references undefined persona: '{led_by}'",
+                            "expected": f"One of: {sorted(all_personas)}",
+                            "actual": led_by,
+                            "suggestion": "Define persona or correct reference"
+                        })
+                        has_errors = True
+
+            for act_idx, act in enumerate(practice.get('activities', [])):
+                act_path = f"{prefix}.activities[{act_idx}]" if prefix else f"activities[{act_idx}]"
+                led_by = act.get('ledBy')
+                if led_by and led_by not in all_personas and not has_deps:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{act_path}.ledBy",
+                        "issue": f"ledBy references undefined persona: '{led_by}'",
+                        "expected": f"One of: {sorted(all_personas)}",
+                        "actual": led_by,
+                        "suggestion": "Define persona or correct reference"
+                    })
+                    has_errors = True
 
         return not has_errors
 
@@ -2604,6 +2714,9 @@ def main():
 
     progress("Validating internal integrity...")
     integrity_valid = validator.validate_internal_integrity()
+
+    progress("Validating ledBy references...")
+    led_by_valid = validator.validate_led_by()
 
     progress("Validating background references...")
     backgrounds_valid = validator.validate_backgrounds()
