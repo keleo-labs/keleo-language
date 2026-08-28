@@ -1300,6 +1300,7 @@ This creates explicit traceability: "this checklist is satisfied when the specif
 
 **Checklist Authoring Guidance:**
 
+- **Positive and Additive**: Every checklist item must describe something to achieve, produce, or establish — never the absence or lack of something. Items like "Metrics absent" or "Security gaps identified" describe deficiencies, not achievements; they would need to be unchecked when the deficiency is resolved, which inverts the progressive nature of checklists. Instead, frame as "Key metrics defined" or "Security controls established". Use the state/level description and narratives to characterize qualities of the level (including what may be limited or missing at early stages).
 - **Demonstrable Truth**: Each item represents something that can be objectively verified or measured
 - **Regulatory/Architectural Controls**: Embed specific controls (SOC2 requirements, ISO standards, internal architecture principles) directly as checklist items
 - **Phase-Gating**: Checklists should represent gates that must be passed before progression to next state/level
@@ -2203,7 +2204,7 @@ The `contributesToAlphaNames` property declares at the work product level which 
 
 - Each LevelOfDetail MAY include a `contributesTo` array of AlphaContribution objects (`{alphaName, stateName}`) linking this maturity level to the alpha state(s) it advances (see Section 4.6 for the semantic rationale). `contributesTo` is optional on individual LODs — not every level needs to name a specific state. However, at least one LOD on the work product must have a non-empty `contributesTo`, OR the work product must have a non-empty `contributesToAlphaNames`. This ensures no work product floats without a purpose in the alpha graph.
 - Each LevelOfDetail MUST include a `checklist` array (may be empty) defining quality gates for achieving that level
-- LOD checklists describe characteristics the artifact must exhibit at this maturity level, not steps to create it
+- LOD checklists describe positive characteristics the artifact must exhibit at this maturity level, not steps to create it and not the absence of characteristics. Each item is an achievement to reach, not a deficiency to observe
 - The `seq` integer determines ordering; lower LODs represent less mature content
 
 ### 7.2 Artifact Instantiation and Concurrency
