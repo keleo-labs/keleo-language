@@ -1056,6 +1056,38 @@ class BaselineValidator:
                     "suggestion": "Set entries to [] — baselines define group identity, extensions add patterns"
                 })
 
+    def validate_checklist_quality(self) -> None:
+        """
+        Flag checklist items that are meta-statements referencing other checklist
+        items rather than being independently assessable. Warnings only.
+        """
+        meta_patterns = [
+            re.compile(r'\ball\b.*\brequirements?\b.*\bmet\b', re.IGNORECASE),
+            re.compile(r'\bminimum\b.*\b(met|achieved|satisfied)\b', re.IGNORECASE),
+            re.compile(r'\bcriteria\b.*\bsatisfied\b', re.IGNORECASE),
+            re.compile(r'\bstandards?\b.*\bachieved\b', re.IGNORECASE),
+            re.compile(r'\bpasses?\b.*\ball\b.*\bchecks?\b', re.IGNORECASE),
+            re.compile(r'\b\d+\b.*\b(requirements?|criteria|standards?)\b.*\b(met|satisfied|achieved|completed)\b', re.IGNORECASE),
+            re.compile(r'\ball\b.*\b(mandatory|required)\b.*\b(items?|fields?|elements?)\b.*\b(completed|met|present)\b', re.IGNORECASE),
+        ]
+
+        for alpha in self.baseline.get('alphas', []):
+            alpha_name = alpha.get('name', 'Unknown')
+            for state in alpha.get('states', []):
+                state_name = state.get('name', 'Unknown')
+                for ci, item in enumerate(state.get('checklist', [])):
+                    text = f"{item.get('name', '')} {item.get('description', '')}"
+                    for pattern in meta_patterns:
+                        if pattern.search(text):
+                            self.warnings.append({
+                                'category': 'semantic',
+                                'severity': 'warning',
+                                'path': f"alphas[{alpha_name}].states[{state_name}].checklist[{ci}]",
+                                'issue': f"Meta-checklist item references other checklist items instead of being independently assessable: \"{item.get('name', '')}\"",
+                                'suggestion': 'Remove this item — the checklist IS the requirements. Items that summarise or count other items are circular.'
+                            })
+                            break
+
     def validate_universality(self) -> None:
         """Check for overly specific terminology (warnings only)"""
         # Patterns indicating vendor/tool-specific naming
@@ -1104,9 +1136,10 @@ class BaselineValidator:
         self.validate_version_constraints()
         schema_version_valid = self.validate_schema_version()
 
-        # PatternGroup governance and universality are warnings only
+        # PatternGroup governance, universality, and checklist quality are warnings only
         self.validate_pattern_groups()
         self.validate_universality()
+        self.validate_checklist_quality()
 
         # Overall validity
         is_valid = (

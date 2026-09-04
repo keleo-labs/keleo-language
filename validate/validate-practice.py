@@ -11,6 +11,7 @@ Outputs structured JSON report for skill consumption.
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
@@ -1414,6 +1415,64 @@ class PracticeValidator:
 
         return True  # Semantic validation never fails, only warns
 
+    def validate_checklist_quality(self) -> bool:
+        """
+        Flag checklist items that are meta-statements referencing other checklist
+        items rather than being independently assessable. Warnings only.
+        """
+        meta_patterns = [
+            re.compile(r'\ball\b.*\brequirements?\b.*\bmet\b', re.IGNORECASE),
+            re.compile(r'\bminimum\b.*\b(met|achieved|satisfied)\b', re.IGNORECASE),
+            re.compile(r'\bcriteria\b.*\bsatisfied\b', re.IGNORECASE),
+            re.compile(r'\bstandards?\b.*\bachieved\b', re.IGNORECASE),
+            re.compile(r'\bpasses?\b.*\ball\b.*\bchecks?\b', re.IGNORECASE),
+            re.compile(r'\b\d+\b.*\b(requirements?|criteria|standards?)\b.*\b(met|satisfied|achieved|completed)\b', re.IGNORECASE),
+            re.compile(r'\ball\b.*\b(mandatory|required)\b.*\b(items?|fields?|elements?)\b.*\b(completed|met|present)\b', re.IGNORECASE),
+        ]
+
+        practices = self.practice.get('practices', [self.practice])
+
+        for practice in practices:
+            practice_name = practice.get('name', 'Unknown')
+
+            for alpha in practice.get('alphas', []):
+                alpha_name = alpha.get('name', 'Unknown')
+                for state in alpha.get('states', []):
+                    state_name = state.get('name', 'Unknown')
+                    for ci, item in enumerate(state.get('checklist', [])):
+                        text = f"{item.get('name', '')} {item.get('description', '')}"
+                        for pattern in meta_patterns:
+                            if pattern.search(text):
+                                self.warnings.append({
+                                    'category': 'semantic',
+                                    'severity': 'warning',
+                                    'practice': practice_name,
+                                    'path': f"alphas[{alpha_name}].states[{state_name}].checklist[{ci}]",
+                                    'issue': f"Meta-checklist item references other checklist items instead of being independently assessable: \"{item.get('name', '')}\"",
+                                    'suggestion': 'Remove this item — the checklist IS the requirements. Items that summarise or count other items are circular.'
+                                })
+                                break
+
+            for wp in practice.get('workProducts', []):
+                wp_name = wp.get('name', 'Unknown')
+                for lod in wp.get('levelsOfDetail', []):
+                    lod_name = lod.get('name', 'Unknown')
+                    for ci, item in enumerate(lod.get('checklist', [])):
+                        text = f"{item.get('name', '')} {item.get('description', '')}"
+                        for pattern in meta_patterns:
+                            if pattern.search(text):
+                                self.warnings.append({
+                                    'category': 'semantic',
+                                    'severity': 'warning',
+                                    'practice': practice_name,
+                                    'path': f"workProducts[{wp_name}].levelsOfDetail[{lod_name}].checklist[{ci}]",
+                                    'issue': f"Meta-checklist item references other checklist items instead of being independently assessable: \"{item.get('name', '')}\"",
+                                    'suggestion': 'Remove this item — the checklist IS the requirements. Items that summarise or count other items are circular.'
+                                })
+                                break
+
+        return True  # Checklist quality never fails, only warns
+
     def _calculate_state_alignment(self, child_states: List[str], parent_states: List[str]) -> Tuple[float, List[str]]:
         """
         Calculate state alignment score using fuzzy matching.
@@ -2751,6 +2810,9 @@ def main():
 
     progress("Validating semantic alignment...")
     semantic_valid = validator.validate_semantic_alignment()
+
+    progress("Validating checklist quality...")
+    validator.validate_checklist_quality()
 
     progress("Validating version constraints...")
     validator.validate_version_constraints()
