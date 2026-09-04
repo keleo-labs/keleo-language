@@ -224,6 +224,57 @@ class ProjectValidator:
 
         return not has_errors
 
+    PRIORITY_RANK = {"must": 3, "should": 2, "could": 1}
+
+    def validate_priority_thresholds(self) -> bool:
+        has_errors = False
+        project_threshold = self.project.get('priorityThreshold')
+
+        if project_threshold and project_threshold not in self.PRIORITY_RANK:
+            self.errors.append({
+                "category": "integrity",
+                "severity": "error",
+                "path": "priorityThreshold",
+                "issue": f"Invalid priorityThreshold value: '{project_threshold}'",
+                "expected": "One of: must, should, could",
+                "actual": project_threshold,
+                "suggestion": "Use 'must', 'should', or 'could'"
+            })
+            has_errors = True
+            return not has_errors
+
+        for idx, cycle in enumerate(self.project.get('cycles', [])):
+            cycle_threshold = cycle.get('priorityThreshold')
+            if not cycle_threshold:
+                continue
+
+            if cycle_threshold not in self.PRIORITY_RANK:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"cycles[{idx}].priorityThreshold",
+                    "issue": f"Invalid priorityThreshold value: '{cycle_threshold}'",
+                    "expected": "One of: must, should, could",
+                    "actual": cycle_threshold,
+                    "suggestion": "Use 'must', 'should', or 'could'"
+                })
+                has_errors = True
+                continue
+
+            effective_project = project_threshold or "could"
+            if self.PRIORITY_RANK[cycle_threshold] < self.PRIORITY_RANK[effective_project]:
+                self.warnings.append({
+                    "category": "integrity",
+                    "severity": "warning",
+                    "path": f"cycles[{idx}].priorityThreshold",
+                    "issue": f"Cycle '{cycle.get('name', '')}' threshold '{cycle_threshold}' is less restrictive than project threshold '{effective_project}'",
+                    "expected": f"Threshold at or above project level: '{effective_project}'",
+                    "actual": cycle_threshold,
+                    "suggestion": "A cycle threshold less restrictive than the project threshold includes items the project has excluded — verify this is intentional"
+                })
+
+        return not has_errors
+
     def validate_schema_version(self) -> bool:
         schema_comment = self.schema.get('$comment', '')
         if schema_comment.startswith('schemaVersion:'):
@@ -313,6 +364,9 @@ def main():
 
     progress("Validating instance consistency...")
     validator.validate_instance_consistency()
+
+    progress("Validating priority thresholds...")
+    validator.validate_priority_thresholds()
 
     progress("Validating schema version...")
     validator.validate_schema_version()

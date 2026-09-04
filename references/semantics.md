@@ -1259,6 +1259,7 @@ Checklists provide the operational verification layer that transforms abstract a
   "seq": integer,
   "name": "string",
   "description": "string",
+  "priority": "must" | "should" | "could" (optional, defaults to "must"),
   "evidencedBy": [WorkProductContribution] (optional),
   "test": Test (optional),
   "examples": [Test] (optional)
@@ -1270,6 +1271,7 @@ Checklists provide the operational verification layer that transforms abstract a
 - **seq**: Integer ordering (1, 2, 3...) determining checklist evaluation sequence within the parent state or level
 - **name**: String identifier for the checklist item (typically concise, 3-8 words)
 - **description**: String explaining what must be verified or achieved (1-2 sentences describing the operational truth)
+- **priority**: Optional MoSCoW-derived importance level (see Section 5.2.2). When omitted, defaults to `"must"` — the item is treated as essential
 - **evidencedBy**: Optional array of WorkProductContribution objects linking this checklist to artifacts that provide evidence (see below)
 - **test**: Optional Test object providing structured Given/When/Then verification (see Section 5.3)
 - **examples**: Optional array of Test objects providing parameterized variations (see Section 5.3)
@@ -1392,6 +1394,70 @@ The schema validation engine evaluates checklists using strict operational seman
 - Progress dashboards can visualize checklist completion as state/level achievement indicators
 
 This structured approach transforms qualitative methodology guidance into quantitative, traceable verification criteria, enabling organizations to measure and validate their adoption progress objectively.
+
+#### 5.2.2 Checklist Priority
+
+The optional `priority` property on Checklist uses a MoSCoW-derived three-level scheme to communicate the relative importance of verification criteria:
+
+| Value | Meaning | Phase-gating implication |
+|---|---|---|
+| `"must"` | Essential verification criterion. The state or LOD cannot be considered achieved without it. | Required unless explicitly overridden via ChecklistState at the project level. |
+| `"should"` | Expected and important. Full confidence in the state or LOD requires it, but it can be deferred or excluded with justification. | Included by default; skippable with rationale. |
+| `"could"` | Supplementary. Adds depth or rigour but is genuinely optional. | Skippable without justification. |
+
+**Default when omitted:** `"must"`. This preserves backward compatibility — existing documents with no `priority` field behave identically to the pre-priority schema where all items were equally essential. An unprioritized item is never accidentally filtered out by a project-level threshold.
+
+**Why three levels, not four?** MoSCoW's fourth level "Won't" is a scoping decision made by project teams at execution time, not an inherent property of the verification criterion. It is already represented by `ChecklistState.state = "not required"` in the project's target section (see Section 12.5).
+
+**Authoring Guidance for Priority Assignment:**
+
+- **Default to omitting priority.** If every item in a state is essential, leave `priority` absent on all of them — the default of `"must"` communicates this without cluttering the schema.
+- **Use `"should"` for items that are important but context-dependent.** If a verification criterion is critical in regulated environments but less so in early-stage startups, mark it `"should"` — teams can include or exclude it based on their context.
+- **Use `"could"` sparingly.** Reserve it for genuinely supplementary criteria — items that add confidence or rigour but whose absence does not meaningfully compromise the state. If most items in a state are `"could"`, the state's checklist may be over-specified.
+- **Priority is stable across projects.** It reflects the practice author's assessment of importance, not a per-project scoping decision. Project-level scoping is handled by the `priorityThreshold` on Project and ProjectCycle (see Section 12.5.1).
+
+**Example with Priority:**
+
+```json
+{
+  "name": "Architecture Selected",
+  "description": "Platform architecture approach chosen and documented",
+  "seq": 1,
+  "checklists": [
+    {
+      "seq": 1,
+      "name": "Architecture documented",
+      "description": "Reference architecture created with technology stack decisions and rationale",
+      "evidencedBy": [
+        {
+          "workProductName": "Architecture",
+          "levelOfDetailName": "Defined"
+        }
+      ]
+    },
+    {
+      "seq": 2,
+      "name": "Security review completed",
+      "description": "Security team has reviewed and approved architecture approach",
+      "priority": "should"
+    },
+    {
+      "seq": 3,
+      "name": "Cost model validated",
+      "description": "Financial projections for infrastructure costs approved by finance team",
+      "priority": "could",
+      "evidencedBy": [
+        {
+          "workProductName": "Financial Model",
+          "levelOfDetailName": "Defined"
+        }
+      ]
+    }
+  ]
+}
+```
+
+In this example, "Architecture documented" is essential (no `priority` — defaults to `"must"`). "Security review completed" is important but can be deferred in contexts where security review happens later. "Cost model validated" is supplementary — valuable for large initiatives but genuinely optional for smaller projects.
 
 ### 5.3 Structured Guidance: The Gherkin-Inspired Test Model
 
@@ -3253,6 +3319,69 @@ ChecklistState tracks the completion status of individual checklist items within
 
 - In the `current` section: `state` records actual completion — `"complete"` or `"not complete"`
 - In the `target` section: `state` indicates requirement — `"not required"` marks checklist items explicitly excluded from this project's goals, while `"complete"` marks items that must be achieved
+
+#### 12.5.1 Priority Threshold
+
+The `priorityThreshold` property on Project and ProjectCycle enables teams to scope which checklist items are active based on their `priority` level (see Section 5.2.2). Items at or above the threshold are in scope; items below it are implicitly not required.
+
+**Threshold Semantics:**
+
+The priority levels form an ordered hierarchy: `"must"` > `"should"` > `"could"`. A threshold of `"should"` includes items with priority `"must"` or `"should"`, and excludes items with priority `"could"`.
+
+| Threshold value | Items in scope |
+|---|---|
+| `"could"` | All items (`must` + `should` + `could`) |
+| `"should"` | `must` + `should` only |
+| `"must"` | `must` only |
+
+**Default when omitted:** `"could"` (all items in scope). This preserves backward compatibility — existing projects without a threshold behave identically to the pre-priority schema.
+
+**Inheritance:** When `priorityThreshold` is set on a ProjectCycle, it overrides the project-level threshold for that cycle. When absent on a cycle, the cycle inherits the project-level threshold.
+
+**Precedence Rules:**
+
+Three mechanisms interact to determine whether a checklist item is active in a given context:
+
+1. **Explicit ChecklistState always wins.** If a ChecklistState entry exists for an item (in `current`, `target`, or a cycle), its `state` value takes precedence regardless of the threshold. This allows teams to explicitly include a low-priority item (`ChecklistState.state = "complete"` or `"not complete"`) or explicitly exclude a high-priority item (`ChecklistState.state = "not required"`).
+2. **Threshold filters the remainder.** For items without an explicit ChecklistState entry, the threshold determines scope. If the item's priority is below the effective threshold, tooling treats it as implicitly not required.
+3. **Default priority fills gaps.** Items with no explicit `priority` property default to `"must"` and are never filtered out by any threshold.
+
+**Tooling Guidance:**
+
+- When generating to-do lists or progress dashboards, apply the effective threshold to determine which checklist items to include.
+- When a cycle overrides the project threshold, display the override clearly so team members understand which items are in scope for the current work period.
+- Items filtered out by the threshold should remain visible in the practice definition (they are not deleted) — the threshold affects project-level tracking, not the practice itself.
+
+**Example:**
+
+```json
+{
+  "name": "Platform Modernisation",
+  "practiceName": "Cloud Platform Engineering",
+  "priorityThreshold": "should",
+  "currentCycleName": "Sprint 3",
+  "cycles": [
+    {
+      "name": "Sprint 3",
+      "description": "Fast-track infrastructure provisioning",
+      "priorityThreshold": "must",
+      "startedAt": "2026-08-01T00:00:00Z",
+      "alphaInstances": [
+        {
+          "name": "Core Platform",
+          "alphaName": "Platform",
+          "stateName": "Provisioned"
+        }
+      ]
+    }
+  ],
+  "current": { "alphaInstances": [], "workProductInstances": [] },
+  "target": { "alphaInstances": [], "workProductInstances": [] },
+  "plan": { "pattern": { "name": "Modernisation Plan", "description": "Lifecycle plan" } }
+}
+```
+
+In this example, the project-level threshold is `"should"` — across the project, `must` and `should` items are in scope while `could` items are implicitly excluded. Sprint 3 tightens this to `"must"` only, focusing the team on essential verification criteria during a time-pressured cycle.
 
 ### 12.6 Notes, External Links, and Automated Journaling
 
