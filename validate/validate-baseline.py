@@ -1040,6 +1040,22 @@ class BaselineValidator:
                     })
         return True
 
+    def validate_pattern_groups(self) -> None:
+        """Check that baseline patternGroups define empty entries (template groups)"""
+        for idx, pg in enumerate(self.baseline.get('patternGroups', [])):
+            pg_name = pg.get('name', f'patternGroups[{idx}]')
+            entries = pg.get('entries', [])
+            if entries:
+                self.warnings.append({
+                    "category": "governance",
+                    "severity": "warning",
+                    "path": f"patternGroups[{idx}].entries",
+                    "issue": f"Baseline patternGroup '{pg_name}' has {len(entries)} entries — baseline groups should define empty entries as templates for extension practices",
+                    "expected": "Empty entries array (extension practices populate groups)",
+                    "actual": f"{len(entries)} entries",
+                    "suggestion": "Set entries to [] — baselines define group identity, extensions add patterns"
+                })
+
     def validate_universality(self) -> None:
         """Check for overly specific terminology (warnings only)"""
         # Patterns indicating vendor/tool-specific naming
@@ -1088,7 +1104,8 @@ class BaselineValidator:
         self.validate_version_constraints()
         schema_version_valid = self.validate_schema_version()
 
-        # Universality is warnings only
+        # PatternGroup governance and universality are warnings only
+        self.validate_pattern_groups()
         self.validate_universality()
 
         # Overall validity

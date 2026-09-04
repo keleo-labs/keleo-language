@@ -2744,13 +2744,29 @@ In methods composed of many practices, patterns from all practices are unioned i
 
 **PatternGroup** provides this structure. A PatternGroup is a named element that contains an ordered list of pattern references (`entries`), each pairing a `patternName` with a `seq` for sort order within the group. The group itself carries an optional `seq` for ordering groups relative to each other.
 
-**When to use PatternGroups:**
+#### 9.3.1 Baseline-Defined Canonical Groups
+
+Baselines define canonical patternGroups with **empty `entries` arrays**. These establish the navigational categories that extension practices should adopt. The baseline author identifies 3-5 groups based on the coordination archetypes most relevant to the domain (see grouping strategies below).
+
+Extension practices then adopt baseline groups by defining patternGroups with the **same canonical name** and populating their `entries` with the practice's patterns. During method composition, groups with matching names merge via the merge algorithm (Section 6.15), producing a single group per category that collects patterns from all contributing practices.
+
+**Governance rules:**
+
+- **Prefer adopting baseline groups.** When a practice's patterns fit an existing baseline group, use it. The baseline author has already identified the navigational categories most useful to consumers of the domain.
+- **Novel groups require justification.** An extension practice may define a new patternGroup not present in the baseline, but only when its patterns represent a coordination concern genuinely absent from the baseline categories. The group name and description should make the rationale clear.
+- **Never rename baseline groups.** Changing the name of a baseline group breaks the merge contract. If a baseline group name is suboptimal, update the baseline — don't work around it in extensions.
+
+**Why baselines define groups:**
+
+Without baseline-defined groups, each extension practice independently invents group names. In a three-practice method, this produces three disjoint sets of categories with no cross-practice merging — defeating the purpose of groups. Baseline-defined groups act as a shared vocabulary, ensuring that patterns from different practices land in coherent, merged categories.
+
+#### 9.3.2 When to Use PatternGroups
 
 - When a practice contributes three or more patterns.
 - When a method will compose ten or more patterns from multiple practices.
 - Single-pattern practices generally do not need groups.
 
-**Grouping strategies:**
+#### 9.3.3 Grouping Strategies
 
 The source practice is already visible via `sourcePracticeName` — grouping by source practice is redundant. Instead, group by the coordination intent that cuts across practices:
 
@@ -2758,34 +2774,34 @@ The source practice is already visible via `sourcePracticeName` — grouping by 
 - **By concern area** — when patterns map to distinct stakeholder concerns that span practices (e.g., technical patterns, governance patterns, operational patterns).
 - **By engagement phase** — patterns relevant to getting started vs ongoing execution vs scaling and optimisation.
 
-**Naming guidance:**
+#### 9.3.4 Naming Guidance
 
 Group names should describe the organisational category, not duplicate practice names:
 
 - **Good**: "Core Lifecycles", "Maturity Progressions", "Governance & Compliance"
 - **Bad**: "Plant Biology Patterns", "Production Patterns" (restates the source practice)
 
-**Cross-practice groups:**
+#### 9.3.5 Cross-Practice Merging
 
-When two practices define a PatternGroup with the same canonical name, they merge into a single group during method composition (see merge spec Section 6.15). This enables intentional category sharing — for example, two practices can each place their primary lifecycle pattern into a shared "Core Lifecycles" group.
+When two practices define a PatternGroup with the same canonical name, they merge into a single group during method composition (see merge spec Section 6.15). This is the primary mechanism by which baseline-defined groups collect patterns from multiple practices into coherent categories.
 
-**Ordering:**
+#### 9.3.6 Ordering
 
 - `PatternGroup.seq` orders groups relative to each other (e.g., Core Lifecycles before Maturity Progressions).
 - `PatternGroupEntry.seq` orders patterns within each group.
 - When `seq` is absent on a group, groups sort alphabetically by name.
 
-**Ungrouped patterns:**
+#### 9.3.7 Ungrouped Patterns
 
 Patterns not referenced by any PatternGroup remain valid and accessible. Consuming systems should render them in a default or ungrouped section. A pattern should appear in at most one group.
 
-**Schema structure:**
+#### 9.3.8 Schema Structure
 
 ```
 PatternGroup {
   name: string (group identifier)
   description: string (explains what this group covers)
-  entries: PatternGroupEntry[] (required, minItems: 1)
+  entries: PatternGroupEntry[] (required, minItems: 0)
   seq: integer (optional — presentation order among groups)
 }
 
@@ -2794,6 +2810,8 @@ PatternGroupEntry {
   seq: integer (sort order within the group)
 }
 ```
+
+Baselines define groups with `entries: []`. Extension practices define groups with populated entries. The merge algorithm unions entries from groups sharing the same canonical name.
 
 ## 10 Narrative Management
 

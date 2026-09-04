@@ -1153,6 +1153,28 @@ class PracticeValidator:
                     elif pn:
                         seen_pattern_refs[pn] = pg_name
 
+            # Warn when practice creates patternGroups not defined in baseline
+            baseline_pg_names = set()
+            for bl in [self.baseline] + list(getattr(self, '_baseline_chain', [])):
+                for bpg in bl.get('patternGroups', []):
+                    bl_name = bpg.get('name', '')
+                    if bl_name:
+                        baseline_pg_names.add(bl_name)
+            if baseline_pg_names:
+                for pg_idx, pg in enumerate(practice.get('patternGroups', [])):
+                    pg_name = pg.get('name', '')
+                    if pg_name and pg_name not in baseline_pg_names:
+                        pg_path = f"{prefix}.patternGroups[{pg_idx}]" if prefix else f"patternGroups[{pg_idx}]"
+                        self.warnings.append({
+                            "category": "governance",
+                            "severity": "warning",
+                            "path": f"{pg_path}.name",
+                            "issue": f"PatternGroup '{pg_name}' is not defined in the baseline — prefer adopting baseline-defined groups",
+                            "expected": f"One of: {sorted(baseline_pg_names)}",
+                            "actual": pg_name,
+                            "suggestion": "Use a baseline-defined group name, or justify why a novel group is needed"
+                        })
+
         # Build work product LOD index for reference validation
         all_wp_lods = defaultdict(set)
         for dep in self.dependencies:
