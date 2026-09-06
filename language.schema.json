@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/language.schema.json",
-  "$comment": "schemaVersion:2.6.0",
+  "$comment": "schemaVersion:2.7.0",
   "title": "Practice language (from language.mmd)",
   "description": "JSON Schema derived from the Mermaid classDiagram in language.mmd. Identity is by name; most cross-links are string names (not embedded objects). Root validation discriminates Practice vs Method vs PracticeBaseline. Method can use embedded objects (baselinePractice + practices) or string references (baselinePracticeName + practiceNames) or a mix.",
   "$defs": {
@@ -27,7 +27,7 @@
       "description": "Common identity and prose fields for named practice artifacts. tags optional: omit, structured buckets, or legacy string[].",
       "required": ["name", "description"],
       "properties": {
-        "kind": { "type": "string", "enum": ["practice", "method", "practiceBaseline", "project", "practiceElementAlias", "workProduct", "workProductInstance", "alpha", "alphaInstance", "activitySpace", "activity", "persona", "personaGroup", "pattern", "patternGroup", "patternView", "narrativeType", "citation", "acknowledgement", "test"] },
+        "kind": { "type": "string", "enum": ["practice", "method", "practiceBaseline", "project", "practiceElementAlias", "workProduct", "workProductInstance", "alpha", "alphaInstance", "activitySpace", "activity", "persona", "personaGroup", "pattern", "patternGroup", "patternView", "outcome", "narrativeType", "citation", "acknowledgement", "test"] },
         "name": { "type": "string" },
         "description": { "type": "string" },
         "tags": {
@@ -673,6 +673,11 @@
             "background": {
               "$ref": "#/$defs/Background",
               "description": "Project-specific prerequisites for this work product instance. Supplements the practice-level background defined on the referenced LevelOfDetail with instance-specific context."
+            },
+            "metrics": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Metric" },
+              "description": "Quantitative data extracted from this work product's external document for aggregation via outcome metric contributions. Work product instances are the proxy for external systems — metrics bring specific data points (deal values, user counts, financial targets) from those systems into the project JSON."
             }
           }
         }
@@ -1137,6 +1142,166 @@
       ],
       "unevaluatedProperties": false
     },
+    "Metric": {
+      "type": "object",
+      "description": "A named quantitative measurement on a work product instance. Captures structured data extracted from external documents (CRM records, financial reports, dashboards) for aggregation via outcome metric contributions.",
+      "required": ["name", "value"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Metric identifier (e.g., 'acv', 'users', 'capacity')."
+        },
+        "value": {
+          "type": "number",
+          "description": "Numeric value of the metric."
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unit of measurement (e.g., 'GBP', 'USD', 'hours'). Omit when the metric is unitless."
+        }
+      },
+      "additionalProperties": false
+    },
+    "StateForecastWeight": {
+      "type": "object",
+      "description": "Alpha state-level probability weight for metric outcome forecast calculation.",
+      "required": ["stateName", "weight"],
+      "properties": {
+        "stateName": {
+          "type": "string",
+          "description": "Alpha state name (symbolic link; must match State.name within the alpha)."
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Probability weight (0-1). E.g., Closed Won = 1.0, Committed = 0.8, Best Case = 0.4, Pipeline = 0.1."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ViewForecastWeight": {
+      "type": "object",
+      "description": "Pattern view-level weight for objective outcome progress calculation.",
+      "required": ["patternViewName", "weight"],
+      "properties": {
+        "patternViewName": {
+          "type": "string",
+          "description": "Pattern view name (symbolic link; must match PatternView.name)."
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Cumulative progress weight (0-1) when this view is completed. E.g., Assessment = 0.1, Foundation = 0.3, Build = 0.6, Operate = 0.9, Optimize = 1.0."
+        }
+      },
+      "additionalProperties": false
+    },
+    "MetricContribution": {
+      "type": "object",
+      "description": "Declares how work product metrics contribute to outcome progress via the alpha evidence chain. A consuming system follows: alpha instances of the named alpha → their evidenceBy work product instances → extract the named metric → apply recognition/weighting rules based on the alpha instance's state.",
+      "required": ["alphaName", "metricName"],
+      "properties": {
+        "alphaName": {
+          "type": "string",
+          "description": "Alpha whose instances contribute to this outcome (symbolic link; must match Alpha.name)."
+        },
+        "metricName": {
+          "type": "string",
+          "description": "Name of the metric to aggregate from work product instances in the evidence chain (must match Metric.name on contributing WorkProductInstance objects)."
+        },
+        "recognizedAtStateName": {
+          "type": "string",
+          "description": "Alpha state at which the metric value is fully recognized (weight 1.0). E.g., 'Closed Won'. Symbolic link; must match State.name within the named alpha."
+        },
+        "forecastWeights": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/StateForecastWeight" },
+          "description": "State-level weights for forecast calculation. Each weight represents the probability of conversion at that state. States not listed have implicit weight 0."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ObjectiveContribution": {
+      "type": "object",
+      "description": "Declares how pattern view completion contributes to outcome progress as a percentage. A consuming system checks which pattern views have been completed (all alpha state and work product objectives met), then applies the forecast weight for the highest completed view.",
+      "properties": {
+        "recognizedAtPatternViewName": {
+          "type": "string",
+          "description": "Pattern view at which the outcome is fully achieved (weight 1.0). E.g., 'Operational Readiness'. Symbolic link; must match PatternView.name in the practice's pattern. Analogous to recognizedAtStateName on MetricContribution."
+        },
+        "forecastWeights": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ViewForecastWeight" },
+          "description": "Pattern view-level weights for progress calculation. Each weight represents the cumulative progress when that view is completed. Views not listed have implicit weight 0."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Outcome": {
+      "allOf": [
+        { "$ref": "#/$defs/PracticeElement" },
+        {
+          "type": "object",
+          "properties": {
+            "measureDescription": {
+              "type": "string",
+              "description": "How success is measured — the type of metric and what constitutes achievement. E.g., 'Total ACV in target currency', 'Percentage of readiness milestones achieved'. Provides a template for project-level OutcomeInstances to set specific targets against."
+            },
+            "metricContributions": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/MetricContribution" },
+              "description": "How work product metrics from alpha evidence chains aggregate into this outcome's numerical progress. Each contribution follows: alpha instances → evidenceBy → work product instances → metrics, weighted by alpha state maturity."
+            },
+            "objectiveContributions": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ObjectiveContribution" },
+              "description": "How pattern view completion contributes to this outcome's percentage progress. Each contribution declares which views advance the outcome and at what weight."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "OutcomeInstance": {
+      "type": "object",
+      "description": "A project-level instantiation of a practice-defined Outcome. Sets a specific target and tracks achievement. The measurement framework (contributions, forecast weights) is inherited from the referenced Outcome template.",
+      "required": ["name", "outcomeName"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Project-specific name for this outcome instance (e.g., 'FY26 Cisco EMEA Revenue')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Project-specific context for this outcome instance."
+        },
+        "outcomeName": {
+          "type": "string",
+          "description": "Symbolic link to the practice-defined Outcome template (must match Outcome.name). Inherits measureDescription, metricContributions, and objectiveContributions."
+        },
+        "measure": {
+          "type": "string",
+          "description": "The specific target (e.g., '1.5M GBP ACV', 'MTTR under 4 hours'). Instantiates the practice's measureDescription with a concrete value."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["not-started", "in-progress", "achieved", "missed", "deferred"],
+          "description": "Current achievement status."
+        },
+        "evidence": {
+          "$ref": "#/$defs/ExternalLink",
+          "description": "Reference to external evidence supporting the status."
+        },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Note" },
+          "description": "Timestamped notes tracking outcome progress."
+        }
+      },
+      "additionalProperties": false
+    },
     "Asset": {
       "type": "object",
       "required": ["name", "type"],
@@ -1548,6 +1713,11 @@
               "items": { "$ref": "#/$defs/PatternGroup" },
               "description": "Named groups for organising patterns by theme or concern. Merged by canonical name when practices compose into a method."
             },
+            "outcomes": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Outcome" },
+              "description": "Measurable value outcomes this practice delivers. Each outcome defines what success looks like, how it's measured, and how alpha/work-product metrics or pattern view completion contribute to its progress. Projects instantiate these as OutcomeInstances with specific targets."
+            },
             "references": {
               "type": "array",
               "items": { "$ref": "#/$defs/AlphaInstance" },
@@ -1677,6 +1847,11 @@
               "items": { "$ref": "#/$defs/PatternGroup" },
               "description": "Named groups for organising patterns by theme or concern. Merged by canonical name when practices compose into a method."
             },
+            "outcomes": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Outcome" },
+              "description": "Measurable value outcomes this practice delivers. Each outcome defines what success looks like, how it's measured, and how alpha/work-product metrics or pattern view completion contribute to its progress. Projects instantiate these as OutcomeInstances with specific targets."
+            },
             "references": {
               "type": "array",
               "items": { "$ref": "#/$defs/AlphaInstance" },
@@ -1749,6 +1924,11 @@
             "bindings": {
               "$ref": "#/$defs/Bindings",
               "description": "Optional cross-baseline bindings that emerge from composing practices from different baseline families. Contains alpha bindings (cross-baseline contributesTo/mapsTo for alphas) and work product bindings (cross-baseline partOf/mapsTo for work products)."
+            },
+            "outcomes": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Outcome" },
+              "description": "Method-level outcomes that span multiple practices. Complement practice-level outcomes with cross-cutting value measures that emerge from practice composition."
             },
             "version": {
               "type": "string",
@@ -2352,6 +2532,11 @@
               "type": "string",
               "enum": ["must", "should", "could"],
               "description": "Minimum checklist priority to include in scope for this cycle. Items below this threshold are implicitly not required unless explicitly overridden via ChecklistState. Overrides the project-level priorityThreshold for this cycle. When omitted, inherits the project-level threshold."
+            },
+            "outcomes": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/OutcomeInstance" },
+              "description": "Cycle-level value targets. May decompose project-level outcome instances into sprint-sized targets."
             }
           }
         }
@@ -2410,6 +2595,11 @@
               "type": "string",
               "enum": ["must", "should", "could"],
               "description": "Minimum checklist priority to include in project scope. Items below this threshold are implicitly not required unless explicitly overridden via ChecklistState. Individual cycles can override this with their own priorityThreshold. When omitted, defaults to \"could\" (all items in scope)."
+            },
+            "outcomes": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/OutcomeInstance" },
+              "description": "Project-level value targets instantiating practice-defined Outcomes."
             },
             "notes": {
               "type": "array",

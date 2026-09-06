@@ -33,7 +33,9 @@
    - 7.1 [Structure of Work Products](#71-structure-of-work-products)
    - 7.2 [Artifact Instantiation and Concurrency](#72-artifact-instantiation-and-concurrency)
    - 7.3 [Work Product Instance Semantics: Declaration vs Evidence Chains](#73-work-product-instance-semantics-declaration-vs-evidence-chains)
-   - 7.4 [Work Product Composition (`partOf`)](#74-work-product-composition-partof)
+   - 7.4 [Work Product Instance Metrics](#74-work-product-instance-metrics)
+   - 7.5 [Work Product Composition (`partOf`)](#75-work-product-composition-partof)
+   - 7.6 [Work Product Variant Mapping (`mapsTo`)](#76-work-product-variant-mapping-mapsto)
 8. [Execution Boundaries and Organizational Roles](#8-execution-boundaries-and-organizational-roles)
    - 8.1 [Activity Spaces and Activities](#81-activity-spaces-and-activities)
      - 8.1.1 [Gherkin-Inspired Structure on Activities](#811-gherkin-inspired-structure-on-activities)
@@ -42,6 +44,7 @@
    - 9.1 [Pattern Orchestration and Narrative Hooks](#91-pattern-orchestration-and-narrative-hooks)
    - 9.2 [The PatternView: Complete Structure and Semantics](#92-the-patternview-complete-structure-and-semantics)
    - 9.3 [Pattern Groups: Organising Patterns for Navigation](#93-pattern-groups-organising-patterns-for-navigation)
+   - 9.4 [Outcome Definitions and Value Measurement](#94-outcome-definitions-and-value-measurement)
 10. [Narrative Management](#10-narrative-management)
     - 10.1 [Narrative Tooling Synchronization and Execution Guidelines](#101-narrative-tooling-synchronization-and-execution-guidelines)
     - 10.2 [Cognitive Storytelling Frameworks](#102-cognitive-storytelling-frameworks)
@@ -63,6 +66,8 @@
     - 12.4 [Current and Target Sections](#124-current-and-target-sections)
     - 12.5 [ChecklistState and Evidence Tracking](#125-checkliststate-and-evidence-tracking)
     - 12.6 [Notes, External Links, and Automated Journaling](#126-notes-external-links-and-automated-journaling)
+    - 12.7 [Cycles and Operational Work Tracking](#127-cycles-and-operational-work-tracking)
+    - 12.8 [Outcome Instances and Value Tracking](#128-outcome-instances-and-value-tracking)
 13. [Change Requests](#13-change-requests)
 14. [Acyclicity Constraints and Circular Reference Protection](#14-acyclicity-constraints-and-circular-reference-protection)
     - 14.1 [Hierarchical Properties Subject to Acyclicity Constraints](#141-hierarchical-properties-subject-to-acyclicity-constraints)
@@ -2392,7 +2397,54 @@ Evidence chain proving alpha state:
 
 This design serves both guidance and execution: practices use work product instances to illustrate the kinds of deliverables adopters will produce and how they evidence progression, while projects use the same structures to identify and track the specific artifacts being managed at measurable maturity levels.
 
-### 7.4 Work Product Composition (`partOf`)
+### 7.4 Work Product Instance Metrics
+
+Work product instances serve as proxies for external documents. The optional `metrics` array on WorkProductInstance brings quantitative data from those external documents into the project JSON as structured, named values.
+
+**Purpose**
+
+Metrics capture specific numerical data points extracted from external systems — deal values from a CRM, user counts from analytics, financial figures from reports. They provide the raw data that outcome metric contributions aggregate into project-level value measurements.
+
+**Structure**
+
+Each Metric has:
+- `name` — identifier matching the `metricName` declared in a MetricContribution (e.g., "acv", "users", "capacity")
+- `value` — numeric value
+- `unit` — optional unit of measurement (e.g., "GBP", "USD", "hours")
+
+**Relationship to Outcomes**
+
+Metrics on work product instances feed into the outcome measurement chain:
+
+1. A practice-level Outcome declares MetricContributions specifying which alpha's evidence chain to follow and which metric name to aggregate
+2. A project's alpha instances reference work product instances via `evidenceBy`
+3. Those work product instances carry `metrics` with the named values
+4. A consuming system follows the chain: Outcome → MetricContribution → alpha instances (state determines weight) → evidenceBy → work product instances → metrics (provides the value)
+
+**Example**
+
+A CRM opportunity record tracked as a work product instance:
+
+```json
+{
+  "instanceName": "SFDC: AI Platform Deal",
+  "workProductName": "Opportunity Record",
+  "levelOfDetailName": "Qualified",
+  "metrics": [
+    { "name": "acv", "value": 500000, "unit": "GBP" },
+    { "name": "arr", "value": 600000, "unit": "GBP" }
+  ]
+}
+```
+
+**Authoring Guidance**
+
+- Metric names should be short, lowercase identifiers that match the `metricName` in practice-level MetricContributions
+- Not all work product instances need metrics — only those that contribute quantitative data to outcomes
+- Units should be consistent across all instances contributing to the same outcome
+- Metrics are point-in-time values; update them as external documents change
+
+### 7.5 Work Product Composition (`partOf`)
 
 Work products can declare a `partOf` relationship to indicate that one work product is logically contained within another. The relationship is unidirectional: the child declares which parent it belongs to. There is no reciprocal `composedOf` array on the parent — tooling can compute the inverse at runtime.
 
@@ -2461,7 +2513,7 @@ During practice composition (Section 4.2), `partOf` merges as a scalar field: th
 }
 ```
 
-### 7.5 Work Product Variant Mapping (`mapsTo`)
+### 7.6 Work Product Variant Mapping (`mapsTo`)
 
 Work products can declare a `mapsTo` relationship to indicate that one work product is a specialized variant of another. This mirrors the `mapsTo` relationship on Alphas (Section 4.4) — the variant IS-A type of the parent work product, following the same levels of detail with domain-specific checklists.
 
@@ -2878,6 +2930,99 @@ PatternGroupEntry {
 ```
 
 Baselines define groups with `entries: []`. Extension practices define groups with populated entries. The merge algorithm unions entries from groups sharing the same canonical name.
+
+### 9.4 Outcome Definitions and Value Measurement
+
+Outcomes define how a practice delivers measurable value. While narratives articulate *why* a practice matters, outcomes define *how value delivery is tracked* — connecting practice elements to quantifiable progress indicators.
+
+An Outcome extends PracticeElement and operates as a template. Practices declare outcomes with measurement frameworks; projects instantiate them as OutcomeInstances with specific targets (see Section 12.8).
+
+#### Two Contribution Mechanisms
+
+Outcomes support two distinct measurement mechanisms that operate on different underlying concepts:
+
+**Metric Contributions** — aggregate numerical values through the alpha → work product → metrics evidence chain. A MetricContribution declares:
+- Which alpha's instances to follow (`alphaName`)
+- Which metric to extract from their evidencing work product instances (`metricName`)
+- At which alpha state the metric is fully recognized (`recognizedAtStateName`)
+- State-level probability weights for forecast calculation (`forecastWeights`)
+
+The evidentiary chain is: alpha instances of the named alpha → their `evidenceBy` work product instances → extract the named metric → apply recognition/weighting rules based on the alpha instance's current state.
+
+**Objective Contributions** — compute percentage progress from pattern view completion. An ObjectiveContribution declares:
+- At which pattern view the outcome is fully achieved (`recognizedAtPatternViewName`)
+- View-level weights for cumulative progress calculation (`forecastWeights`)
+
+A consuming system checks which pattern views have been completed (all alpha state and work product objectives met for that phase), then applies the weight for the highest completed view.
+
+#### Forecast Weights
+
+Both contribution types use an analogous forecast weight pattern:
+
+- **StateForecastWeight** maps alpha state names to probability weights (0–1). States not listed have implicit weight 0. The `recognizedAtStateName` should correspond to a weight of 1.0 in the forecast array.
+- **ViewForecastWeight** maps pattern view names to cumulative progress weights (0–1). Views not listed have implicit weight 0. The `recognizedAtPatternViewName` should correspond to a weight of 1.0.
+
+Forecast weights enable systems to compute weighted projections before full recognition — e.g., a sales pipeline that counts Committed opportunities at 80% and Best Case at 40%.
+
+#### Authoring Guidance
+
+- An outcome may have metric contributions, objective contributions, or both
+- Use metric contributions when the outcome's progress is a numerical aggregate from external data (revenue, user counts, capacity)
+- Use objective contributions when the outcome's progress maps to lifecycle phase completion (readiness, maturity, compliance)
+- The `measureDescription` should explain the measurement framework clearly enough for project teams to set meaningful targets
+- Metric names in MetricContributions must match the `name` field on Metric objects in work product instances (see Section 7.4)
+- State and view names in contributions are symbolic links and must match names within the referenced alphas and patterns
+
+#### Example: Practice with Both Outcome Types
+
+```json
+{
+  "outcomes": [
+    {
+      "name": "Account Revenue",
+      "description": "Total recognized revenue from managed opportunities.",
+      "measureDescription": "Annual contract value (ACV) in target currency.",
+      "metricContributions": [
+        {
+          "alphaName": "Opportunity",
+          "metricName": "acv",
+          "recognizedAtStateName": "Closed Won",
+          "forecastWeights": [
+            { "stateName": "Closed Won", "weight": 1.0 },
+            { "stateName": "Committed", "weight": 0.8 },
+            { "stateName": "Best Case", "weight": 0.4 },
+            { "stateName": "Pipeline", "weight": 0.1 }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Account Readiness",
+      "description": "Maturity of the strategic engagement lifecycle.",
+      "measureDescription": "Percentage of lifecycle milestones achieved.",
+      "objectiveContributions": [
+        {
+          "recognizedAtPatternViewName": "Realize Value",
+          "forecastWeights": [
+            { "patternViewName": "Know Your Customer", "weight": 0.15 },
+            { "patternViewName": "Build Your Strategy", "weight": 0.50 },
+            { "patternViewName": "Make It Happen", "weight": 0.75 },
+            { "patternViewName": "Realize Value", "weight": 1.0 }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### Validation Rules
+
+- `MetricContribution.alphaName` must match an Alpha.name in the practice or its dependencies
+- `MetricContribution.recognizedAtStateName` must match a State.name within the named alpha
+- `MetricContribution.forecastWeights[].stateName` must match a State.name within the named alpha
+- `ObjectiveContribution.recognizedAtPatternViewName` must match a PatternView.name in a practice pattern
+- `ObjectiveContribution.forecastWeights[].patternViewName` must match a PatternView.name in a practice pattern
 
 ## 10 Narrative Management
 
@@ -3531,6 +3676,84 @@ An alpha instance may appear in multiple sections simultaneously:
 ```
 
 In this example, Sprint 1 is closed (has `completedAt`) — its objective was "Architecture Selected" for the Core Platform, contributing to the "Assess" phase of the plan. Sprint 2 is the active cycle (matches `currentCycleName`, lacks `completedAt`) — the team is now pursuing "Provisioned" as part of the "Build" phase. The `patternViewName` on each cycle establishes which plan phase the work period contributes to. The `current` section (not shown) would reflect the latest assessed state of the Core Platform independent of these cycle-level objectives.
+
+### 12.8 Outcome Instances and Value Tracking
+
+Projects instantiate practice-defined Outcomes as OutcomeInstances — setting specific targets and tracking achievement against the measurement framework inherited from the practice template.
+
+**Template → Instance Pattern**
+
+The relationship mirrors Alpha → AlphaInstance and WorkProduct → WorkProductInstance:
+
+- The **practice** defines an Outcome template with measurement framework (contributions, forecast weights) — see Section 9.4
+- The **project** creates an OutcomeInstance referencing that template via `outcomeName`, setting a concrete `measure` target and tracking `status`
+
+The measurement rules (which alphas, metrics, states, views contribute and at what weights) are inherited from the referenced Outcome template. The project only specifies what the target is and whether it has been achieved.
+
+**Structure**
+
+An OutcomeInstance has:
+- `name` — project-specific name (e.g., "FY26 Cisco EMEA Revenue")
+- `outcomeName` — symbolic link to the practice-defined Outcome template
+- `measure` — the specific target value (e.g., "1.5M GBP ACV", "75% lifecycle completion")
+- `status` — current achievement: `not-started`, `in-progress`, `achieved`, `missed`, or `deferred`
+- `evidence` — optional ExternalLink to supporting evidence
+- `notes` — optional timestamped progress notes
+
+**Placement**
+
+OutcomeInstances appear in two locations:
+
+- **Project-level `outcomes`** — overall project value targets spanning the full project duration
+- **Cycle-level `outcomes`** — cycle-scoped targets that decompose project outcomes into period-specific goals (e.g., sprint revenue targets, quarterly milestones)
+
+**Value Computation**
+
+A consuming system resolves outcome values by following the practice template's contribution chain:
+
+*For metric outcomes:*
+1. Resolve `outcomeName` → Outcome template → `metricContributions`
+2. For each MetricContribution, find all alpha instances matching `alphaName`
+3. For each alpha instance, look up its current state's forecast weight
+4. Follow `evidenceBy` to work product instances and extract the named metric value
+5. Multiply metric value × state weight, then aggregate across all contributing instances
+
+*For objective outcomes:*
+1. Resolve `outcomeName` → Outcome template → `objectiveContributions`
+2. For each ObjectiveContribution, determine the highest completed pattern view
+3. Apply that view's forecast weight as the percentage progress
+
+**Example**
+
+```json
+{
+  "kind": "project",
+  "name": "Cisco EMEA TEP FY26",
+  "outcomes": [
+    {
+      "name": "FY26 Cisco Revenue",
+      "outcomeName": "Account Revenue",
+      "measure": "1.5M GBP ACV",
+      "status": "in-progress",
+      "evidence": {
+        "name": "Salesforce Dashboard",
+        "uri": "https://crm.example.com/dashboards/cisco-fy26"
+      }
+    },
+    {
+      "name": "FY26 Engagement Maturity",
+      "outcomeName": "Account Readiness",
+      "measure": "75% lifecycle completion by EOY",
+      "status": "in-progress"
+    }
+  ]
+}
+```
+
+**Validation Rules**
+
+- `OutcomeInstance.outcomeName` must match an Outcome.name in the resolved practice or method
+- Each OutcomeInstance must have a unique `name` within its containing array
 
 ## 13 Change Requests
 

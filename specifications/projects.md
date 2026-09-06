@@ -69,7 +69,7 @@ CommunicationChannel captures the team's preferred interaction points — the pl
 
 ## Main Content Sections
 
-The Project's content is divided into three sections: `plan`, `current`, and `target`.
+The Project's content is divided into three sections: `plan`, `current`, and `target`, supplemented by `cycles` for operational work tracking and `outcomes` for value measurement.
 
 ### Plan
 
@@ -127,6 +127,7 @@ A ProjectCycle extends ProjectStateSection (inheriting `alphaInstances`, `workPr
 - `startedAt` (optional) — ISO timestamp recording when the cycle began
 - `completedAt` (optional) — ISO timestamp recording when the cycle ended. Absent while the cycle is still active
 - `patternViewName` (optional) — symbolic link to a PatternView.name within the project plan's Pattern. Identifies which phase of the overarching plan this cycle is contributing to. Multiple cycles may reference the same pattern view (e.g. several sprints contributing to the same phase)
+- `outcomes` (optional) — array of OutcomeInstance objects tracking cycle-level value targets. May decompose project-level outcome instances into period-specific goals (e.g. sprint revenue targets, quarterly milestones)
 
 #### Relationship Between Sections
 
@@ -165,7 +166,11 @@ Both AlphaInstance and WorkProductInstance are extended with an optional `checkl
 
 - `checklistStates` — optional array of ChecklistState objects tracking the completion status of individual checklist items for this instance
 
-This co-locates checklist tracking with the instance it belongs to. These additions are optional and do not affect existing usage.
+WorkProductInstance is additionally extended with:
+
+- `metrics` — optional array of Metric objects capturing quantitative data extracted from the external document this work product instance proxies
+
+This co-locates checklist tracking with the instance it belongs to and metrics with the work product evidence chain. These additions are optional and do not affect existing usage.
 
 ## New Supporting Types
 
@@ -200,6 +205,35 @@ Note provides timestamped commentary for project tracking.
 Notes appear at multiple levels throughout the Project — at the top level, within `plan`, `current`, `target`, `team`, and on individual ChecklistState entries — providing a journal of observations, decisions, and rationale as the project progresses.
 
 **Tooling guidance:** Systems implementing this schema may automatically record Notes based on user interactions and state changes (e.g. when a checklist item is marked complete, when an alpha instance transitions state, or when team membership changes). Automated notes should be clearly distinguishable from user-authored notes — tooling may use a naming convention or additional metadata to indicate provenance.
+
+### OutcomeInstance
+
+OutcomeInstance is a project-level instantiation of a practice-defined Outcome. It sets a specific target and tracks achievement against the measurement framework inherited from the practice template.
+
+**Structure:**
+
+- `name` (required) — project-specific name for this outcome instance (e.g. "FY26 Cisco EMEA Revenue")
+- `outcomeName` (required) — symbolic link to the practice-defined Outcome template (must match Outcome.name). Inherits measureDescription, metricContributions, and objectiveContributions
+- `description` (optional) — project-specific context
+- `measure` (optional) — the specific target value (e.g. "1.5M GBP ACV", "MTTR under 4 hours"). Instantiates the practice's measureDescription with a concrete value
+- `status` (optional) — current achievement status: `"not-started"`, `"in-progress"`, `"achieved"`, `"missed"`, or `"deferred"`
+- `evidence` (optional) — ExternalLink referencing external evidence supporting the status
+- `notes` (optional) — array of Note objects tracking outcome progress
+
+OutcomeInstances appear at two levels:
+
+- **Project-level `outcomes`** — overall project value targets spanning the full project duration
+- **Cycle-level `outcomes`** — cycle-scoped targets that decompose project outcomes into period-specific goals
+
+### Metric
+
+Metric captures a named quantitative measurement on a work product instance. It brings structured numerical data from external documents (CRM records, financial reports, dashboards) into the project JSON for aggregation via outcome metric contributions.
+
+**Structure:**
+
+- `name` (required) — metric identifier matching the `metricName` in a practice-level MetricContribution (e.g. "acv", "users", "capacity")
+- `value` (required) — numeric value
+- `unit` (optional) — unit of measurement (e.g. "GBP", "USD", "hours"). Omit when unitless
 
 ## Root Discrimination
 
@@ -408,12 +442,39 @@ Scenario: Multiple cycles reference the same pattern view
   Then validation succeeds — multiple cycles may contribute to the same phase
 ```
 
+### Feature: Outcome instance validation (rules 15–16)
+
+```gherkin
+Scenario: OutcomeInstance references valid practice outcome
+  Given a project referencing a practice with Outcome "Account Revenue"
+  And the project has an OutcomeInstance with outcomeName "Account Revenue"
+  When the project is validated
+  Then validation succeeds for that outcome instance
+
+Scenario: OutcomeInstance references non-existent practice outcome
+  Given a project referencing a practice with Outcome "Account Revenue"
+  And the project has an OutcomeInstance with outcomeName "Unknown Outcome"
+  When the project is validated
+  Then a validation error is reported: outcomeName "Unknown Outcome" does not match any Outcome in the resolved practice or method
+
+Scenario: Cycle OutcomeInstance references valid practice outcome
+  Given a project referencing a practice with Outcome "Account Revenue"
+  And a cycle has an OutcomeInstance with outcomeName "Account Revenue"
+  When the project is validated
+  Then validation succeeds for the cycle outcome instance
+
+Scenario: WorkProductInstance metrics are structurally valid
+  Given a WorkProductInstance with metrics [{ "name": "acv", "value": 500000, "unit": "GBP" }]
+  When the project is validated
+  Then validation succeeds — metric structure is validated by JSON Schema
+```
+
 ## Open Questions
 
 None currently outstanding.
 
 ## Coverage Status
 
-- **Schema:** Complete — Project, ProjectCycle, ProjectStateSection, TeamEntry, TeamMember, CommunicationChannel, ChecklistState, Note defined in `language.schema.json`
+- **Schema:** Complete — Project, ProjectCycle, ProjectStateSection, TeamEntry, TeamMember, CommunicationChannel, ChecklistState, Note, OutcomeInstance, Metric defined in `language.schema.json`
 - **Semantics:** Covered in [`references/semantics.md` Section 12](../references/semantics.md#12-project-execution-tracking)
 - **Validation:** Not yet implemented — planned as `validate/validate-project.py`

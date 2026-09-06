@@ -40,6 +40,7 @@
    - 6.13 [Acknowledgement Merging](#613-acknowledgement-merging)
    - 6.14 [Reference Merging](#614-reference-merging)
    - 6.15 [PatternGroup Merging](#615-patterngroup-merging)
+   - 6.16 [Outcome Merging](#616-outcome-merging)
 7. [Post-Merge Finalization](#7-post-merge-finalization)
    - 7.1 [Binding Resolution](#71-binding-resolution)
    - 7.2 [Supporting Alpha Aggregation](#72-supporting-alpha-aggregation)
@@ -403,6 +404,21 @@ References merge by canonical name using the core record merge function. Same-na
 - **seq** (group ordering): overlay takes precedence, allowing extension practices to reorder groups contributed by earlier practices.
 
 PatternGroups with unique names from either the base or overlay are preserved as-is. A pattern name should appear in at most one PatternGroup; if the same pattern name appears in multiple groups after merge, tooling should warn and use the first occurrence.
+
+### 6.16 Outcome Merging
+
+**Outcomes** merge by canonical name using the standard named-element merge (Section 5.1). When two practices define an Outcome with the same canonical name:
+
+- **Description**: follows the baseline-preservation rule (Section 4.2).
+- **Tags**: union within each dimension (Section 4.4).
+- **Narratives**: merge additively by name (Section 6.8).
+- **measureDescription**: scalar, first-writer-wins (Section 4.3).
+- **metricContributions**: unioned by composite key (`alphaName` + `metricName`). When two contributions share the same alpha and metric, the overlay takes precedence for `recognizedAtStateName` and `forecastWeights`.
+- **objectiveContributions**: unioned by `recognizedAtPatternViewName`. When two contributions share the same view, the overlay's `forecastWeights` take precedence.
+
+Outcomes with unique names from either the base or overlay are preserved as-is.
+
+**Note:** OutcomeInstance (project-level) and Metric (on WorkProductInstance) do not participate in merge — they exist only in Project documents, which are not merge targets.
 
 ---
 
