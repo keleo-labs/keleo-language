@@ -1088,6 +1088,64 @@ class BaselineValidator:
                             })
                             break
 
+    def validate_outcomes(self) -> None:
+        """Validate baseline outcomes: count, measureDescription, no contribution arrays."""
+        outcomes = self.baseline.get('outcomes', [])
+
+        if not outcomes:
+            self.warnings.append({
+                "category": "outcomes",
+                "severity": "warning",
+                "path": "outcomes",
+                "issue": "Baseline has no outcomes — baselines should have 1-3 high-level value propositions",
+                "suggestion": "Add 1-3 outcomes with measureDescription (no metricContributions or objectiveContributions)"
+            })
+            return
+
+        if len(outcomes) > 5:
+            self.warnings.append({
+                "category": "outcomes",
+                "severity": "warning",
+                "path": "outcomes",
+                "issue": f"Baseline has {len(outcomes)} outcomes — baselines should have 1-3 (max 5)",
+                "suggestion": "Consolidate outcomes to high-level domain value propositions"
+            })
+
+        for idx, outcome in enumerate(outcomes):
+            opath = f"outcomes[{idx}]"
+            oname = outcome.get('name', f'<index {idx}>')
+
+            if not outcome.get('measureDescription'):
+                self.warnings.append({
+                    "category": "outcomes",
+                    "severity": "warning",
+                    "path": f"{opath}.measureDescription",
+                    "issue": f"Outcome '{oname}' has no measureDescription",
+                    "suggestion": "Add measureDescription explaining how success is measured at the domain level"
+                })
+
+            if outcome.get('metricContributions'):
+                self.errors.append({
+                    "category": "outcomes",
+                    "severity": "error",
+                    "path": f"{opath}.metricContributions",
+                    "issue": f"Baseline outcome '{oname}' has metricContributions — baselines use measureDescription only",
+                    "expected": "No metricContributions (extension practices add these)",
+                    "actual": f"{len(outcome['metricContributions'])} entries",
+                    "suggestion": "Remove metricContributions — baseline outcomes define measurement frameworks, extension practices bind to specific alphas"
+                })
+
+            if outcome.get('objectiveContributions'):
+                self.errors.append({
+                    "category": "outcomes",
+                    "severity": "error",
+                    "path": f"{opath}.objectiveContributions",
+                    "issue": f"Baseline outcome '{oname}' has objectiveContributions — baselines use measureDescription only",
+                    "expected": "No objectiveContributions (extension practices add these)",
+                    "actual": f"{len(outcome['objectiveContributions'])} entries",
+                    "suggestion": "Remove objectiveContributions — baseline outcomes define measurement frameworks, extension practices bind to specific patterns"
+                })
+
     def validate_universality(self) -> None:
         """Check for overly specific terminology (warnings only)"""
         # Patterns indicating vendor/tool-specific naming
@@ -1136,8 +1194,9 @@ class BaselineValidator:
         self.validate_version_constraints()
         schema_version_valid = self.validate_schema_version()
 
-        # PatternGroup governance, universality, and checklist quality are warnings only
+        # PatternGroup governance, outcomes, universality, and checklist quality are warnings only
         self.validate_pattern_groups()
+        self.validate_outcomes()
         self.validate_universality()
         self.validate_checklist_quality()
 

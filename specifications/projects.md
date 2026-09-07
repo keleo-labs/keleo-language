@@ -215,7 +215,9 @@ OutcomeInstance is a project-level instantiation of a practice-defined Outcome. 
 - `name` (required) — project-specific name for this outcome instance (e.g. "FY26 Cisco EMEA Revenue")
 - `outcomeName` (required) — symbolic link to the practice-defined Outcome template (must match Outcome.name). Inherits measureDescription, metricContributions, and objectiveContributions
 - `description` (optional) — project-specific context
-- `measure` (optional) — the specific target value (e.g. "1.5M GBP ACV", "MTTR under 4 hours"). Instantiates the practice's measureDescription with a concrete value
+- `measure` (optional) — the specific target as free text (e.g. "1.5M GBP ACV", "MTTR under 4 hours"). Instantiates the practice's measureDescription with a concrete value
+- `targetValue` (optional) — numeric target for comparison with the computed aggregate
+- `unit` (optional) — unit of `targetValue` (e.g. "GBP"); should match contributing metric units
 - `status` (optional) — current achievement status: `"not-started"`, `"in-progress"`, `"achieved"`, `"missed"`, or `"deferred"`
 - `evidence` (optional) — ExternalLink referencing external evidence supporting the status
 - `notes` (optional) — array of Note objects tracking outcome progress

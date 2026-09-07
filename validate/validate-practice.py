@@ -1255,7 +1255,8 @@ class PracticeValidator:
                 "integrity": sum(1 for e in self.errors if e['category'] == 'integrity'),
                 "acyclicity": sum(1 for e in self.errors if e['category'] == 'acyclicity'),
                 "bindings": sum(1 for e in self.errors if e['category'] == 'bindings'),
-                "semantic": sum(1 for w in self.warnings if w['category'] == 'semantic')
+                "semantic": sum(1 for w in self.warnings if w['category'] == 'semantic'),
+                "outcomes": sum(1 for e in self.errors if e['category'] == 'outcomes')
             }
         }
 
@@ -2146,6 +2147,266 @@ class PracticeValidator:
 
         return None
 
+    def validate_outcomes(self) -> bool:
+        """Validate outcomes array: cross-references, count, and measureDescription."""
+        has_errors = False
+        is_method = 'practices' in self.practice or 'baselinePractice' in self.practice
+        practices = self.practice.get('practices', [self.practice]) if is_method else [self.practice]
+
+        all_alphas = set()
+        all_alpha_states = defaultdict(set)
+        all_pattern_views = set()
+        all_pattern_names = set()
+        pattern_views_by_pattern = defaultdict(set)
+        wp_expected_metrics = defaultdict(set)
+        all_work_products = set()
+
+        for alpha in self.baseline.get('alphas', []):
+            all_alphas.add(alpha['name'])
+            for state in alpha.get('states', []):
+                all_alpha_states[alpha['name']].add(state['name'])
+        for wp in self.baseline.get('workProducts', []):
+            if wp.get('name'):
+                all_work_products.add(wp['name'])
+        for dep in self.dependencies:
+            for alpha in dep.get('alphas', []):
+                all_alphas.add(alpha['name'])
+                for state in alpha.get('states', []):
+                    all_alpha_states[alpha['name']].add(state['name'])
+            for wp in dep.get('workProducts', []):
+                if wp.get('name'):
+                    all_work_products.add(wp['name'])
+
+        for practice in practices:
+            pname = practice.get('name', '<unnamed>')
+            prefix = f"practice[{pname}]" if is_method else ""
+
+            for alpha in practice.get('alphas', []):
+                all_alphas.add(alpha['name'])
+                for state in alpha.get('states', []):
+                    all_alpha_states[alpha['name']].add(state['name'])
+
+            for wp in practice.get('workProducts', []):
+                wpname = wp.get('name')
+                if wpname:
+                    all_work_products.add(wpname)
+                    for em in wp.get('expectedMetrics', []):
+                        if em.get('name'):
+                            wp_expected_metrics[wpname].add(em['name'])
+
+            for pattern in practice.get('patterns', []):
+                pat_name = pattern.get('name', '')
+                if pat_name:
+                    all_pattern_names.add(pat_name)
+                for view in pattern.get('patternViews', []):
+                    vname = view.get('name')
+                    if vname:
+                        all_pattern_views.add(vname)
+                        if pat_name:
+                            pattern_views_by_pattern[pat_name].add(vname)
+
+            outcomes = practice.get('outcomes', [])
+            path_prefix = f"{prefix}.outcomes" if prefix else "outcomes"
+
+            if not outcomes:
+                self.warnings.append({
+                    "category": "outcomes",
+                    "path": path_prefix,
+                    "issue": f"Practice '{pname}' has no outcomes — practices should have 1-3 outcomes describing value delivery",
+                    "suggestion": "Add 1-3 outcomes with measureDescription"
+                })
+                continue
+
+            if len(outcomes) > 5:
+                self.warnings.append({
+                    "category": "outcomes",
+                    "path": path_prefix,
+                    "issue": f"Practice '{pname}' has {len(outcomes)} outcomes — practices should have 1-3 (max 5)",
+                    "suggestion": "Consolidate outcomes — they are value propositions, not activities"
+                })
+
+            for idx, outcome in enumerate(outcomes):
+                opath = f"{path_prefix}[{idx}]"
+                oname = outcome.get('name', f'<index {idx}>')
+
+                if not outcome.get('measureDescription'):
+                    self.warnings.append({
+                        "category": "outcomes",
+                        "path": f"{opath}.measureDescription",
+                        "issue": f"Outcome '{oname}' has no measureDescription",
+                        "suggestion": "Add measureDescription explaining how success is measured"
+                    })
+
+                has_metrics = bool(outcome.get('metricContributions'))
+                has_objectives = bool(outcome.get('objectiveContributions'))
+                if not has_metrics and not has_objectives:
+                    self.errors.append({
+                        "category": "outcomes",
+                        "severity": "error",
+                        "path": opath,
+                        "issue": f"Outcome '{oname}' has neither metricContributions nor objectiveContributions",
+                        "expected": "At least one of metricContributions or objectiveContributions",
+                        "actual": "Neither present",
+                        "suggestion": "Add metricContributions (for numerical aggregates like revenue) or objectiveContributions (for lifecycle phase completion)"
+                    })
+                    has_errors = True
+
+                for mc_idx, mc in enumerate(outcome.get('metricContributions', [])):
+                    mc_path = f"{opath}.metricContributions[{mc_idx}]"
+                    alpha_name = mc.get('alphaName', '')
+                    if alpha_name not in all_alphas:
+                        self.errors.append({
+                            "category": "outcomes",
+                            "path": f"{mc_path}.alphaName",
+                            "issue": f"Outcome '{oname}' metricContribution references unknown alpha '{alpha_name}'",
+                            "expected": f"One of: {sorted(all_alphas)[:10]}...",
+                            "actual": alpha_name,
+                            "suggestion": "Use an alpha name defined in baseline, practice, or dependencies"
+                        })
+                        has_errors = True
+                    wp_filter = mc.get('workProductName')
+                    if wp_filter and wp_filter not in all_work_products:
+                        self.errors.append({
+                            "category": "outcomes",
+                            "path": f"{mc_path}.workProductName",
+                            "issue": f"Outcome '{oname}' metricContribution references unknown work product '{wp_filter}'",
+                            "expected": f"One of: {sorted(all_work_products)[:10]}...",
+                            "actual": wp_filter,
+                            "suggestion": "Use a work product name defined in baseline, practice, or dependencies"
+                        })
+                        has_errors = True
+                    if alpha_name in all_alphas:
+                        recognized = mc.get('recognizedAtStateName')
+                        if recognized and recognized not in all_alpha_states.get(alpha_name, set()):
+                            self.errors.append({
+                                "category": "outcomes",
+                                "path": f"{mc_path}.recognizedAtStateName",
+                                "issue": f"Outcome '{oname}' recognizedAtStateName '{recognized}' not found on alpha '{alpha_name}'",
+                                "expected": f"One of: {sorted(all_alpha_states[alpha_name])}",
+                                "actual": recognized,
+                                "suggestion": "Use a state name defined on the referenced alpha"
+                            })
+                            has_errors = True
+
+                        fw_list = mc.get('forecastWeights', [])
+                        if recognized and fw_list:
+                            recognized_weights = [fw for fw in fw_list if fw.get('stateName') == recognized]
+                            if recognized_weights and recognized_weights[0].get('weight') != 1.0:
+                                self.warnings.append({
+                                    "category": "outcomes",
+                                    "severity": "warning",
+                                    "path": f"{mc_path}.forecastWeights",
+                                    "issue": f"Outcome '{oname}' recognizedAtStateName '{recognized}' does not have weight 1.0 in forecastWeights",
+                                    "expected": f"Weight 1.0 for '{recognized}'",
+                                    "actual": recognized_weights[0].get('weight'),
+                                    "suggestion": "The recognizedAt state should have weight 1.0 (full recognition)"
+                                })
+                            elif not recognized_weights:
+                                self.warnings.append({
+                                    "category": "outcomes",
+                                    "severity": "warning",
+                                    "path": f"{mc_path}.forecastWeights",
+                                    "issue": f"Outcome '{oname}' recognizedAtStateName '{recognized}' is not listed in forecastWeights",
+                                    "expected": f"Entry for '{recognized}' with weight 1.0",
+                                    "actual": "Not present in forecastWeights",
+                                    "suggestion": "Add a forecastWeight entry for the recognizedAt state with weight 1.0"
+                                })
+
+                        for fw_idx, fw in enumerate(fw_list):
+                            sname = fw.get('stateName', '')
+                            if sname not in all_alpha_states.get(alpha_name, set()):
+                                self.errors.append({
+                                    "category": "outcomes",
+                                    "path": f"{mc_path}.forecastWeights[{fw_idx}].stateName",
+                                    "issue": f"Outcome '{oname}' forecastWeight stateName '{sname}' not found on alpha '{alpha_name}'",
+                                    "expected": f"One of: {sorted(all_alpha_states[alpha_name])}",
+                                    "actual": sname,
+                                    "suggestion": "Use a state name defined on the referenced alpha"
+                                })
+                                has_errors = True
+
+                    metric_name = mc.get('metricName', '')
+                    if metric_name and wp_expected_metrics:
+                        declared_anywhere = any(
+                            metric_name in metrics
+                            for metrics in wp_expected_metrics.values()
+                        )
+                        if not declared_anywhere:
+                            self.warnings.append({
+                                "category": "outcomes",
+                                "path": f"{mc_path}.metricName",
+                                "issue": f"Outcome '{oname}' metricName '{metric_name}' not declared in any work product's expectedMetrics",
+                                "suggestion": f"Add an expectedMetrics entry with name '{metric_name}' to the work product whose instances will carry this metric"
+                            })
+
+                for oc_idx, oc in enumerate(outcome.get('objectiveContributions', [])):
+                    oc_path = f"{opath}.objectiveContributions[{oc_idx}]"
+                    oc_pattern = oc.get('patternName', '')
+                    if not oc_pattern:
+                        self.errors.append({
+                            "category": "outcomes",
+                            "path": f"{oc_path}.patternName",
+                            "issue": f"Outcome '{oname}' objectiveContribution missing required patternName",
+                            "expected": f"One of: {sorted(all_pattern_names)}" if all_pattern_names else "A pattern name",
+                            "actual": "(missing)",
+                            "suggestion": "Add patternName to scope pattern view references (analogous to alphaName on MetricContribution)"
+                        })
+                        has_errors = True
+                        scoped_views = all_pattern_views
+                    elif oc_pattern not in all_pattern_names:
+                        self.errors.append({
+                            "category": "outcomes",
+                            "path": f"{oc_path}.patternName",
+                            "issue": f"Outcome '{oname}' references unknown pattern '{oc_pattern}'",
+                            "expected": f"One of: {sorted(all_pattern_names)}",
+                            "actual": oc_pattern,
+                            "suggestion": "Use a Pattern.name defined in this practice"
+                        })
+                        has_errors = True
+                        scoped_views = all_pattern_views
+                    else:
+                        scoped_views = pattern_views_by_pattern.get(oc_pattern, set())
+
+                    recognized_view = oc.get('recognizedAtPatternViewName')
+                    if recognized_view and recognized_view not in scoped_views:
+                        self.errors.append({
+                            "category": "outcomes",
+                            "path": f"{oc_path}.recognizedAtPatternViewName",
+                            "issue": f"Outcome '{oname}' recognizedAtPatternViewName '{recognized_view}' not found in pattern '{oc_pattern}'",
+                            "expected": f"One of: {sorted(scoped_views)}" if scoped_views else "A pattern view name",
+                            "actual": recognized_view,
+                            "suggestion": f"Use a patternView name from pattern '{oc_pattern}'"
+                        })
+                        has_errors = True
+
+                    for fw_idx, fw in enumerate(oc.get('forecastWeights', [])):
+                        vname = fw.get('patternViewName', '')
+                        if vname not in scoped_views:
+                            self.errors.append({
+                                "category": "outcomes",
+                                "path": f"{oc_path}.forecastWeights[{fw_idx}].patternViewName",
+                                "issue": f"Outcome '{oname}' forecastWeight patternViewName '{vname}' not found in pattern '{oc_pattern}'",
+                                "expected": f"One of: {sorted(scoped_views)}" if scoped_views else "A pattern view name",
+                                "actual": vname,
+                                "suggestion": f"Use a patternView name from pattern '{oc_pattern}'"
+                            })
+                            has_errors = True
+
+            if all_pattern_names and outcomes:
+                has_objective = any(
+                    outcome.get('objectiveContributions')
+                    for outcome in outcomes
+                )
+                if not has_objective:
+                    self.warnings.append({
+                        "category": "outcomes",
+                        "path": path_prefix,
+                        "issue": f"Practice '{pname}' has lifecycle patterns but no outcome with objectiveContributions — at least one outcome should track adoption maturity via the main lifecycle pattern",
+                        "suggestion": "Add objectiveContributions to one outcome with patternName set to the main lifecycle pattern, recognizedAtPatternViewName to its final view, and monotonically increasing forecastWeights across views"
+                    })
+
+        return has_errors
+
     def validate_version_constraints(self) -> bool:
         """Validate dependencyVersions constraints.
 
@@ -2813,6 +3074,9 @@ def main():
 
     progress("Validating checklist quality...")
     validator.validate_checklist_quality()
+
+    progress("Validating outcomes...")
+    validator.validate_outcomes()
 
     progress("Validating version constraints...")
     validator.validate_version_constraints()
