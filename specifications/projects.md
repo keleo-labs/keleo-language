@@ -128,6 +128,30 @@ A ProjectCycle extends ProjectStateSection (inheriting `alphaInstances`, `workPr
 - `completedAt` (optional) — ISO timestamp recording when the cycle ended. Absent while the cycle is still active
 - `patternViewName` (optional) — symbolic link to a PatternView.name within the project plan's Pattern. Identifies which phase of the overarching plan this cycle is contributing to. Multiple cycles may reference the same pattern view (e.g. several sprints contributing to the same phase)
 - `outcomes` (optional) — array of OutcomeInstance objects tracking cycle-level value targets. May decompose project-level outcome instances into period-specific goals (e.g. sprint revenue targets, quarterly milestones)
+- `actions` (optional) — array of Action objects tracking the concrete tasks team members perform during this cycle
+
+#### Action
+
+An Action is a concrete, assigned, time-bound task within a project cycle. Actions bridge the gap between cycle objectives (what we're trying to achieve) and the team's day-to-day work (what each person is doing). They optionally trace back to a practice-defined Activity for methodology context, without requiring a full template-instance pattern.
+
+**Structure:**
+
+- `name` (required) — action title, unique within the parent cycle
+- `description` (optional) — what needs to be done
+- `activityName` (optional) — symbolic link to an Activity.name in the resolved practice or method scope, providing methodology traceability
+- `assignedTo` (optional) — array of strings, symbolic links to TeamMember.name values in the project's team
+- `status` (optional) — current status: `"not-started"`, `"in-progress"`, `"done"`, `"blocked"`, or `"deferred"`
+- `dueAt` (optional) — ISO timestamp target completion date
+- `completedAt` (optional) — ISO timestamp recording when the action was completed; absent while open
+- `advancesAlphaInstances` (optional) — array of strings, symbolic links to AlphaInstance.name values identifying the alpha-state objectives this action advances
+- `developsWorkProductInstances` (optional) — array of strings, symbolic links to WorkProductInstance.name values identifying the work product objectives this action develops
+- `outcomeInstanceNames` (optional) — array of strings, symbolic links to OutcomeInstance.name values at the project or cycle level
+- `evidence` (optional) — ExternalLink referencing the deliverable or supporting evidence
+- `notes` (optional) — array of Note objects for timestamped commentary, updates, or blocker descriptions
+
+**Relationship to Activity (practice-level):**
+
+An Action is NOT an ActivityInstance. Activities are practice-level methodology constructs defining swimlanes of work with structural contributions (`contributesTo`, `worksOn`). Actions are project-level operational tasks — specific, concrete, and assigned to individuals. The optional `activityName` provides a traceability link to the methodology without coupling the two.
 
 #### Relationship Between Sections
 
@@ -471,12 +495,86 @@ Scenario: WorkProductInstance metrics are structurally valid
   Then validation succeeds — metric structure is validated by JSON Schema
 ```
 
+### Feature: Action validation (rules 17–22)
+
+```gherkin
+Scenario: Unique action names within a cycle
+  Given a cycle with actions named "Set up CI/CD", "Write architecture ADR", "Deploy staging"
+  When the project is validated
+  Then validation succeeds for action name uniqueness
+
+Scenario: Duplicate action names within a cycle
+  Given a cycle with two actions both named "Deploy staging"
+  When the project is validated
+  Then a validation error is reported: duplicate action name "Deploy staging" in cycle
+
+Scenario: Action activityName references valid activity
+  Given the resolved practice scope defines an Activity named "Provision Infrastructure"
+  And a cycle action with activityName "Provision Infrastructure"
+  When the project is validated
+  Then validation succeeds for that action's activityName
+
+Scenario: Action activityName references non-existent activity
+  Given the resolved practice scope does not define an Activity named "Unknown Activity"
+  And a cycle action with activityName "Unknown Activity"
+  When the project is validated
+  Then a validation error is reported: activityName "Unknown Activity" does not match any Activity in scope
+
+Scenario: Action assignedTo references valid team member
+  Given a project team with members named "Alice Chen", "Bob Smith"
+  And a cycle action with assignedTo ["Alice Chen"]
+  When the project is validated
+  Then validation succeeds for that action's assignedTo
+
+Scenario: Action assignedTo references non-existent team member
+  Given a project team with members named "Alice Chen", "Bob Smith"
+  And a cycle action with assignedTo ["Charlie Unknown"]
+  When the project is validated
+  Then a validation error is reported: assignedTo "Charlie Unknown" does not match any TeamMember in the project team
+
+Scenario: Action advancesAlphaInstances references declared instance name
+  Given a plan Pattern declaring alphaInstanceNames including "Core Platform"
+  And a cycle action with advancesAlphaInstances ["Core Platform"]
+  When the project is validated
+  Then validation succeeds for that action's advancesAlphaInstances
+
+Scenario: Action advancesAlphaInstances references undeclared instance name
+  Given a plan Pattern with no alphaInstanceName "Phantom Platform"
+  And a cycle action with advancesAlphaInstances ["Phantom Platform"]
+  When the project is validated
+  Then a validation error is reported: advancesAlphaInstances references undeclared alpha instance name "Phantom Platform"
+
+Scenario: Action developsWorkProductInstances references declared instance name
+  Given a plan Pattern declaring workProductInstanceNames including "Architecture Doc"
+  And a cycle action with developsWorkProductInstances ["Architecture Doc"]
+  When the project is validated
+  Then validation succeeds for that action's developsWorkProductInstances
+
+Scenario: Action developsWorkProductInstances references undeclared instance name
+  Given a plan Pattern with no workProductInstanceName "Ghost Document"
+  And a cycle action with developsWorkProductInstances ["Ghost Document"]
+  When the project is validated
+  Then a validation error is reported: developsWorkProductInstances references undeclared work product instance name "Ghost Document"
+
+Scenario: Action outcomeInstanceNames references valid outcome instance
+  Given a project with OutcomeInstance named "FY26 Revenue"
+  And a cycle action with outcomeInstanceNames ["FY26 Revenue"]
+  When the project is validated
+  Then validation succeeds for that action's outcomeInstanceNames
+
+Scenario: Action outcomeInstanceNames references non-existent outcome instance
+  Given a project with no OutcomeInstance named "Unknown Outcome"
+  And a cycle action with outcomeInstanceNames ["Unknown Outcome"]
+  When the project is validated
+  Then a validation error is reported: outcomeInstanceNames "Unknown Outcome" does not match any OutcomeInstance at project or cycle level
+```
+
 ## Open Questions
 
 None currently outstanding.
 
 ## Coverage Status
 
-- **Schema:** Complete — Project, ProjectCycle, ProjectStateSection, TeamEntry, TeamMember, CommunicationChannel, ChecklistState, Note, OutcomeInstance, Metric defined in `language.schema.json`
+- **Schema:** Complete — Project, ProjectCycle, ProjectStateSection, TeamEntry, TeamMember, CommunicationChannel, ChecklistState, Note, OutcomeInstance, Metric, Action defined in `language.schema.json`
 - **Semantics:** Covered in [`references/semantics.md` Section 12](../references/semantics.md#12-project-execution-tracking)
 - **Validation:** Not yet implemented — planned as `validate/validate-project.py`

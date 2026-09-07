@@ -275,6 +275,120 @@ class ProjectValidator:
 
         return not has_errors
 
+    def validate_actions(self) -> bool:
+        has_errors = False
+
+        team_member_names = set()
+        team = self.project.get('team', {})
+        for member in team.get('members', []):
+            mname = member.get('name')
+            if mname:
+                team_member_names.add(mname)
+
+        plan = self.project.get('plan', {})
+        pattern = plan.get('pattern', {})
+        declared_alpha_names = set()
+        for ain in pattern.get('alphaInstanceNames', []):
+            n = ain.get('name')
+            if n:
+                declared_alpha_names.add(n)
+        declared_wp_names = set()
+        for win in pattern.get('workProductInstanceNames', []):
+            n = win.get('name')
+            if n:
+                declared_wp_names.add(n)
+
+        project_outcome_names = set()
+        for oi in self.project.get('outcomes', []):
+            n = oi.get('name')
+            if n:
+                project_outcome_names.add(n)
+
+        for idx, cycle in enumerate(self.project.get('cycles', [])):
+            cycle_name = cycle.get('name', f'[{idx}]')
+            actions = cycle.get('actions', [])
+            if not actions:
+                continue
+
+            cycle_outcome_names = set()
+            for oi in cycle.get('outcomes', []):
+                n = oi.get('name')
+                if n:
+                    cycle_outcome_names.add(n)
+            all_outcome_names = project_outcome_names | cycle_outcome_names
+
+            action_names = set()
+            for aidx, action in enumerate(actions):
+                action_name = action.get('name', '')
+                path = f"cycles[{idx}].actions[{aidx}]"
+
+                if action_name in action_names:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{path}.name",
+                        "issue": f"Duplicate action name '{action_name}' in cycle '{cycle_name}'",
+                        "expected": "Unique action names within a cycle",
+                        "actual": action_name,
+                        "suggestion": "Rename this action to be unique within the cycle"
+                    })
+                    has_errors = True
+                action_names.add(action_name)
+
+                for assigned in action.get('assignedTo', []):
+                    if assigned not in team_member_names:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{path}.assignedTo",
+                            "issue": f"assignedTo '{assigned}' does not match any TeamMember in the project team",
+                            "expected": f"One of: {sorted(team_member_names)}" if team_member_names else "Define team members first",
+                            "actual": assigned,
+                            "suggestion": "Use a name that matches a TeamMember in the project's team"
+                        })
+                        has_errors = True
+
+                for ai_name in action.get('advancesAlphaInstances', []):
+                    if declared_alpha_names and ai_name not in declared_alpha_names:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{path}.advancesAlphaInstances",
+                            "issue": f"advancesAlphaInstances references undeclared alpha instance name '{ai_name}'",
+                            "expected": f"One of: {sorted(declared_alpha_names)}",
+                            "actual": ai_name,
+                            "suggestion": "Use an alpha instance name declared in plan.pattern.alphaInstanceNames"
+                        })
+                        has_errors = True
+
+                for wp_name in action.get('developsWorkProductInstances', []):
+                    if declared_wp_names and wp_name not in declared_wp_names:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{path}.developsWorkProductInstances",
+                            "issue": f"developsWorkProductInstances references undeclared work product instance name '{wp_name}'",
+                            "expected": f"One of: {sorted(declared_wp_names)}",
+                            "actual": wp_name,
+                            "suggestion": "Use a work product instance name declared in plan.pattern.workProductInstanceNames"
+                        })
+                        has_errors = True
+
+                for oi_name in action.get('outcomeInstanceNames', []):
+                    if oi_name not in all_outcome_names:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{path}.outcomeInstanceNames",
+                            "issue": f"outcomeInstanceNames '{oi_name}' does not match any OutcomeInstance at project or cycle level",
+                            "expected": f"One of: {sorted(all_outcome_names)}" if all_outcome_names else "Define outcome instances first",
+                            "actual": oi_name,
+                            "suggestion": "Use an OutcomeInstance name from the project or cycle outcomes"
+                        })
+                        has_errors = True
+
+        return not has_errors
+
     def validate_schema_version(self) -> bool:
         schema_comment = self.schema.get('$comment', '')
         if schema_comment.startswith('schemaVersion:'):
@@ -361,6 +475,9 @@ def main():
 
     progress("Validating pattern view references...")
     validator.validate_pattern_view_references()
+
+    progress("Validating actions...")
+    validator.validate_actions()
 
     progress("Validating instance consistency...")
     validator.validate_instance_consistency()

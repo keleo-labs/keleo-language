@@ -419,7 +419,7 @@ PatternGroups with unique names from either the base or overlay are preserved as
 
 Outcomes with unique names from either the base or overlay are preserved as-is.
 
-**Note:** OutcomeInstance (project-level) and Metric (on WorkProductInstance) do not participate in merge — they exist only in Project documents, which are not merge targets.
+**Note:** OutcomeInstance (project-level), Metric (on WorkProductInstance), and Action (on ProjectCycle) do not participate in merge — they exist only in Project documents, which are not merge targets.
 
 ---
 

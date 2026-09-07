@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/language.schema.json",
-  "$comment": "schemaVersion:2.8.0",
+  "$comment": "schemaVersion:2.9.0",
   "title": "Practice language (from language.mmd)",
   "description": "JSON Schema derived from the Mermaid classDiagram in language.mmd. Identity is by name; most cross-links are string names (not embedded objects). Root validation discriminates Practice vs Method vs PracticeBaseline. Method can use embedded objects (baselinePractice + practices) or string references (baselinePracticeName + practiceNames) or a mix.",
   "$defs": {
@@ -2405,6 +2405,68 @@
       },
       "additionalProperties": false
     },
+    "Action": {
+      "type": "object",
+      "description": "A concrete, assigned, time-bound task within a project cycle. Tracks work team members perform to advance cycle objectives and outcomes. Optionally traces back to a practice-defined Activity for methodology context.",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Action title, unique within the parent cycle."
+        },
+        "description": {
+          "type": "string",
+          "description": "What needs to be done."
+        },
+        "activityName": {
+          "type": "string",
+          "description": "Symbolic link to an Activity.name in the resolved practice or method scope. Provides methodology traceability without requiring a full template-instance pattern."
+        },
+        "assignedTo": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Symbolic links to TeamMember.name values in the project's team. Identifies the people responsible for this action."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["not-started", "in-progress", "done", "blocked", "deferred"],
+          "description": "Current status of the action."
+        },
+        "dueAt": {
+          "type": "string",
+          "description": "ISO timestamp target completion date."
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "ISO timestamp recording when this action was completed. Absent while the action is still open."
+        },
+        "advancesAlphaInstances": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Symbolic links to AlphaInstance.name values — the alpha-state objectives this action advances."
+        },
+        "developsWorkProductInstances": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Symbolic links to WorkProductInstance.name values — the work product objectives this action develops."
+        },
+        "outcomeInstanceNames": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Symbolic links to OutcomeInstance.name values at the project or cycle level — direct outcome linkage."
+        },
+        "evidence": {
+          "$ref": "#/$defs/ExternalLink",
+          "description": "Optional reference to the deliverable or supporting evidence for this action."
+        },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Note" },
+          "description": "Timestamped commentary, updates, or blocker descriptions."
+        }
+      },
+      "additionalProperties": false
+    },
     "CommunicationChannel": {
       "type": "object",
       "description": "A team's preferred interaction point — the place other people should go to find or reach the team.",
@@ -2579,6 +2641,11 @@
               "type": "array",
               "items": { "$ref": "#/$defs/OutcomeInstance" },
               "description": "Cycle-level value targets. May decompose project-level outcome instances into sprint-sized targets."
+            },
+            "actions": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Action" },
+              "description": "Concrete tasks team members perform during this cycle. Each action may trace to objectives, outcomes, and practice-defined activities."
             }
           }
         }

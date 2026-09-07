@@ -3777,6 +3777,123 @@ A consuming system resolves outcome values by following the practice template's 
 - `OutcomeInstance.outcomeName` must match an Outcome.name in the resolved practice or method
 - Each OutcomeInstance must have a unique `name` within its containing array
 
+### 12.9 Actions and Team Work Tracking
+
+The `actions` array on ProjectCycle tracks the concrete, assigned, time-bound tasks that team members perform during a cycle. While cycle objectives (alpha instances, work product instances) answer *what we're trying to achieve*, and outcomes answer *what value we expect to deliver*, actions answer *what each person is doing* to get there.
+
+**Relationship to Activity (Practice-Level)**
+
+An Action is NOT an ActivityInstance. The schema deliberately avoids the template-instance pattern used for Alphas and WorkProducts:
+
+- An **Activity** is a practice-level methodology construct — a swimlane defining a type of work with structural contributions (`contributesTo`, `worksOn`), competency requirements, and persona involvement. Activities exist in the methodology definition and do not change per project.
+- An **Action** is a project-level operational task — specific ("Deploy staging environment"), assigned to individuals ("Alice Chen"), time-bound ("due 2026-08-08"), and tracked through a status lifecycle. Actions exist only in project cycles.
+
+The optional `activityName` property on Action provides methodology traceability — linking a concrete task back to the practice-defined activity it falls under — without coupling the two. Many actions will have no `activityName` at all, particularly ad-hoc tasks that arise during execution.
+
+**Symbolic Link Resolution**
+
+- `activityName` → Activity.name in the resolved practice or method scope
+- `assignedTo[]` → TeamMember.name in the project's `team.members` array
+- `advancesAlphaInstances[]` → AlphaInstance.name declared in the plan's `alphaInstanceNames` array
+- `developsWorkProductInstances[]` → WorkProductInstance.name declared in the plan's `workProductInstanceNames` array
+- `outcomeInstanceNames[]` → OutcomeInstance.name at either the project level or the same cycle level
+
+**Status Lifecycle**
+
+| Status | Meaning |
+|---|---|
+| `not-started` | Action created but work has not begun |
+| `in-progress` | Work is actively being done |
+| `done` | Work is complete; `completedAt` should be set |
+| `blocked` | Work cannot proceed due to an impediment; use `notes` to capture the blocker |
+| `deferred` | Work has been postponed; may be moved to a future cycle |
+
+**Timestamps**
+
+`dueAt` and `completedAt` follow the same ISO timestamp convention as cycle `startedAt`/`completedAt`. `dueAt` records the target completion date; `completedAt` records when the action was actually completed. Both are optional — lightweight tracking may omit dates entirely.
+
+**Uniqueness**
+
+Action `name` must be unique within its parent cycle. The same action name may appear in different cycles (e.g., a recurring action across sprints).
+
+**Traceability Chain**
+
+Actions connect team members to objectives and outcomes through multiple paths:
+
+1. **Action → Objective**: `advancesAlphaInstances` and `developsWorkProductInstances` link directly to the cycle's alpha and work product objectives
+2. **Action → Outcome**: `outcomeInstanceNames` links directly to outcome instances for actions that contribute to value measurement (e.g., updating CRM metrics)
+3. **Action → Methodology**: `activityName` traces back to the practice-defined Activity, inheriting its contribution context (`contributesTo`, `worksOn`)
+4. **Action → People**: `assignedTo` identifies the team members responsible
+
+**Example**
+
+```json
+{
+  "name": "Sprint 3",
+  "description": "Platform provisioning and initial deployment",
+  "patternViewName": "Build",
+  "startedAt": "2026-08-01T00:00:00Z",
+  "alphaInstances": [
+    {
+      "name": "Core Platform",
+      "alphaName": "Platform",
+      "stateName": "Provisioned"
+    }
+  ],
+  "workProductInstances": [
+    {
+      "name": "Infra Runbook",
+      "workProductName": "Runbook",
+      "levelOfDetailName": "Drafted"
+    }
+  ],
+  "actions": [
+    {
+      "name": "Deploy staging environment",
+      "description": "Provision staging cluster and configure CI/CD pipeline",
+      "activityName": "Provision Infrastructure",
+      "assignedTo": ["Alice Chen"],
+      "status": "in-progress",
+      "dueAt": "2026-08-08T00:00:00Z",
+      "advancesAlphaInstances": ["Core Platform"],
+      "developsWorkProductInstances": ["Infra Runbook"]
+    },
+    {
+      "name": "Review security compliance checklist",
+      "assignedTo": ["Bob Smith"],
+      "status": "not-started",
+      "dueAt": "2026-08-10T00:00:00Z",
+      "advancesAlphaInstances": ["Core Platform"]
+    },
+    {
+      "name": "Update CRM with Q3 pipeline figures",
+      "assignedTo": ["Carol Davis"],
+      "status": "done",
+      "completedAt": "2026-08-05T00:00:00Z",
+      "outcomeInstanceNames": ["Q3 Revenue Target"]
+    }
+  ]
+}
+```
+
+In this example, Sprint 3 has three actions: Alice is provisioning the staging environment (advancing the Core Platform objective and developing the Infra Runbook), Bob will review the security checklist (also advancing Core Platform), and Carol has already updated the CRM figures (contributing directly to the Q3 Revenue Target outcome).
+
+**Tooling Guidance**
+
+- When displaying a cycle, group actions by `assignedTo` to show each team member's workload
+- When closing a cycle, tooling may flag actions still in `not-started` or `in-progress` status for carry-over to the next cycle
+- Actions with status `blocked` should be surfaced prominently — they represent impediments to cycle objectives
+- When an action references both `advancesAlphaInstances` and `activityName`, tooling can validate consistency between the action's stated objectives and the Activity's structural `contributesTo` declarations
+
+**Validation Rules**
+
+- Each Action must have a unique `name` within its parent cycle
+- `assignedTo` entries must match a TeamMember.name in the project's team
+- `advancesAlphaInstances` entries must match an AlphaInstanceName.name declared in the plan pattern
+- `developsWorkProductInstances` entries must match a WorkProductInstanceName.name declared in the plan pattern
+- `outcomeInstanceNames` entries must match an OutcomeInstance.name at the project or cycle level
+- `activityName` must match an Activity.name in the resolved practice or method scope (requires resolved scope; same limitation as TeamMember.personaName validation)
+
 ## 13 Change Requests
 
 The ChangeRequest type provides a pull-request-like mechanism for proposing, reviewing, and applying changes to Practice Language documents (baselines, practices, and methods). It enables structured change management across the practice lifecycle — from initial proposal through review to acceptance or rejection.
