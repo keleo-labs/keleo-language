@@ -300,6 +300,7 @@ Work products merge by canonical name. When two work products share the same nam
   - Results are sorted by `seq` value.
 - **`partOf`** merges as a scalar: the first non-empty value (from the kernel or earliest overlay) wins.
 - **`mapsTo`**: The first non-empty value wins (base priority). Mutually exclusive with `partOf`.
+- **`expectedMetrics`**: unioned by canonical `name`. Overlay description/unit take precedence when the same name appears on both sides.
 - **`variants`**: Populated during post-merge finalization (see Section 7.2b).
 
 ### 6.5 Pattern and PatternView Merging
@@ -413,8 +414,8 @@ PatternGroups with unique names from either the base or overlay are preserved as
 - **Tags**: union within each dimension (Section 4.4).
 - **Narratives**: merge additively by name (Section 6.8).
 - **measureDescription**: scalar, first-writer-wins (Section 4.3).
-- **metricContributions**: unioned by composite key (`alphaName` + `metricName`). When two contributions share the same alpha and metric, the overlay takes precedence for `recognizedAtStateName` and `forecastWeights`.
-- **objectiveContributions**: unioned by `recognizedAtPatternViewName`. When two contributions share the same view, the overlay's `forecastWeights` take precedence.
+- **metricContributions**: unioned by composite key (`alphaName` + `metricName` + `workProductName` or empty). When two contributions share the same key, the overlay takes precedence for `recognizedAtStateName` and `forecastWeights`.
+- **objectiveContributions**: unioned by composite key (`patternName` + `recognizedAtPatternViewName`). When two contributions share the same pattern and view, the overlay's `forecastWeights` take precedence.
 
 Outcomes with unique names from either the base or overlay are preserved as-is.
 

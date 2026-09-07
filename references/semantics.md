@@ -2437,12 +2437,18 @@ A CRM opportunity record tracked as a work product instance:
 }
 ```
 
+**Declared metrics on the WorkProduct template**
+
+A WorkProduct may declare `expectedMetrics` — `{name, description, unit?}` templates for the quantitative fields its instances may carry. Practices use this so authors and collecting systems know which metric names belong on instances of that artifact (e.g. an Initiative Card carries `acv`). Outcome `MetricContribution.metricName` values should match an expected metric on the work product that supplies the value.
+
 **Authoring Guidance**
 
 - Metric names should be short, lowercase identifiers that match the `metricName` in practice-level MetricContributions
+- Declare `expectedMetrics` on the WorkProduct that is the source of truth for each metric; do not leave metric names only on Outcome contributions
 - Not all work product instances need metrics — only those that contribute quantitative data to outcomes
 - Units should be consistent across all instances contributing to the same outcome
 - Metrics are point-in-time values; update them as external documents change
+- Store the canonical metric on `current.workProductInstances`. `evidenceBy` snapshots on alpha instances may omit `metrics`; consuming systems join by instance name.
 
 ### 7.5 Work Product Composition (`partOf`)
 
@@ -2942,14 +2948,16 @@ An Outcome extends PracticeElement and operates as a template. Practices declare
 Outcomes support two distinct measurement mechanisms that operate on different underlying concepts:
 
 **Metric Contributions** — aggregate numerical values through the alpha → work product → metrics evidence chain. A MetricContribution declares:
-- Which alpha's instances to follow (`alphaName`)
+- Which alpha's instances to follow (`alphaName`); `mapsTo` variants of that alpha also contribute
 - Which metric to extract from their evidencing work product instances (`metricName`)
+- Optionally which work product type carries the metric (`workProductName`); when omitted, any evidencing work product with that metric name contributes
 - At which alpha state the metric is fully recognized (`recognizedAtStateName`)
 - State-level probability weights for forecast calculation (`forecastWeights`)
 
-The evidentiary chain is: alpha instances of the named alpha → their `evidenceBy` work product instances → extract the named metric → apply recognition/weighting rules based on the alpha instance's current state.
+The evidentiary chain is specified in Section 12.8. Rates (percentages, ratios) should be stored as an already-computed value on one work product instance — do not ask the engine to average or otherwise reduce deal-level metrics into a rate.
 
 **Objective Contributions** — compute percentage progress from pattern view completion. An ObjectiveContribution declares:
+- Which pattern's views are used to measure progress (`patternName`)
 - At which pattern view the outcome is fully achieved (`recognizedAtPatternViewName`)
 - View-level weights for cumulative progress calculation (`forecastWeights`)
 
@@ -2971,7 +2979,10 @@ Forecast weights enable systems to compute weighted projections before full reco
 - Use objective contributions when the outcome's progress maps to lifecycle phase completion (readiness, maturity, compliance)
 - The `measureDescription` should explain the measurement framework clearly enough for project teams to set meaningful targets
 - Metric names in MetricContributions must match the `name` field on Metric objects in work product instances (see Section 7.4)
+- When `workProductName` is set, it must match a WorkProduct.name in the practice or its dependencies
+- Declare `expectedMetrics` on the work product that supplies each `metricName`
 - State and view names in contributions are symbolic links and must match names within the referenced alphas and patterns
+- Default project cardinality is **one OutcomeInstance per Outcome template**; do not instantiate one outcome per contributing alpha instance
 
 #### Example: Practice with Both Outcome Types
 
@@ -3002,6 +3013,7 @@ Forecast weights enable systems to compute weighted projections before full reco
       "measureDescription": "Percentage of lifecycle milestones achieved.",
       "objectiveContributions": [
         {
+          "patternName": "Strategic Account Lifecycle",
           "recognizedAtPatternViewName": "Realize Value",
           "forecastWeights": [
             { "patternViewName": "Know Your Customer", "weight": 0.15 },
@@ -3019,10 +3031,12 @@ Forecast weights enable systems to compute weighted projections before full reco
 #### Validation Rules
 
 - `MetricContribution.alphaName` must match an Alpha.name in the practice or its dependencies
+- `MetricContribution.workProductName`, when present, must match a WorkProduct.name in the practice or its dependencies
 - `MetricContribution.recognizedAtStateName` must match a State.name within the named alpha
 - `MetricContribution.forecastWeights[].stateName` must match a State.name within the named alpha
-- `ObjectiveContribution.recognizedAtPatternViewName` must match a PatternView.name in a practice pattern
-- `ObjectiveContribution.forecastWeights[].patternViewName` must match a PatternView.name in a practice pattern
+- `ObjectiveContribution.patternName` must match a Pattern.name in the practice or its dependencies
+- `ObjectiveContribution.recognizedAtPatternViewName` must match a PatternView.name within the named pattern
+- `ObjectiveContribution.forecastWeights[].patternViewName` must match a PatternView.name within the named pattern
 
 ## 10 Narrative Management
 
@@ -3695,33 +3709,41 @@ The measurement rules (which alphas, metrics, states, views contribute and at wh
 An OutcomeInstance has:
 - `name` — project-specific name (e.g., "FY26 Cisco EMEA Revenue")
 - `outcomeName` — symbolic link to the practice-defined Outcome template
-- `measure` — the specific target value (e.g., "1.5M GBP ACV", "75% lifecycle completion")
+- `measure` — the specific target as free text (e.g., "1.5M GBP ACV", "75% lifecycle completion")
+- `targetValue` — optional numeric target for comparison with the computed aggregate
+- `unit` — optional unit of `targetValue` (should match contributing metric units)
 - `status` — current achievement: `not-started`, `in-progress`, `achieved`, `missed`, or `deferred`
 - `evidence` — optional ExternalLink to supporting evidence
 - `notes` — optional timestamped progress notes
+
+The computed aggregate is **derived at read time** and is not stored on the OutcomeInstance. `status` is author-set; tooling does not infer it from computed vs `targetValue`.
 
 **Placement**
 
 OutcomeInstances appear in two locations:
 
-- **Project-level `outcomes`** — overall project value targets spanning the full project duration
+- **Project-level `outcomes`** — overall project value targets spanning the full project duration. Default: one instance per practice Outcome template (rename freely; do not create one instance per contributing alpha).
 - **Cycle-level `outcomes`** — cycle-scoped targets that decompose project outcomes into period-specific goals (e.g., sprint revenue targets, quarterly milestones)
 
 **Value Computation**
 
-A consuming system resolves outcome values by following the practice template's contribution chain:
+A consuming system resolves outcome values by following the practice template's contribution chain. Computed values are not persisted on the OutcomeInstance.
 
 *For metric outcomes:*
 1. Resolve `outcomeName` → Outcome template → `metricContributions`
-2. For each MetricContribution, find all alpha instances matching `alphaName`
-3. For each alpha instance, look up its current state's forecast weight
-4. Follow `evidenceBy` to work product instances and extract the named metric value
-5. Multiply metric value × state weight, then aggregate across all contributing instances
+2. For each MetricContribution, find **current** alpha instances (`current.alphaInstances` only — not `target` or cycles) whose `alphaName` matches, **or** whose alpha `mapsTo` that name. Do not include `contributesTo` children unless they also match.
+3. For each matching alpha instance, look up the forecast weight for its `stateName`. States not listed in `forecastWeights` have weight 0. When `forecastWeights` is omitted and `recognizedAtStateName` is set, that state has weight 1.0 and all others 0.
+4. Resolve evidencing work products: take `evidenceBy` entries, **join by instance `name`** to `current.workProductInstances` (canonical metric store — do not rely on metrics embedded in the `evidenceBy` snapshot). Also include **`partOf` children** of those roots (composition roots often sit on `evidenceBy` while the metric lives on a child). Dedupe by work-product instance name within that alpha instance.
+5. If `workProductName` is set, keep only instances of that work product type.
+6. Extract `metrics[]` entries whose `name` matches `metricName`. Skip an instance with no matching metric (do not treat missing as 0).
+7. Multiply each metric `value` × the alpha instance's state weight.
+8. **Sum** those weighted values. Repeat for each MetricContribution on the Outcome and sum the contribution totals.
+9. All contributing metrics must share a single `unit`. Mixed units: do not report a number; surface a warning.
 
 *For objective outcomes:*
 1. Resolve `outcomeName` → Outcome template → `objectiveContributions`
-2. For each ObjectiveContribution, determine the highest completed pattern view
-3. Apply that view's forecast weight as the percentage progress
+2. For each ObjectiveContribution, resolve `patternName` to the named pattern and determine the highest **completed** pattern view within it (all alpha-state and work-product objectives for that view are met on `current`)
+3. Apply that view's forecast weight as the percentage progress (0–1). Views not listed have implicit weight 0.
 
 **Example**
 
