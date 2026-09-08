@@ -1749,6 +1749,168 @@ class PracticeValidator:
 
         return not has_errors
 
+    def _collect_instance_names(self, practice: Dict) -> Tuple[set, set]:
+        alphas: set = set()
+        wps: set = set()
+
+        def _add(container, key, bucket):
+            for inst in container.get(key) or []:
+                if not isinstance(inst, dict):
+                    continue
+                n = inst.get("name") or inst.get("instanceName")
+                if n:
+                    bucket.add(n)
+
+        _add(practice, "alphaInstances", alphas)
+        _add(practice, "workProductInstances", wps)
+        for pattern in practice.get("patterns") or []:
+            if not isinstance(pattern, dict):
+                continue
+            _add(pattern, "alphaInstanceNames", alphas)
+            _add(pattern, "workProductInstanceNames", wps)
+            for view in pattern.get("patternViews") or []:
+                if not isinstance(view, dict):
+                    continue
+                _add(view, "alphaInstances", alphas)
+                _add(view, "workProductInstances", wps)
+        _add(practice, "references", alphas)
+        return alphas, wps
+
+    def _validate_instance_relates_to(
+        self,
+        owner: Dict,
+        owner_name: Optional[str],
+        path: str,
+        declared_alphas: set,
+        declared_wps: set,
+    ) -> bool:
+        has_errors = False
+        owner_name = (owner_name or "").strip()
+        for idx, rel in enumerate(owner.get("relatesTo") or []):
+            if not isinstance(rel, dict):
+                continue
+            rpath = f"{path}.relatesTo[{idx}]"
+            alpha = str(rel.get("alphaInstanceName") or "").strip()
+            wp = str(rel.get("workProductInstanceName") or "").strip()
+            if bool(alpha) == bool(wp):
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": rpath,
+                    "issue": "relatesTo must have exactly one of alphaInstanceName or workProductInstanceName",
+                    "expected": "Exactly one target name field",
+                    "actual": {
+                        "alphaInstanceName": alpha or None,
+                        "workProductInstanceName": wp or None,
+                    },
+                    "suggestion": "Set alphaInstanceName for a concern instance or workProductInstanceName for a work-product instance, not both or neither",
+                })
+                has_errors = True
+                continue
+            target = alpha or wp
+            if owner_name and target == owner_name:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": rpath,
+                    "issue": "relatesTo must not reference the declaring instance",
+                    "expected": "A different named instance in this document",
+                    "actual": target,
+                    "suggestion": "Remove the self-link or point at another instance",
+                })
+                has_errors = True
+            if alpha and declared_alphas and alpha not in declared_alphas:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{rpath}.alphaInstanceName",
+                    "issue": f"relatesTo references unknown alpha instance name '{alpha}'",
+                    "expected": f"One of: {sorted(declared_alphas)}",
+                    "actual": alpha,
+                    "suggestion": "Use an AlphaInstanceName.name declared in this document",
+                })
+                has_errors = True
+            if wp and declared_wps and wp not in declared_wps:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{rpath}.workProductInstanceName",
+                    "issue": f"relatesTo references unknown work product instance name '{wp}'",
+                    "expected": f"One of: {sorted(declared_wps)}",
+                    "actual": wp,
+                    "suggestion": "Use a WorkProductInstanceName.name declared in this document",
+                })
+                has_errors = True
+        return has_errors
+
+    def _walk_instance_relates_to(
+        self,
+        practice: Dict,
+        prefix: str,
+        declared_alphas: set,
+        declared_wps: set,
+    ) -> bool:
+        has_errors = False
+
+        def _owner_name(inst):
+            return inst.get("name") or inst.get("instanceName")
+
+        def _check_list(container, key, path_base):
+            nonlocal has_errors
+            for i, inst in enumerate(container.get(key) or []):
+                if not isinstance(inst, dict):
+                    continue
+                path = f"{path_base}[{i}]" if path_base else f"{key}[{i}]"
+                has_errors |= self._validate_instance_relates_to(
+                    inst, _owner_name(inst), path, declared_alphas, declared_wps
+                )
+
+        pfx = f"{prefix}." if prefix else ""
+        _check_list(practice, "alphaInstances", f"{pfx}alphaInstances")
+        _check_list(practice, "workProductInstances", f"{pfx}workProductInstances")
+        _check_list(practice, "references", f"{pfx}references")
+        for pidx, pattern in enumerate(practice.get("patterns") or []):
+            if not isinstance(pattern, dict):
+                continue
+            ppath = f"{pfx}patterns[{pidx}]"
+            _check_list(pattern, "alphaInstanceNames", f"{ppath}.alphaInstanceNames")
+            _check_list(pattern, "workProductInstanceNames", f"{ppath}.workProductInstanceNames")
+            for vidx, view in enumerate(pattern.get("patternViews") or []):
+                if not isinstance(view, dict):
+                    continue
+                vpath = f"{ppath}.patternViews[{vidx}]"
+                _check_list(view, "alphaInstances", f"{vpath}.alphaInstances")
+                _check_list(view, "workProductInstances", f"{vpath}.workProductInstances")
+        return has_errors
+
+    def validate_instance_relationships(self) -> bool:
+        """If example instances carry relatesTo, names must resolve within this document."""
+        has_errors = False
+        is_method = "practices" in self.practice or "baselinePractice" in self.practice
+        practices = self.practice.get("practices", []) if is_method else [self.practice]
+
+        declared_alphas: set = set()
+        declared_wps: set = set()
+        for practice in practices:
+            a, w = self._collect_instance_names(practice)
+            declared_alphas |= a
+            declared_wps |= w
+        if is_method:
+            a, w = self._collect_instance_names(self.practice)
+            declared_alphas |= a
+            declared_wps |= w
+
+        for practice_idx, practice in enumerate(practices):
+            prefix = f"practices[{practice_idx}]" if is_method else ""
+            has_errors |= self._walk_instance_relates_to(
+                practice, prefix, declared_alphas, declared_wps
+            )
+        if is_method:
+            has_errors |= self._walk_instance_relates_to(
+                self.practice, "", declared_alphas, declared_wps
+            )
+        return not has_errors
+
     def validate_led_by(self) -> bool:
         """Validate ledBy references on activities and activity spaces resolve to a Persona.name in scope"""
         has_errors = False
@@ -3062,6 +3224,9 @@ def main():
 
     progress("Validating background references...")
     backgrounds_valid = validator.validate_backgrounds()
+
+    progress("Validating instance relationships...")
+    instance_rel_valid = validator.validate_instance_relationships()
 
     progress("Validating acyclicity constraints...")
     acyclicity_valid = validator.validate_acyclicity()

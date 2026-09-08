@@ -184,11 +184,22 @@ The existing Pattern type is extended with two optional arrays:
 
 These additions are optional and do not affect existing Pattern usage in practices or methods. In the project context, they provide the declaration vocabulary for the instances that the Pattern's views reference when specifying phased objectives.
 
+### AlphaInstanceName and WorkProductInstanceName (extended)
+
+Plan Pattern declarations (`alphaInstanceNames` / `workProductInstanceNames`) may include:
+
+- `links` — optional ExternalLink array. On a **work product**, the external sources mapped to that instance. On a **concern**, leftover documents that are not a work product (`evidenceBy` associates WPs).
+- `relatesTo` — optional array of InstanceRelationship objects. **System of record** for which tracked instances are associated with each other (concern ↔ concern, work product ↔ work product, or concern ↔ work product). Applies type-level `relatesTo` / `contributesTo` / `partOf` / purpose to named instances.
+
 ### AlphaInstance and WorkProductInstance (extended)
 
 Both AlphaInstance and WorkProductInstance are extended with an optional `checklistStates` array:
 
 - `checklistStates` — optional array of ChecklistState objects tracking the completion status of individual checklist items for this instance
+
+Both may also carry:
+
+- `relatesTo` — optional array of InstanceRelationship objects mirroring the Name-level pairings for consumers that only load `current` / `target` / `cycles`. Prefer declaring pairings on the Name types.
 
 WorkProductInstance is additionally extended with:
 
@@ -197,6 +208,20 @@ WorkProductInstance is additionally extended with:
 This co-locates checklist tracking with the instance it belongs to and metrics with the work product evidence chain. These additions are optional and do not affect existing usage.
 
 ## New Supporting Types
+
+### InstanceRelationship
+
+InstanceRelationship records a named association from this tracked instance to another tracked instance. It applies a type-level method edge to concrete occurrences. It is not assessment evidence (`evidenceBy`) and is not a Gherkin prerequisite (`background`).
+
+**Structure:**
+
+- `relationship` — domain verb (required)
+- `direction` — `outgoing` | `incoming` | `mutual` (required)
+- `alphaInstanceName` xor `workProductInstanceName` — symbolic link to the related instance (exactly one)
+- `relationshipKind` — optional enum: Alpha kinds (`dependency`, `production`, `guidance`, `information-flow`, `enabling`, `impact`, `consumption`, `mutual`) plus `containment` (`partOf`), `contribution` (`contributesTo`), `purpose` (work product serves a concern instance)
+- `description` — optional rationale
+
+Self-links are invalid. Inverse rows on the target are optional.
 
 ### ChecklistState
 
@@ -569,12 +594,43 @@ Scenario: Action outcomeInstanceNames references non-existent outcome instance
   Then a validation error is reported: outcomeInstanceNames "Unknown Outcome" does not match any OutcomeInstance at project or cycle level
 ```
 
+### Feature: Instance relationship validation (rules 23–26)
+
+```gherkin
+Scenario: Cross-kind instance relatesTo names a declared work product instance
+  Given a plan Pattern declaring alphaInstanceNames including "Acme OpenShift Renewal"
+  And workProductInstanceNames including "Platform Modernization"
+  And "Acme OpenShift Renewal" has relatesTo with workProductInstanceName "Platform Modernization"
+  And relationship "evidenced by" and direction "outgoing"
+  When the project is validated
+  Then validation succeeds for that instance relationship
+
+Scenario: Instance relatesTo names an undeclared target
+  Given a plan Pattern declaring alphaInstanceNames including "Acme OpenShift Renewal"
+  And no workProductInstanceName "Ghost Initiative"
+  And "Acme OpenShift Renewal" has relatesTo with workProductInstanceName "Ghost Initiative"
+  When the project is validated
+  Then a validation error is reported: relatesTo references undeclared work product instance name "Ghost Initiative"
+
+Scenario: Instance relatesTo sets both target name fields
+  Given a tracked instance with a relatesTo entry
+  And the entry has both alphaInstanceName and workProductInstanceName
+  When the project is validated
+  Then a validation error is reported: relatesTo must have exactly one of alphaInstanceName or workProductInstanceName
+
+Scenario: Instance relatesTo is a self-link
+  Given a plan Pattern declaring alphaInstanceNames including "Acme OpenShift Renewal"
+  And that instance has relatesTo with alphaInstanceName "Acme OpenShift Renewal"
+  When the project is validated
+  Then a validation error is reported: relatesTo must not reference the declaring instance
+```
+
 ## Open Questions
 
 None currently outstanding.
 
 ## Coverage Status
 
-- **Schema:** Complete — Project, ProjectCycle, ProjectStateSection, TeamEntry, TeamMember, CommunicationChannel, ChecklistState, Note, OutcomeInstance, Metric, Action defined in `language.schema.json`
-- **Semantics:** Covered in [`references/semantics.md` Section 12](../references/semantics.md#12-project-execution-tracking)
-- **Validation:** Not yet implemented — planned as `validate/validate-project.py`
+- **Schema:** Complete — Project, ProjectCycle, ProjectStateSection, TeamEntry, TeamMember, CommunicationChannel, ChecklistState, Note, OutcomeInstance, Metric, Action, InstanceRelationship defined in `language.schema.json`
+- **Semantics:** Covered in [`references/semantics.md` Section 12](../references/semantics.md#12-project-execution-tracking) and [Section 6.7](../references/semantics.md#67-instance-relationships-applying-type-edges-to-named-instances)
+- **Validation:** `validate/validate-project.py` (schema + integrity, including instance `relatesTo`)

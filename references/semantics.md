@@ -29,6 +29,8 @@
    - 6.3 [Programmatic Transition Triggers and Alpha Rollups](#63-programmatic-transition-triggers-and-alpha-rollups)
    - 6.4 [Abstract Concepts and Expected Instantiations](#64-abstract-concepts-and-expected-instantiations)
    - 6.5 [Alpha Instance Semantics: Declaration vs Execution Tracking](#65-alpha-instance-semantics-declaration-vs-execution-tracking)
+   - 6.6 [Reference Content: Actionable Examples and Reusable Resources](#66-reference-content-actionable-examples-and-reusable-resources)
+   - 6.7 [Instance Relationships: Applying Type Edges to Named Instances](#67-instance-relationships-applying-type-edges-to-named-instances)
 7. [Evidentiary Verification via Work Product Elements](#7-evidentiary-verification-via-work-product-elements)
    - 7.1 [Structure of Work Products](#71-structure-of-work-products)
    - 7.2 [Artifact Instantiation and Concurrency](#72-artifact-instantiation-and-concurrency)
@@ -1868,6 +1870,8 @@ The `relatesTo` property enables advanced capabilities:
 
 This dual-relationship model—`contributesTo` for hierarchy and `relatesTo` for semantics—provides both ontological coherence (all concepts anchor to baseline) and rich domain expressiveness (practices can model complex alpha interactions).
 
+Type-level `relatesTo` names **which kinds of concerns interact**. Instance-level `relatesTo` (Section 6.7) records **which tracked occurrences** of those concerns — and of related work products — are linked in a project or example.
+
 **Invalid vs Valid Pattern Examples:**
 
 **INVALID Example (Floating Alpha):**
@@ -1969,6 +1973,7 @@ Structure:
 - description: Brief explanation of what this instance represents
 - alphaName: References the baseline or practice-defined alpha being instantiated
 - links: Optional array of ExternalLink objects pointing to the primary document(s) used to track this instance (e.g., a Jira board, a Confluence page, a shared register)
+- relatesTo: Optional array of InstanceRelationship objects associating this instance with other concern or work-product instances (system of record; see Section 6.7)
 - narratives: Optional contextual storytelling for this instance
 - tags: Optional classification metadata
 
@@ -1986,6 +1991,7 @@ Structure:
 - alphaName: The baseline or practice alpha this instance represents
 - stateName: The target state for this instance in this phase
 - evidenceBy: Array of WorkProductInstance objects proving the state achievement
+- relatesTo: Optional array of InstanceRelationship objects (may mirror AlphaInstanceName.relatesTo for consumers that only load current/target)
 - links: Optional array of ExternalLink objects pointing to documents specific to this state. Typically omitted when the parent AlphaInstanceName links apply; use only when this particular state is tracked in a different document
 
 In a **Practice**, AlphaInstance objects within pattern views illustrate the expected progression of example instances across phases — showing adopters what states to target and what evidence to gather at each stage of the lifecycle.
@@ -2000,7 +2006,7 @@ In a **Project**, AlphaInstance objects in the current and target sections recor
 | Purpose         | Declare and describe instances (guidance or identification) | Record state progression (illustrative or assessed)               |
 | Location        | Practice/Method/Project alphaInstances                      | PatternView.alphaInstances, Project current/target                |
 | Required Fields | instanceName, alphaName                                    | instanceName, alphaName, stateName                                |
-| Optional Fields | description, narratives, tags, links                       | evidenceBy (recommended), links                                   |
+| Optional Fields | description, narratives, tags, links, relatesTo            | evidenceBy (recommended), links, relatesTo                        |
 | In Practices    | Guidance — illustrates expected instance types              | Illustrative — shows target states per pattern phase              |
 | In Projects     | Identification — names the specific things being tracked    | Tracking — records current or target state with evidence          |
 | Validation      | instanceName must be unique within context                  | instanceName must match declared AlphaInstanceName                |
@@ -2219,6 +2225,80 @@ This enables consuming systems to filter references by domain, lifecycle stage, 
 4. Each `evidenceBy` entry's `levelOfDetailName` must match a level of detail on the referenced work product
 5. Reference names should be unique within the `references` array (tooling should warn on duplicates)
 
+### 6.7 Instance Relationships: Applying Type Edges to Named Instances
+
+Type-level relationships (`Alpha.relatesTo`, `Alpha.contributesTo`, `WorkProduct.partOf`, `WorkProduct.contributesToAlphaNames`) describe how **kinds** of concerns and artefacts interact. Instance-level `relatesTo` records how **named occurrences** of those kinds are linked in a project or in practice example instances.
+
+An Account Plan type `produces` Opportunity. That does not say which Opportunity instance belongs to which plan or initiative. An Initiative Card work product exists to serve Opportunity and Account Plan. That does not say which deal is the pipeline expression of which initiative. Instance `relatesTo` is the join.
+
+**InstanceRelationship structure:**
+
+```json
+{
+  "relationship": "evidenced by",
+  "direction": "outgoing",
+  "relationshipKind": "purpose",
+  "workProductInstanceName": "Platform Modernization",
+  "description": "This opportunity is the pipeline expression of the platform modernization initiative."
+}
+```
+
+**Field definitions:**
+
+- **relationship** — domain verb (e.g. "produces", "part of", "contributes to", "evidenced by"). Human-readable; tooling must not parse this string.
+- **direction** — `outgoing`, `incoming`, or `mutual`, from the declaring instance.
+- **alphaInstanceName** xor **workProductInstanceName** — symbolic link to another tracked instance. Exactly one must be present. The target may be a concern instance or a work-product instance (cross-kind links are first-class).
+- **relationshipKind** (optional) — which type-level edge this row applies:
+  - Alpha `relatesTo` kinds: `dependency`, `production`, `guidance`, `information-flow`, `enabling`, `impact`, `consumption`, `mutual`
+  - `containment` — instance application of `WorkProduct.partOf`
+  - `contribution` — instance application of `Alpha.contributesTo`
+  - `purpose` — work-product instance serves this concern instance (`contributesToAlphaNames`)
+- **description** (optional) — why these two instances are associated here
+
+Self-links are invalid. The schema does not require the inverse row on the target; tooling may write one side or both.
+
+**Where it lives:**
+
+| Type | Role |
+|------|------|
+| `AlphaInstanceName` / `WorkProductInstanceName` | **System of record** — plan identity; exists before assessment |
+| `AlphaInstance` / `WorkProductInstance` | Optional mirror on `current` / `target` / `cycles` (and pattern-view examples) for consumers that only load those sections |
+
+Prefer declaring pairings on the Name types. Instance copies are the same graph, not a second one.
+
+**Contrast with nearby fields:**
+
+| Field | Meaning |
+|-------|---------|
+| Instance `relatesTo` | These two tracked things are associated (structure) |
+| `AlphaInstance.evidenceBy` | This work-product instance at a LOD **proves** the concern's assessed state |
+| `background.alphaInstanceStates` / `workProductInstanceLevels` | Gherkin Given — those instances must have reached a named state/LOD before checklists apply |
+| Type `mapsTo` | IS-A variant. Do **not** instantiate as a `relatesTo` row; instantiate the variant type |
+
+An Opportunity can be associated with an Initiative Card without that card being the evidence that the Opportunity is `Qualified`.
+
+**Authoring:** Persist actionable kinds (`production`, `enabling`, `dependency`, `impact`, `containment`, `contribution`, `purpose`). Skip noisy type-level verbs such as "uses" or "governed by" unless the team needs those links. `mapsTo` stays type-only.
+
+**Example (concern ↔ work product):**
+
+```json
+{
+  "name": "Acme OpenShift Renewal",
+  "alphaName": "Opportunity",
+  "relatesTo": [
+    {
+      "relationship": "evidenced by",
+      "direction": "outgoing",
+      "relationshipKind": "purpose",
+      "workProductInstanceName": "Platform Modernization",
+      "description": "Pipeline expression of the platform modernization initiative."
+    }
+  ]
+}
+```
+
+The Initiative Card may declare the reverse (`alphaInstanceName` + `incoming` / `purpose`). Either side is enough for traversal.
+
 ## 7 Evidentiary Verification via Work Product Elements
 
 A WorkProduct is the tangible artifact providing the empirical evidence necessary to validate Alpha state progressions. Work Products are the evidentiary artifacts of the practice. To ensure rigorous maturity tracking, a Work Product must explicitly define its progression through at least three Levels of Detail, aligning with progressive organizational adoption.
@@ -2301,6 +2381,7 @@ Structure:
 - description: Brief explanation of what this variant represents
 - workProductName: References the baseline or practice-defined work product being instantiated
 - links: Optional array of ExternalLink objects pointing to the primary document(s) used to track this work product (e.g., a shared document, repository, or wiki page)
+- relatesTo: Optional array of InstanceRelationship objects associating this instance with other concern or work-product instances (system of record; see Section 6.7)
 - narratives: Optional contextual storytelling for this instance
 - tags: Optional classification metadata
 
@@ -2317,6 +2398,7 @@ Structure:
 - instanceName: Identifier for the specific artifact (may or may not match a declared WorkProductInstanceName)
 - workProductName: The baseline or practice work product this represents
 - levelOfDetailName: The target maturity level this artifact has achieved
+- relatesTo: Optional array of InstanceRelationship objects (may mirror WorkProductInstanceName.relatesTo)
 - links: Optional array of ExternalLink objects pointing to documents specific to this level of detail. Typically omitted when the parent WorkProductInstanceName links apply; use only when this particular maturity level is tracked in a different document
 
 In a **Practice**, WorkProductInstance objects within evidence arrays illustrate what artifacts at what maturity levels would prove state achievement — showing adopters the expected evidence chain.
@@ -2331,7 +2413,7 @@ In a **Project**, WorkProductInstance objects record the assessed or desired mat
 | Purpose         | Declare and describe instances (guidance or identification) | Record maturity level (illustrative or assessed)                 |
 | Location        | Practice/Method/Project workProductInstances                | evidenceBy arrays, Project current/target                        |
 | Required Fields | instanceName, workProductName                              | instanceName, workProductName, levelOfDetailName                 |
-| Optional Fields | description, narratives, tags, links                       | links                                                            |
+| Optional Fields | description, narratives, tags, links, relatesTo            | links, relatesTo                                                 |
 | In Practices    | Guidance — illustrates expected deliverable variants        | Illustrative — shows what evidence proves state achievement      |
 | In Projects     | Identification — names the specific artifacts being tracked | Tracking — records current or target maturity with evidence      |
 | Validation      | instanceName must be unique within context                  | workProductName must match defined work product                  |
@@ -3437,7 +3519,7 @@ The `plan` section establishes the project's lifecycle objectives. It contains a
 
 **Pattern as Project-Owned Declaration:** The plan's Pattern is a full declaration using the existing Pattern type, owned by the project and freely modifiable by the user. As a new instance rather than a reference, users can add, remove, or reorder PatternViews, adjust alpha state targets, and extend the pattern with objectives specific to their project. The Pattern type is extended with optional `alphaInstanceNames` and `workProductInstanceNames` arrays, allowing the Pattern to explicitly declare which instances are being tracked.
 
-**Instance Declaration Vocabulary:** The Pattern's `alphaInstanceNames` array declares the alpha instances tracked by this project (e.g. "Platform Engineering Team" as an instance of the "Team" alpha). The `workProductInstanceNames` array declares the work product instances. These declarations provide the vocabulary that the Pattern's views reference when specifying phased objectives via AlphaInstance and WorkProductInstance objects.
+**Instance Declaration Vocabulary:** The Pattern's `alphaInstanceNames` array declares the alpha instances tracked by this project (e.g. "Platform Engineering Team" as an instance of the "Team" alpha). The `workProductInstanceNames` array declares the work product instances. These declarations provide the vocabulary that the Pattern's views reference when specifying phased objectives via AlphaInstance and WorkProductInstance objects. Optional `relatesTo` on those Name objects (and optional mirrors on current/target/cycle instances) records which tracked occurrences are associated — including concern ↔ work product — applying type-level `relatesTo` / `contributesTo` / `partOf` / purpose. Pairings are not inferred during merge; they are not a substitute for `evidenceBy`. See Section 6.7.
 
 **Plan Notes:** The plan's `notes` array captures changes, updates, and rationale about the planning process itself — commentary that is about the plan rather than part of the plan content (which lives in the Pattern).
 

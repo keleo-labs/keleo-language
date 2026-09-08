@@ -221,7 +221,9 @@ Arrays keyed by `contributesTo` (or ending in `Contributes`) and containing obje
 
 ### 5.3 Relationship Arrays
 
-The `relatesTo` array merges by **`alphaName`** key. If both the base and overlay declare a relationship to the same alpha, the overlay's relationship replaces the base's (last writer wins for relationships to the same target).
+The type-level `relatesTo` array on **Alpha** merges by **`alphaName`** key. If both the base and overlay declare a relationship to the same alpha, the overlay's relationship replaces the base's (last writer wins for relationships to the same target).
+
+Instance-level `relatesTo` (on AlphaInstanceName, WorkProductInstanceName, AlphaInstance, and WorkProductInstance) is **not** this array. See Section 6.12.
 
 ### 5.4 WorksOn Arrays
 
@@ -382,6 +384,10 @@ Practice element aliases provide **display-layer name substitution** without alt
 ### 6.12 Instance Declaration Merging
 
 **AlphaInstanceName** and **WorkProductInstanceName** declarations merge by canonical name using the core record merge function. These are keyed practice element overlays — same-named declarations combine their metadata; unique declarations are preserved.
+
+**Instance `relatesTo`:** Optional `relatesTo` arrays on AlphaInstanceName, WorkProductInstanceName, AlphaInstance, and WorkProductInstance are identity data (which other instances they associate with). When merging same-named instance declarations, `relatesTo` rows merge by composite key (`relationshipKind` plus the target `alphaInstanceName` or `workProductInstanceName`). Overlay replaces a matching row. Instance `relatesTo` is **not inferred** from type-level `Alpha.relatesTo`, `contributesTo`, `WorkProduct.partOf`, or work-product purpose during composition — authors and project tooling declare instance pairings explicitly.
+
+Project `current` / `target` / `cycles` instance rows are not merge targets (Projects are not composed).
 
 ### 6.13 Acknowledgement Merging
 

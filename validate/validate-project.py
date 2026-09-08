@@ -224,6 +224,150 @@ class ProjectValidator:
 
         return not has_errors
 
+    def _declared_instance_names(self):
+        pattern = (self.project.get("plan") or {}).get("pattern") or {}
+        alphas = set()
+        wps = set()
+        for ain in pattern.get("alphaInstanceNames") or []:
+            n = (ain or {}).get("name") if isinstance(ain, dict) else None
+            if n:
+                alphas.add(n)
+        for win in pattern.get("workProductInstanceNames") or []:
+            n = (win or {}).get("name") if isinstance(win, dict) else None
+            if n:
+                wps.add(n)
+        return alphas, wps
+
+    def _validate_instance_relates_to(
+        self,
+        owner: Dict,
+        owner_name: Optional[str],
+        path: str,
+        declared_alphas: set,
+        declared_wps: set,
+    ) -> bool:
+        """XOR target names, declared targets, no self-link. Returns True if errors found."""
+        has_errors = False
+        owner_name = (owner_name or "").strip()
+        for idx, rel in enumerate(owner.get("relatesTo") or []):
+            if not isinstance(rel, dict):
+                continue
+            rpath = f"{path}.relatesTo[{idx}]"
+            alpha = str(rel.get("alphaInstanceName") or "").strip()
+            wp = str(rel.get("workProductInstanceName") or "").strip()
+            if bool(alpha) == bool(wp):
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": rpath,
+                    "issue": "relatesTo must have exactly one of alphaInstanceName or workProductInstanceName",
+                    "expected": "Exactly one target name field",
+                    "actual": {
+                        "alphaInstanceName": alpha or None,
+                        "workProductInstanceName": wp or None,
+                    },
+                    "suggestion": "Set alphaInstanceName for a concern instance or workProductInstanceName for a work-product instance, not both or neither",
+                })
+                has_errors = True
+                continue
+            target = alpha or wp
+            if owner_name and target == owner_name:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": rpath,
+                    "issue": "relatesTo must not reference the declaring instance",
+                    "expected": "A different tracked instance",
+                    "actual": target,
+                    "suggestion": "Remove the self-link or point at another declared instance",
+                })
+                has_errors = True
+            if alpha and declared_alphas and alpha not in declared_alphas:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{rpath}.alphaInstanceName",
+                    "issue": f"relatesTo references undeclared alpha instance name '{alpha}'",
+                    "expected": f"One of: {sorted(declared_alphas)}",
+                    "actual": alpha,
+                    "suggestion": "Use an alpha instance name declared in plan.pattern.alphaInstanceNames",
+                })
+                has_errors = True
+            if wp and declared_wps and wp not in declared_wps:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{rpath}.workProductInstanceName",
+                    "issue": f"relatesTo references undeclared work product instance name '{wp}'",
+                    "expected": f"One of: {sorted(declared_wps)}",
+                    "actual": wp,
+                    "suggestion": "Use a work product instance name declared in plan.pattern.workProductInstanceNames",
+                })
+                has_errors = True
+        return has_errors
+
+    def validate_instance_relationships(self) -> bool:
+        """Validate instance-level relatesTo on plan declarations and assessment rows."""
+        has_errors = False
+        declared_alphas, declared_wps = self._declared_instance_names()
+        pattern = (self.project.get("plan") or {}).get("pattern") or {}
+
+        for i, ain in enumerate(pattern.get("alphaInstanceNames") or []):
+            if not isinstance(ain, dict):
+                continue
+            path = f"plan.pattern.alphaInstanceNames[{i}]"
+            has_errors |= self._validate_instance_relates_to(
+                ain, ain.get("name"), path, declared_alphas, declared_wps
+            )
+        for i, win in enumerate(pattern.get("workProductInstanceNames") or []):
+            if not isinstance(win, dict):
+                continue
+            path = f"plan.pattern.workProductInstanceNames[{i}]"
+            has_errors |= self._validate_instance_relates_to(
+                win, win.get("name"), path, declared_alphas, declared_wps
+            )
+
+        for section_name in ("current", "target"):
+            section = self.project.get(section_name) or {}
+            for i, inst in enumerate(section.get("alphaInstances") or []):
+                if not isinstance(inst, dict):
+                    continue
+                name = inst.get("name") or inst.get("instanceName")
+                path = f"{section_name}.alphaInstances[{i}]"
+                has_errors |= self._validate_instance_relates_to(
+                    inst, name, path, declared_alphas, declared_wps
+                )
+            for i, inst in enumerate(section.get("workProductInstances") or []):
+                if not isinstance(inst, dict):
+                    continue
+                name = inst.get("name") or inst.get("instanceName")
+                path = f"{section_name}.workProductInstances[{i}]"
+                has_errors |= self._validate_instance_relates_to(
+                    inst, name, path, declared_alphas, declared_wps
+                )
+
+        for cidx, cycle in enumerate(self.project.get("cycles") or []):
+            if not isinstance(cycle, dict):
+                continue
+            for i, inst in enumerate(cycle.get("alphaInstances") or []):
+                if not isinstance(inst, dict):
+                    continue
+                name = inst.get("name") or inst.get("instanceName")
+                path = f"cycles[{cidx}].alphaInstances[{i}]"
+                has_errors |= self._validate_instance_relates_to(
+                    inst, name, path, declared_alphas, declared_wps
+                )
+            for i, inst in enumerate(cycle.get("workProductInstances") or []):
+                if not isinstance(inst, dict):
+                    continue
+                name = inst.get("name") or inst.get("instanceName")
+                path = f"cycles[{cidx}].workProductInstances[{i}]"
+                has_errors |= self._validate_instance_relates_to(
+                    inst, name, path, declared_alphas, declared_wps
+                )
+
+        return not has_errors
+
     PRIORITY_RANK = {"must": 3, "should": 2, "could": 1}
 
     def validate_priority_thresholds(self) -> bool:
@@ -481,6 +625,9 @@ def main():
 
     progress("Validating instance consistency...")
     validator.validate_instance_consistency()
+
+    progress("Validating instance relationships...")
+    validator.validate_instance_relationships()
 
     progress("Validating priority thresholds...")
     validator.validate_priority_thresholds()
