@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/language.schema.json",
-  "$comment": "schemaVersion:2.10.0",
+  "$comment": "schemaVersion:2.11.0",
   "title": "Practice language (from language.mmd)",
   "description": "JSON Schema derived from the Mermaid classDiagram in language.mmd. Identity is by name; most cross-links are string names (not embedded objects). Root validation discriminates Practice vs Method vs PracticeBaseline. Method can use embedded objects (baselinePractice + practices) or string references (baselinePracticeName + practiceNames) or a mix.",
   "$defs": {
@@ -531,11 +531,11 @@
             },
             "contributesTo": {
               "type": "string",
-              "description": "Optional name of another Alpha in the same baseline (0..1 specialization relationship). Used to create specialized alphas that contribute to/refine baseline alphas (e.g., 'Platform Capability' contributesTo 'Platform'). Mutually exclusive with mapsTo. Do not embed an Alpha object."
+              "description": "Optional name of another Alpha in the same baseline (0..1 specialization relationship). Used to create specialized alphas that contribute to/refine baseline alphas (e.g., 'Platform Capability' contributesTo 'Platform'). May coexist with mapsTo but must reference a different alpha. Do not embed an Alpha object."
             },
             "mapsTo": {
               "type": "string",
-              "description": "Optional name of another Alpha that this alpha is a specialized variant of (0..1 variant mapping relationship). States MUST match the target alpha exactly. Mutually exclusive with contributesTo. On merge, this alpha is added to the target alpha's variants array. Example: 'AI-Ready Enterprise' mapsTo 'Sales Play'."
+              "description": "Optional name of another Alpha that this alpha is a specialized variant of (0..1 variant mapping relationship). States MUST match the target alpha exactly. May coexist with contributesTo but must reference a different alpha. On merge, this alpha is added to the target alpha's variants array. Example: 'AI-Ready Enterprise' mapsTo 'Sales Play'."
             },
             "variants": {
               "type": "array",

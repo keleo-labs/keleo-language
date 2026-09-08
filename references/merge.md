@@ -250,7 +250,7 @@ Alphas merge by canonical name. When two alphas share the same name:
 - **States**: Merge using state-specific logic (see Section 6.2).
 - **`focusName`**: Prefers the non-implicit value. If the base has a real focus name (e.g., "Solution") and the overlay has an implicit placeholder, the base's focus name is kept. If the base has an implicit focus and the overlay provides a real one, the overlay's value is adopted.
 - **`contributesTo`**: The first non-empty value wins (base priority).
-- **`mapsTo`**: The first non-empty value wins (base priority). Mutually exclusive with `contributesTo`.
+- **`mapsTo`**: The first non-empty value wins (base priority). When both are present, must reference a different alpha than `contributesTo`.
 - **`supportingAlphas`**: String arrays are unioned and deduplicated.
 - **`variants`**: Populated during post-merge finalization (see Section 7.2a).
 - **Source provenance**: The `sourcePracticeName` of the first layer to introduce the alpha is preserved (see Section 8).

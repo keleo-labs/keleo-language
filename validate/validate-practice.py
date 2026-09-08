@@ -429,6 +429,17 @@ class PracticeValidator:
                             "suggestion": f"Use exact baseline alpha name (case-sensitive) or add to practiceDependencyNames if from external practice"
                         })
                         has_errors = True
+                if contributes_to and maps_to and contributes_to == maps_to:
+                    self.errors.append({
+                        "category": "baseline",
+                        "severity": "error",
+                        "path": f"{path}",
+                        "issue": f"Alpha '{alpha_name}' has contributesTo and mapsTo referencing the same alpha: '{contributes_to}'",
+                        "expected": "contributesTo and mapsTo must reference different alphas",
+                        "actual": f"Both reference '{contributes_to}'",
+                        "suggestion": "An alpha can both contribute to one alpha and map to another, but the targets must be different"
+                    })
+                    has_errors = True
 
         # Validate AlphaContribution references in activities
         for idx, activity in enumerate(practice.get('activities', [])):
@@ -2965,18 +2976,18 @@ class PracticeValidator:
 
                 path = f"{prefix}.alphas[{alpha_idx}]" if prefix else f"alphas[{alpha_idx}]"
 
-                # Mutual exclusivity: contributesTo and mapsTo cannot coexist
-                if has_contributes_to and has_maps_to:
+                # contributesTo and mapsTo must reference different alphas
+                if has_contributes_to and has_maps_to and alpha.get('contributesTo') == alpha.get('mapsTo'):
                     self.errors.append({
                         'category': 'baseline',
                         'severity': 'error',
                         'practice': practice_name,
                         'path': path,
                         'alpha': alpha_name,
-                        'issue': f'Alpha "{alpha_name}" has both contributesTo and mapsTo (mutually exclusive)',
-                        'expected': 'Either contributesTo OR mapsTo, not both',
-                        'actual': f'contributesTo: "{alpha.get("contributesTo")}", mapsTo: "{alpha.get("mapsTo")}"',
-                        'suggestion': 'Use contributesTo for specialization (different state progression, sub-concern). Use mapsTo for variant mapping (same state progression, IS-A relationship). Remove one.'
+                        'issue': f'Alpha "{alpha_name}" has contributesTo and mapsTo referencing the same alpha: "{alpha.get("contributesTo")}"',
+                        'expected': 'contributesTo and mapsTo must reference different alphas',
+                        'actual': f'Both reference "{alpha.get("contributesTo")}"',
+                        'suggestion': 'An alpha can both contribute to one alpha and map to another, but the targets must be different.'
                     })
                     has_errors = True
 

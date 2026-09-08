@@ -359,7 +359,7 @@ When extending a baseline practice with alpha-related content, authors must deci
 - The baseline state progression is appropriate—the variant uses the same milestones with domain-specific checklists
 - Multiple variants may exist in parallel, each standing in for the parent as an independent specialised version
 - On merge, variant alphas appear within the parent alpha (via the `variants` array), enabling UIs and renderers to present them as related types
-- **CRITICAL**: The new alpha MUST declare a `mapsTo` relationship to a parent alpha. `mapsTo` and `contributesTo` are mutually exclusive. States MUST match the target alpha exactly.
+- **CRITICAL**: The new alpha MUST declare a `mapsTo` relationship to a parent alpha. States MUST match the target alpha exactly. An alpha may also declare `contributesTo` alongside `mapsTo`, but the targets must be different alphas (e.g., an alpha can map to one alpha and contribute to another).
 - Examples: "AI-Ready Enterprise" mapsTo "Sales Play" (same lifecycle, AI-specific checklists), "AI Platform Domain" mapsTo "Technical Decision Point" (same progression, domain-specific verification)
 
 **Decision Matrix:**
@@ -548,14 +548,14 @@ Source material describes a Sales Play variant for AI-Ready Enterprise that foll
 - Changing baseline name or description during redeclaration (forbidden—breaks referential integrity)
 - Using `contributesTo` when the alpha has identical states as its parent and IS-A semantics apply (should be `mapsTo`)
 - Using `mapsTo` when the alpha needs a different state progression (should be `contributesTo`)
-- Setting both `mapsTo` and `contributesTo` on the same alpha (mutually exclusive)
+- Setting `mapsTo` and `contributesTo` to the same target alpha (they must reference different alphas)
 
 **Validation Enforcement:**
 
 - Phase 2 translation validates that redeclarations preserve baseline name, description, and state structure exactly
 - Phase 2 validates that all new alphas have contributesTo or mapsTo relationships
 - Phase 2 validates that `mapsTo` alphas have identical state names and sequences as their target alpha
-- Phase 2 validates that `mapsTo` and `contributesTo` are mutually exclusive on a given alpha
+- Phase 2 validates that `mapsTo` and `contributesTo` reference different alphas when both are present
 - Practice composition tooling should warn when multiple redeclarations of the same baseline alpha are detected (should be merged)
 
 ### 4.5 Adapting and Extending Practice Elements
@@ -1654,7 +1654,7 @@ Every Alpha contains a mandatory array of states (minimum of 3) and is categoriz
 
 **THE CRITICAL RULE: NO FLOATING ALPHAS**
 
-When extending a baseline practice, all new alphas introduced in a practice extension MUST explicitly declare either a `contributesTo` or `mapsTo` relationship pointing to a valid alpha. This is not a guideline—it is an absolute constraint enforced during Phase 2 validation. Alphas that lack either relationship are known as "floating alphas" and are strictly prohibited by the Practice Language semantics. The two properties are mutually exclusive on a given alpha—use `contributesTo` for specialization (sub-concern with distinct state progression) and `mapsTo` for variant mapping (IS-A variant with identical state progression).
+When extending a baseline practice, all new alphas introduced in a practice extension MUST explicitly declare at least one of `contributesTo` or `mapsTo` pointing to a valid alpha. This is not a guideline—it is an absolute constraint enforced during Phase 2 validation. Alphas that lack both relationships are known as "floating alphas" and are strictly prohibited by the Practice Language semantics. An alpha may declare both properties simultaneously (e.g., it maps to one alpha as a variant and contributes to another as a sub-concern), but the targets must be different alphas. Use `contributesTo` for specialization (sub-concern with distinct state progression) and `mapsTo` for variant mapping (IS-A variant with identical state progression).
 
 **Why This Rule Exists:**
 
@@ -1702,7 +1702,7 @@ While specific alpha names vary by baselinePractice, typical baseline patterns i
 1. **Baseline References**: The `contributesTo` or `mapsTo` value must be an exact, case-sensitive string match to a baseline alpha name
 2. **Practice-Local References**: The value must reference another alpha defined in the SAME practice, and that alpha must have its own valid `contributesTo` or `mapsTo` chain
 3. **External Practice References**: The value must reference an alpha from a practice declared in the `dependencies` array, and that practice must be available for resolution
-4. **Mutual Exclusivity**: `contributesTo` and `mapsTo` are mutually exclusive—an alpha MUST NOT have both properties
+4. **Distinct Targets**: When both `contributesTo` and `mapsTo` are present, they MUST reference different alphas
 5. **State Matching for mapsTo**: A `mapsTo` alpha MUST have identical state names and sequences as its target alpha. It CAN have a different name, description, and checklists.
 
 **No Circular Dependencies**: Alpha A cannot contribute to Alpha B if Alpha B (or any alpha in B's `contributesTo`/`mapsTo` chain) contributes/maps to Alpha A. See [Section 14 — Acyclicity Constraints and Circular Reference Protection](#14-acyclicity-constraints-and-circular-reference-protection) for the comprehensive acyclicity rules and implementation requirements.
@@ -4471,12 +4471,12 @@ The following properties create parent-child or containment hierarchies. Each fo
 
 #### 14.1.3 Mixed `contributesTo`/`mapsTo` Chains
 
-Because `contributesTo` and `mapsTo` are mutually exclusive on a single alpha but both reference parent alphas, cycles can span both relationship types. The acyclicity constraint applies to the **union** of both edge sets.
+Both `contributesTo` and `mapsTo` reference parent alphas, and an alpha may have both (targeting different alphas). Cycles can span both relationship types. The acyclicity constraint applies to the **union** of both edge sets.
 
 **Invalid Example:**
 - Alpha "A" contributesTo "B", Alpha "B" mapsTo "C", Alpha "C" contributesTo "A"
 
-**Constraint:** Construct a single directed graph where each alpha with `contributesTo` or `mapsTo` has exactly one outgoing edge to its target. This combined graph must be acyclic.
+**Constraint:** Construct a single directed graph where each alpha's `contributesTo` and `mapsTo` values are outgoing edges to their targets (an alpha with both properties has two outgoing edges). This combined graph must be acyclic.
 
 #### 14.1.4 Work Product Containment Hierarchy (`WorkProduct.partOf`)
 

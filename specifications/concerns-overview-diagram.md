@@ -19,7 +19,7 @@ The diagram renders directly from the `PracticeBaseline` type's structural prope
 - **`focuses`** — the array of Focus objects providing names, descriptions, and ordering for the grouping sections.
 - **`assets`** — the array of Asset objects for resolving icon references on cards.
 
-The `contributesTo` and `mapsTo` fields on Alpha are the structural backbone of the diagram — they define the parent-child tree that the layout algorithm renders. Alphas where both `contributesTo` and `mapsTo` are absent or null are root alphas; all others are positioned as children of the alpha they name. The two fields are mutually exclusive on any given alpha: `contributesTo` indicates a sub-alpha relationship, while `mapsTo` indicates a variant mapping relationship (same state progression, different name/description).
+The `contributesTo` and `mapsTo` fields on Alpha are the structural backbone of the diagram — they define the parent-child tree that the layout algorithm renders. Alphas where both `contributesTo` and `mapsTo` are absent or null are root alphas; all others are positioned as children of the alpha they name. An alpha may have one or both fields: `contributesTo` indicates a sub-alpha relationship, while `mapsTo` indicates a variant mapping relationship (same state progression, different name/description). When both are present, they must reference different alphas; for layout purposes, the `mapsTo` parent determines the alpha's position in the tree.
 
 ## Visual Structure
 
