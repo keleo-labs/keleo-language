@@ -394,14 +394,14 @@ A consuming system resolves outcome values by following the practice template's 
 
 ### 12.9 Actions and Team Work Tracking
 
-The `actions` array on ProjectCycle tracks the concrete, assigned, time-bound tasks that team members perform during a cycle. While cycle objectives (alpha instances, work product instances) answer *what we're trying to achieve*, and outcomes answer *what value we expect to deliver*, actions answer *what each person is doing* to get there.
+Actions are the concrete tasks that team members perform to advance project objectives. While cycle objectives (alpha instances, work product instances) answer *what we're trying to achieve*, and outcomes answer *what value we expect to deliver*, actions answer *what each person is doing* to get there. Actions can appear in two locations: on a **ProjectCycle** (committed work within a bounded period) or on the **Project** itself (the backlog of candidate actions awaiting cycle assignment).
 
 **Relationship to Activity (Practice-Level)**
 
 An Action is NOT an ActivityInstance. The schema deliberately avoids the template-instance pattern used for Alphas and WorkProducts:
 
 - An **Activity** is a practice-level methodology construct — a swimlane defining a type of work with structural contributions (`contributesTo`, `worksOn`), competency requirements, and persona involvement. Activities exist in the methodology definition and do not change per project.
-- An **Action** is a project-level operational task — specific ("Deploy staging environment"), assigned to individuals ("Alice Chen"), time-bound ("due 2026-08-08"), and tracked through a status lifecycle. Actions exist only in project cycles.
+- An **Action** is a project-level operational task — specific ("Deploy staging environment"), assigned to individuals ("Alice Chen"), time-bound ("due 2026-08-08"), and tracked through a status lifecycle. Actions exist in project cycles (committed work) or in the project-level backlog (candidate work).
 
 The optional `activityName` property on Action provides methodology traceability — linking a concrete task back to the practice-defined activity it falls under — without coupling the two. Many actions will have no `activityName` at all, particularly ad-hoc tasks that arise during execution.
 
@@ -422,6 +422,7 @@ The optional `activityName` property on Action provides methodology traceability
 | `done` | Work is complete; `completedAt` should be set |
 | `blocked` | Work cannot proceed due to an impediment; use `notes` to capture the blocker |
 | `deferred` | Work has been postponed; may be moved to a future cycle |
+| `discarded` | Team reviewed this candidate and decided not to pursue it; preserved for auditability |
 
 **Timestamps**
 
@@ -429,7 +430,7 @@ The optional `activityName` property on Action provides methodology traceability
 
 **Uniqueness**
 
-Action `name` must be unique within its parent cycle. The same action name may appear in different cycles (e.g., a recurring action across sprints).
+Action `name` must be unique within its containing array — the parent cycle's `actions` or the project-level `actions` (backlog). The same action name may appear in different cycles (e.g., a recurring action across sprints) and may appear in both the backlog and a cycle (e.g., a backlog item that has been copied to a cycle for execution).
 
 **Traceability Chain**
 
@@ -439,6 +440,7 @@ Actions connect team members to objectives and outcomes through multiple paths:
 2. **Action → Outcome**: `outcomeInstanceNames` links directly to outcome instances for actions that contribute to value measurement (e.g., updating CRM metrics)
 3. **Action → Methodology**: `activityName` traces back to the practice-defined Activity, inheriting its contribution context (`contributesTo`, `worksOn`)
 4. **Action → People**: `assignedTo` identifies the team members responsible
+5. **Action → Verification**: `test` defines a structured acceptance criterion (Given/When/Then); `evidence` points to the deliverable. Together they answer *what does done look like?* and *where is the proof?*
 
 **Example**
 
@@ -471,7 +473,14 @@ Actions connect team members to objectives and outcomes through multiple paths:
       "status": "in-progress",
       "dueAt": "2026-08-08T00:00:00Z",
       "advancesAlphaInstances": ["Core Platform"],
-      "developsWorkProductInstances": ["Infra Runbook"]
+      "developsWorkProductInstances": ["Infra Runbook"],
+      "test": {
+        "name": "Staging accepts deploys",
+        "description": "Verify the staging cluster is operational and CI/CD pipeline delivers builds",
+        "given": ["A staging cluster has been provisioned", "CI/CD pipeline is configured"],
+        "when": ["A build is triggered from the main branch"],
+        "then": ["The build deploys to staging within 10 minutes", "Health check endpoint returns 200"]
+      }
     },
     {
       "name": "Review security compliance checklist",
@@ -496,15 +505,64 @@ In this example, Sprint 3 has three actions: Alice is provisioning the staging e
 **Tooling Guidance**
 
 - When displaying a cycle, group actions by `assignedTo` to show each team member's workload
-- When closing a cycle, tooling may flag actions still in `not-started` or `in-progress` status for carry-over to the next cycle
+- When closing a cycle, tooling may flag actions still in `not-started` or `in-progress` status for carry-over to the next cycle or return to the project backlog
 - Actions with status `blocked` should be surfaced prominently — they represent impediments to cycle objectives
+- When displaying the project backlog, surface `discarded` actions separately (or filtered) so the active candidate list remains clean while preserving the audit trail
 - When an action references both `advancesAlphaInstances` and `activityName`, tooling can validate consistency between the action's stated objectives and the Activity's structural `contributesTo` declarations
 
 **Validation Rules**
 
-- Each Action must have a unique `name` within its parent cycle
+- Each Action must have a unique `name` within its containing array (cycle-level or project-level)
 - `assignedTo` entries must match a TeamMember.name in the project's team
 - `advancesAlphaInstances` entries must match an AlphaInstanceName.name declared in the plan pattern
 - `developsWorkProductInstances` entries must match a WorkProductInstanceName.name declared in the plan pattern
 - `outcomeInstanceNames` entries must match an OutcomeInstance.name at the project or cycle level
 - `activityName` must match an Activity.name in the resolved practice or method scope (requires resolved scope; same limitation as TeamMember.personaName validation)
+
+### 12.9.1 Project-Level Action Backlog
+
+The `actions` array on Project provides a staging area for candidate actions that have not yet been assigned to a cycle. This is the project backlog — where action ideas are captured and reviewed before the team commits them to a bounded period of work.
+
+**Workflow**
+
+1. **Capture**: Action ideas are created in `project.actions` with minimal detail — typically just `name` and `description`. Properties like `assignedTo`, `dueAt`, and `status` are optional at this stage.
+2. **Review**: During cycle planning, the team reviews the backlog and decides which actions to include in the upcoming cycle.
+3. **Promote**: Accepted actions are copied to the cycle's `actions` array, where they gain cycle-specific detail (assignment, due dates, objective links).
+4. **Discard**: Rejected candidates are marked with `status: "discarded"` and optionally annotated with `notes` explaining the rationale. This preserves an audit trail of what was considered.
+
+**Relationship to Cycle Actions**
+
+Project-level and cycle-level actions use the same `Action` type. The difference is lifecycle stage, not structure. A backlog action is a candidate; a cycle action is committed work. The same action name may appear in both locations — the backlog retains the original while the cycle holds the working copy.
+
+**Scope of Symbolic Links**
+
+When validating project-level actions, `outcomeInstanceNames` resolves against project-level outcome instances only (not cycle-level outcomes, since the action is not yet in a cycle). All other symbolic links (`assignedTo`, `advancesAlphaInstances`, `developsWorkProductInstances`, `activityName`) resolve against the same scopes as cycle-level actions.
+
+**Example**
+
+```json
+{
+  "kind": "project",
+  "name": "Platform Modernisation",
+  "practiceName": "Cloud Migration",
+  "actions": [
+    {
+      "name": "Evaluate service mesh options",
+      "description": "Compare Istio, Linkerd, and Consul Connect for the platform's service mesh layer",
+      "status": "not-started"
+    },
+    {
+      "name": "Draft data residency policy",
+      "description": "Document data residency requirements for EU customer data",
+      "status": "discarded",
+      "notes": [
+        {
+          "content": "Legal confirmed existing policy covers this — no new document needed.",
+          "createdAt": "2026-08-12T10:00:00Z"
+        }
+      ]
+    }
+  ],
+  "cycles": [ "..." ]
+}
+```

@@ -69,6 +69,8 @@
     - 12.6 [Notes, External Links, and Automated Journaling](semantics/project-tracking.md#126-notes-external-links-and-automated-journaling)
     - 12.7 [Cycles and Operational Work Tracking](semantics/project-tracking.md#127-cycles-and-operational-work-tracking)
     - 12.8 [Outcome Instances and Value Tracking](semantics/project-tracking.md#128-outcome-instances-and-value-tracking)
+    - 12.9 [Actions and Team Work Tracking](semantics/project-tracking.md#129-actions-and-team-work-tracking)
+      - 12.9.1 [Project-Level Action Backlog](semantics/project-tracking.md#1291-project-level-action-backlog)
 13. [Change Requests](semantics/change-requests.md)
 14. [Acyclicity Constraints and Circular Reference Protection](semantics/acyclicity.md)
     - 14.1 [Hierarchical Properties Subject to Acyclicity Constraints](semantics/acyclicity.md#141-hierarchical-properties-subject-to-acyclicity-constraints)
@@ -195,7 +197,7 @@ Defines declarative asset references for diagrams, templates, icons, and other v
 
 ## 12 Project Execution Tracking
 
-Defines the Project type — an execution instance of a Practice or Method that tracks real-world progress. Covers project purpose and root discrimination (12.1), team structure and Team API principles (12.2), plan section and pattern ownership (12.3), current and target state sections (12.4), ChecklistState and evidence tracking with priority thresholds (12.5), notes, external links, and automated journaling (12.6), cycles and operational work tracking (12.7), and outcome instances with value tracking (12.8). Read when working with project documents, tracking execution state, or designing team structures.
+Defines the Project type — an execution instance of a Practice or Method that tracks real-world progress. Covers project purpose and root discrimination (12.1), team structure and Team API principles (12.2), plan section and pattern ownership (12.3), current and target state sections (12.4), ChecklistState and evidence tracking with priority thresholds (12.5), notes, external links, and automated journaling (12.6), cycles and operational work tracking (12.7), outcome instances with value tracking (12.8), actions and team work tracking with structured acceptance criteria (12.9), and the project-level action backlog for candidate work items (12.9.1). Read when working with project documents, tracking execution state, or designing team structures.
 
 **Full guidance:** [semantics/project-tracking.md](semantics/project-tracking.md)
 

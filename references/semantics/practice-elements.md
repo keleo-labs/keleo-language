@@ -173,7 +173,7 @@ This structured tagging approach transforms simple labeling into a powerful mult
 
 ### 5.2 Checklists and Dynamic State-Gating
 
-The Checklist element introduces sequential verification. A checklist item must represent a demonstrable operational truth required for phase-gating. Authors should utilize checklists to directly embed and track alphanumeric regulatory or architectural controls (e.g., SOC2 controls, ISO standards, internal architecture OE:05). If a configuration, organizational process, or architectural standard must be true before moving to the next phase, it must be explicitly destructured into an actionable Checklist object attached to the target State or Level of Detail.
+The Checklist element introduces sequential verification. A checklist item must represent an actionable task required for phase-gating. When the item carries a `test` or `examples`, those define the completion criteria (definition of done); the item's `name` and `description` are freed to describe what to do and why. Authors should utilize checklists to directly embed and track alphanumeric regulatory or architectural controls (e.g., SOC2 controls, ISO standards, internal architecture OE:05). If a configuration, organizational process, or architectural standard must be completed before moving to the next phase, it must be explicitly destructured into an actionable Checklist object attached to the target State or Level of Detail.
 
 #### 5.2.1 Checklist Object Structure and Validation
 
@@ -196,8 +196,8 @@ Checklists provide the operational verification layer that transforms abstract a
 **Field Definitions:**
 
 - **seq**: Integer ordering (1, 2, 3...) determining checklist evaluation sequence within the parent state or level
-- **name**: String identifier for the checklist item (typically concise, 3-8 words)
-- **description**: String explaining what must be verified or achieved (1-2 sentences describing the operational truth)
+- **name**: **Action label** — imperative verb phrase identifying the task (3-8 words, e.g., "Define and monitor SLOs", "Document the reference architecture"). Appears in dashboards, task lists, and progress tracking. Carries WHAT to do.
+- **description**: **Practitioner guidance** — the briefing a practitioner reads before starting (1-2 sentences). Carries WHY this matters and HOW to approach it: rationale, scope, method, or context not derivable from the name alone. Must not restate the name as a longer sentence. When `test` is present, focus on rationale and approach — the test defines completion criteria. When `test` is absent, the description must also convey what "done" looks like.
 - **priority**: Optional MoSCoW-derived importance level (see [Section 5.2.2](#522-checklist-priority)). When omitted, defaults to `"must"` — the item is treated as essential
 - **evidencedBy**: Optional array of WorkProductContribution objects linking this checklist to artifacts that provide evidence (see below)
 - **test**: Optional Test object providing structured Given/When/Then verification (see [Section 5.3](#53-structured-guidance-the-gherkin-inspired-test-model))
@@ -205,8 +205,8 @@ Checklists provide the operational verification layer that transforms abstract a
 
 **Two Checklist Contexts:**
 
-1. **Alpha State Checklists**: Verification criteria for achieving an alpha state. Located in State.checklists arrays. These answer "what must be demonstrably true for this alpha to have reached this state?"
-2. **Work Product LOD Checklists**: Quality gates for achieving a work product level of detail. Located in LevelOfDetail.checklists arrays. These answer "what quality criteria must this artifact satisfy to be considered at this maturity level?"
+1. **Alpha State Checklists**: Actionable tasks for achieving an alpha state. Located in State.checklists arrays. These answer "what actions must be completed for this alpha to have reached this state?"
+2. **Work Product LOD Checklists**: Quality actions for achieving a work product level of detail. Located in LevelOfDetail.checklists arrays. These answer "what must be done to this artifact for it to be considered at this maturity level?"
 
 **EvidencedBy Structure (Optional but Recommended):**
 
@@ -223,18 +223,55 @@ This creates explicit traceability: "this checklist is satisfied when the specif
 
 **Validation Rules:**
 
-- Checklists are arrays (can be empty [] if no verification criteria defined)
+- Checklists are arrays (can be empty [] if no actionable tasks defined)
 - seq numbers provide ordering and should be unique within the parent array
-- evidencedBy is optional—checklists can represent verification criteria without explicit artifact linkage (e.g., organizational approvals, external validations)
+- evidencedBy is optional—checklists can represent actionable tasks without explicit artifact linkage (e.g., organizational approvals, external validations)
 - When evidencedBy is present, workProductName must reference a defined work product, and levelOfDetailName must match a level within that work product
 
 **Checklist Authoring Guidance:**
 
-- **Positive and Additive**: Every checklist item must describe something to achieve, produce, or establish — never the absence or lack of something. Items like "Metrics absent" or "Security gaps identified" describe deficiencies, not achievements; they would need to be unchecked when the deficiency is resolved, which inverts the progressive nature of checklists. Instead, frame as "Key metrics defined" or "Security controls established". Use the state/level description and narratives to characterize qualities of the level (including what may be limited or missing at early stages).
-- **Demonstrable Truth**: Each item represents something that can be objectively verified or measured
+- **Actionable Task**: Each item name is an imperative verb phrase describing a concrete action (e.g., "Define key metrics", "Establish security controls"). When `test` is present, the test's `then` clauses define what "done" looks like. When `test` is absent, the description must convey both the action and its completion criteria.
+- **Positive and Additive**: Every checklist item must describe something to achieve, produce, or establish — never the absence or lack of something. Items like "Metrics absent" or "Security gaps identified" describe deficiencies, not achievements; they would need to be unchecked when the deficiency is resolved, which inverts the progressive nature of checklists. Instead, frame as "Define key metrics" or "Establish security controls". Use the state/level description and narratives to characterize qualities of the level (including what may be limited or missing at early stages).
 - **Regulatory/Architectural Controls**: Embed specific controls (SOC2 requirements, ISO standards, internal architecture principles) directly as checklist items
-- **Phase-Gating**: Checklists should represent gates that must be passed before progression to next state/level
-- **Evidence Linkage**: Use evidencedBy when concrete artifacts prove checklist satisfaction; omit when verification is external (e.g., stakeholder approval)
+- **Phase-Gating**: Checklists represent tasks that must be completed before progression to next state/level
+- **Evidence Linkage**: Use evidencedBy when concrete artifacts prove checklist completion; omit when verification is external (e.g., stakeholder approval)
+- **Information Independence**: Each field must carry information not present in the others. If you can derive one field from another by changing verb tense, the content is redundant and provides no practitioner value. Litmus test: cover the `name` and read the `description` — does it tell you something new (rationale, scope, method)? Cover both and read `test.then` — does it tell you how to verify completion beyond "was the action performed?"
+
+**Anti-pattern — Echo checklist (INVALID):**
+
+```json
+{
+  "name": "Identify Target AI Personas",
+  "description": "Identify target AI personas across the organization.",
+  "test": {
+    "name": "Target AI Personas verification",
+    "description": "Definition of done.",
+    "given": [], "when": [],
+    "then": ["target AI personas identified across the organization"]
+  }
+}
+```
+
+The description restates the name as a sentence. The test restates the description in past tense. Empty `given`/`when` provide no verification structure. None of the fields carry information beyond what the name already says.
+
+**Corrected — each field carries distinct information:**
+
+```json
+{
+  "name": "Identify Target AI Personas",
+  "description": "Map the customer's organizational roles that will interact with AI capabilities to inform platform configuration and adoption sequencing.",
+  "test": {
+    "name": "AI persona coverage verification",
+    "description": "Verify that AI personas span all relevant organizational functions.",
+    "given": ["Customer has active or planned AI initiatives"],
+    "when": ["Account team prepares AI platform engagement plan"],
+    "then": [
+      "Each business unit with AI initiatives has at least one mapped persona",
+      "Persona-capability mapping informs platform configuration priorities"
+    ]
+  }
+}
+```
 
 **Example: Alpha State Checklist**
 
@@ -246,8 +283,8 @@ This creates explicit traceability: "this checklist is satisfied when the specif
   "checklists": [
     {
       "seq": 1,
-      "name": "Architecture documented",
-      "description": "Reference architecture created with technology stack decisions and rationale",
+      "name": "Document the reference architecture",
+      "description": "Create a reference architecture with technology stack decisions and rationale.",
       "evidencedBy": [
         {
           "workProductName": "Architecture",
@@ -257,14 +294,14 @@ This creates explicit traceability: "this checklist is satisfied when the specif
     },
     {
       "seq": 2,
-      "name": "Security review completed",
-      "description": "Security team has reviewed and approved architecture approach",
+      "name": "Complete security review",
+      "description": "Engage the security team to review and approve the architecture approach.",
       "evidencedBy": []
     },
     {
       "seq": 3,
-      "name": "Cost model validated",
-      "description": "Financial projections for infrastructure costs approved by finance team",
+      "name": "Validate infrastructure cost model",
+      "description": "Develop financial projections for infrastructure costs and secure finance team approval.",
       "evidencedBy": [
         {
           "workProductName": "Financial Model",
@@ -286,18 +323,18 @@ This creates explicit traceability: "this checklist is satisfied when the specif
   "checklists": [
     {
       "seq": 1,
-      "name": "Component diagram created",
-      "description": "System components and their relationships visually documented"
+      "name": "Create component diagram",
+      "description": "Visually document system components and their relationships."
     },
     {
       "seq": 2,
-      "name": "Technology decisions documented",
-      "description": "Each major technology choice explained with rationale and alternatives considered"
+      "name": "Document technology decisions",
+      "description": "Explain each major technology choice with rationale and alternatives considered."
     },
     {
       "seq": 3,
-      "name": "Integration patterns specified",
-      "description": "API contracts, data flows, and integration approaches defined"
+      "name": "Specify integration patterns",
+      "description": "Define API contracts, data flows, and integration approaches."
     }
   ]
 }
@@ -308,8 +345,8 @@ This creates explicit traceability: "this checklist is satisfied when the specif
 - Extract checklist arrays from source material for both alpha states and work product LODs
 - Validate seq ordering (should be sequential: 1, 2, 3...)
 - Validate evidencedBy references against defined work products
-- Empty checklist arrays are valid (indicates no verification criteria from source)
-- Missing checklists where source material specifies verification criteria indicates translation failure
+- Empty checklist arrays are valid (indicates no actionable tasks from source)
+- Missing checklists where source material specifies actionable tasks indicates translation failure
 
 **Operational Semantics:**
 
@@ -317,30 +354,30 @@ The schema validation engine evaluates checklists using strict operational seman
 
 - Checklists must be satisfied in seq order
 - When evidencedBy is present, the specified work product must exist at the specified level before the checklist passes
-- Automated tooling can generate "to-do" lists from unsatisfied checklists
+- Automated tooling can generate task lists from incomplete checklists
 - Progress dashboards can visualize checklist completion as state/level achievement indicators
 
-This structured approach transforms qualitative methodology guidance into quantitative, traceable verification criteria, enabling organizations to measure and validate their adoption progress objectively.
+This structured approach transforms qualitative methodology guidance into quantitative, traceable actionable tasks, enabling organizations to measure and validate their adoption progress objectively.
 
 #### 5.2.2 Checklist Priority
 
-The optional `priority` property on Checklist uses a MoSCoW-derived three-level scheme to communicate the relative importance of verification criteria:
+The optional `priority` property on Checklist uses a MoSCoW-derived three-level scheme to communicate the relative importance of checklist tasks:
 
 | Value | Meaning | Phase-gating implication |
 |---|---|---|
-| `"must"` | Essential verification criterion. The state or LOD cannot be considered achieved without it. | Required unless explicitly overridden via ChecklistState at the project level. |
+| `"must"` | Essential task. The state or LOD cannot be considered achieved without completing it. | Required unless explicitly overridden via ChecklistState at the project level. |
 | `"should"` | Expected and important. Full confidence in the state or LOD requires it, but it can be deferred or excluded with justification. | Included by default; skippable with rationale. |
 | `"could"` | Supplementary. Adds depth or rigour but is genuinely optional. | Skippable without justification. |
 
 **Default when omitted:** `"must"`. This preserves backward compatibility — existing documents with no `priority` field behave identically to the pre-priority schema where all items were equally essential. An unprioritized item is never accidentally filtered out by a project-level threshold.
 
-**Why three levels, not four?** MoSCoW's fourth level "Won't" is a scoping decision made by project teams at execution time, not an inherent property of the verification criterion. It is already represented by `ChecklistState.state = "not required"` in the project's target section (see [Section 12.5](project-tracking.md#125-checkliststate-and-evidence-tracking)).
+**Why three levels, not four?** MoSCoW's fourth level "Won't" is a scoping decision made by project teams at execution time, not an inherent property of the checklist task. It is already represented by `ChecklistState.state = "not required"` in the project's target section (see [Section 12.5](project-tracking.md#125-checkliststate-and-evidence-tracking)).
 
 **Authoring Guidance for Priority Assignment:**
 
 - **Default to omitting priority.** If every item in a state is essential, leave `priority` absent on all of them — the default of `"must"` communicates this without cluttering the schema.
-- **Use `"should"` for items that are important but context-dependent.** If a verification criterion is critical in regulated environments but less so in early-stage startups, mark it `"should"` — teams can include or exclude it based on their context.
-- **Use `"could"` sparingly.** Reserve it for genuinely supplementary criteria — items that add confidence or rigour but whose absence does not meaningfully compromise the state. If most items in a state are `"could"`, the state's checklist may be over-specified.
+- **Use `"should"` for items that are important but context-dependent.** If a task is critical in regulated environments but less so in early-stage startups, mark it `"should"` — teams can include or exclude it based on their context.
+- **Use `"could"` sparingly.** Reserve it for genuinely supplementary tasks — items that add confidence or rigour but whose absence does not meaningfully compromise the state. If most items in a state are `"could"`, the state's checklist may be over-specified.
 - **Priority is stable across projects.** It reflects the practice author's assessment of importance, not a per-project scoping decision. Project-level scoping is handled by the `priorityThreshold` on Project and ProjectCycle (see [Section 12.5.1](project-tracking.md#1251-priority-threshold)).
 
 **Example with Priority:**
@@ -353,8 +390,8 @@ The optional `priority` property on Checklist uses a MoSCoW-derived three-level 
   "checklists": [
     {
       "seq": 1,
-      "name": "Architecture documented",
-      "description": "Reference architecture created with technology stack decisions and rationale",
+      "name": "Document the reference architecture",
+      "description": "Create a reference architecture with technology stack decisions and rationale.",
       "evidencedBy": [
         {
           "workProductName": "Architecture",
@@ -364,14 +401,14 @@ The optional `priority` property on Checklist uses a MoSCoW-derived three-level 
     },
     {
       "seq": 2,
-      "name": "Security review completed",
-      "description": "Security team has reviewed and approved architecture approach",
+      "name": "Complete security review",
+      "description": "Engage the security team to review and approve the architecture approach.",
       "priority": "should"
     },
     {
       "seq": 3,
-      "name": "Cost model validated",
-      "description": "Financial projections for infrastructure costs approved by finance team",
+      "name": "Validate infrastructure cost model",
+      "description": "Develop financial projections for infrastructure costs and secure finance team approval.",
       "priority": "could",
       "evidencedBy": [
         {
@@ -384,7 +421,7 @@ The optional `priority` property on Checklist uses a MoSCoW-derived three-level 
 }
 ```
 
-In this example, "Architecture documented" is essential (no `priority` — defaults to `"must"`). "Security review completed" is important but can be deferred in contexts where security review happens later. "Cost model validated" is supplementary — valuable for large initiatives but genuinely optional for smaller projects.
+In this example, "Document the reference architecture" is essential (no `priority` — defaults to `"must"`). "Complete security review" is important but can be deferred in contexts where security review happens later. "Validate infrastructure cost model" is supplementary — valuable for large initiatives but genuinely optional for smaller projects.
 
 ### 5.3 Structured Guidance: The Gherkin-Inspired Test Model
 
@@ -492,20 +529,34 @@ At the practice level (State, LevelOfDetail), background defines what SHOULD hol
 
 Individual checklist items can carry an optional `test` property (a Test object) and an optional `examples` array (Test[]).
 
-When `test` is absent, the checklist's own `name` and `description` continue to serve their current role as the complete outcome specification (full backward compatibility). When `test` is present, it provides structured verification detail — the checklist's name/description remain the concise label, while the test decomposes the verification into preconditions, triggers, and outcomes. The test's `given` supplements any background-level prerequisites on the parent state or level of detail.
+When `test` is absent, the checklist's `name` and `description` must be self-contained — the name states the action, and the description conveys both what to do and what "done" looks like. When `test` is present, it defines the completion criteria (definition of done) — the test's `then` clauses specify what must be observable when the action is complete. The checklist's name/description are freed to focus on the action and its purpose, while the test decomposes completion into preconditions, triggers, and verifiable outcomes. The test's `given` supplements any background-level prerequisites on the parent state or level of detail.
 
-Examples serve as practitioner guidance — they illustrate how a general checklist item manifests in specific real-world scenarios. They do not replace the parent checklist's test scenario; they specialise it for concrete contexts.
+Examples serve as practitioner guidance — they illustrate how a general checklist task applies in specific real-world scenarios. They do not replace the parent checklist's test; they specialise its completion criteria for concrete contexts.
+
+**Test field roles (information independence):**
+
+| Field | Carries | Anti-pattern |
+|-------|---------|-------------|
+| `test.name` | Short descriptor for the verification scenario | Mechanical "{name fragment} verification" |
+| `test.description` | Why this verification matters and what is being verified | Literal "Definition of done." on every item |
+| `test.given` | Preconditions — what must be true before verification is meaningful | Always empty `[]` |
+| `test.when` | Trigger — the decision point, review event, or lifecycle moment that initiates evaluation | Always empty `[]` |
+| `test.then` | Observable evidence of completion — things you can point to, count, or independently verify | Restating name/description in past tense |
+
+A test where `given` and `when` are empty and `then` merely restates the description in past tense is a **skeleton test** — it adds mechanical structure without verification value. Either enrich it with preconditions, triggers, and independently observable evidence, or omit the test entirely.
 
 **Example: Checklist with Test and Examples**
 
+In this example, each field carries distinct information. The name labels the task. The description specifies scope and method (SLOs + monitoring dashboards + burn-rate alerts). The test adds preconditions (observability stack deployed), a trigger (platform team reviews dashboard), and independently verifiable outcomes (each service has >= 1 SLO, alerts fire within window).
+
 ```json
 {
-  "name": "SLOs defined and monitored",
-  "description": "Service level objectives are defined and dashboards are actively monitored.",
+  "name": "Define and monitor SLOs",
+  "description": "Establish service level objectives for critical services and configure monitoring dashboards with burn-rate alerts.",
   "seq": 1,
   "test": {
-    "name": "SLO verification",
-    "description": "Verify that SLOs are defined and alerts are operational.",
+    "name": "SLO completion criteria",
+    "description": "Definition of done: SLOs are defined and alerting is operational.",
     "given": ["the observability stack is deployed"],
     "when": ["the platform team reviews the SLO dashboard"],
     "then": [
@@ -517,14 +568,14 @@ Examples serve as practitioner guidance — they illustrate how a general checkl
   "examples": [
     {
       "name": "API gateway SLO",
-      "description": "SLO verification for external-facing API gateway.",
+      "description": "Completion criteria for external-facing API gateway SLO.",
       "given": ["the API gateway handles external traffic"],
       "when": ["a latency spike exceeds the p99 threshold"],
       "then": ["an alert fires within 5 minutes", "the on-call engineer is paged"]
     },
     {
       "name": "Data pipeline SLO",
-      "description": "SLO verification for nightly data pipeline.",
+      "description": "Completion criteria for nightly data pipeline SLO.",
       "given": ["the ETL pipeline runs on a nightly schedule"],
       "when": ["the pipeline fails to complete within the SLO window"],
       "then": ["a data freshness alert fires", "downstream consumers are notified"]
@@ -545,20 +596,23 @@ The following guidance applies to all uses of Background, Test, and Examples —
 - On an ActivitySpace, when a governance-level prerequisite applies to all activities in the space (e.g., stakeholder recognition, strategic approval). Do not duplicate ActivitySpace-level prerequisites on individual activities.
 
 **When to use Test:**
-- When the existing name/description alone do not convey the full context (what must be true, what to do, what to observe)
-- When a checklist item or activity benefits from separating the precondition from the action from the outcome
+- When the existing name/description alone do not convey the full completion criteria (what must be true before, what triggers evaluation, what must be observable after)
+- When a checklist item or activity benefits from separating the precondition from the trigger from the completion criteria
 - On activities, `test.when` is particularly valuable because it captures the trigger that is otherwise implicit — describe decision points, events, or lifecycle moments that initiate the work
 - On activities, `test.then` should complement, not duplicate, the structural `contributesTo` and `worksOn` — use it for outcomes meaningful to practitioners but not captured by symbolic alpha/work-product references (e.g., "risk factors are documented" rather than restating "advances Opportunity to Determined")
 - Partial use is valid: a test can have `given` without `when` or `then`, or `then` without `given`
 
 **When to use Examples:**
 - When a checklist item or activity applies differently across contexts (e.g., different service types, team structures, deployment models, greenfield vs migration)
-- When concrete illustrations would help practitioners understand how to apply a general criterion
+- When concrete illustrations would help practitioners understand how to apply a general task
 - When the element is inherently parameterized (the same pattern with different values)
 - An element can have `examples` without a `test`, or a `test` without `examples`
 
 **When NOT to use these constructs:**
-- When the existing name/description adequately convey the criterion or intent
+- When the existing name/description adequately convey the task and its completion criteria
 - When adding structure would be purely ceremonial without improving practitioner understanding
+- When you cannot add information beyond the name and description — a test that restates the description in past tense (e.g., name "Define key metrics" + test.then "key metrics defined") is a skeleton test that adds no verification value. Omit it.
+- When `given` and `when` would both be empty — empty preconditions and triggers signal that the test is not grounded in a meaningful evaluation scenario
+- When the only `test.description` you can write is "Definition of done." — this indicates the test has no specific verification purpose
 - Baseline checklists should remain minimal — the practice layer is the natural place for detailed Gherkin structure
 

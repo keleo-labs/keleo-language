@@ -419,6 +419,68 @@ class ProjectValidator:
 
         return not has_errors
 
+    def _validate_single_action(self, action: Dict, path: str,
+                                team_member_names: set,
+                                declared_alpha_names: set,
+                                declared_wp_names: set,
+                                outcome_names: set) -> bool:
+        """Validate a single action's symbolic links. Returns True if errors found."""
+        has_errors = False
+
+        for assigned in action.get('assignedTo', []):
+            if assigned not in team_member_names:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{path}.assignedTo",
+                    "issue": f"assignedTo '{assigned}' does not match any TeamMember in the project team",
+                    "expected": f"One of: {sorted(team_member_names)}" if team_member_names else "Define team members first",
+                    "actual": assigned,
+                    "suggestion": "Use a name that matches a TeamMember in the project's team"
+                })
+                has_errors = True
+
+        for ai_name in action.get('advancesAlphaInstances', []):
+            if declared_alpha_names and ai_name not in declared_alpha_names:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{path}.advancesAlphaInstances",
+                    "issue": f"advancesAlphaInstances references undeclared alpha instance name '{ai_name}'",
+                    "expected": f"One of: {sorted(declared_alpha_names)}",
+                    "actual": ai_name,
+                    "suggestion": "Use an alpha instance name declared in plan.pattern.alphaInstanceNames"
+                })
+                has_errors = True
+
+        for wp_name in action.get('developsWorkProductInstances', []):
+            if declared_wp_names and wp_name not in declared_wp_names:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{path}.developsWorkProductInstances",
+                    "issue": f"developsWorkProductInstances references undeclared work product instance name '{wp_name}'",
+                    "expected": f"One of: {sorted(declared_wp_names)}",
+                    "actual": wp_name,
+                    "suggestion": "Use a work product instance name declared in plan.pattern.workProductInstanceNames"
+                })
+                has_errors = True
+
+        for oi_name in action.get('outcomeInstanceNames', []):
+            if oi_name not in outcome_names:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{path}.outcomeInstanceNames",
+                    "issue": f"outcomeInstanceNames '{oi_name}' does not match any OutcomeInstance in scope",
+                    "expected": f"One of: {sorted(outcome_names)}" if outcome_names else "Define outcome instances first",
+                    "actual": oi_name,
+                    "suggestion": "Use an OutcomeInstance name from the applicable scope"
+                })
+                has_errors = True
+
+        return has_errors
+
     def validate_actions(self) -> bool:
         has_errors = False
 
@@ -448,6 +510,34 @@ class ProjectValidator:
             if n:
                 project_outcome_names.add(n)
 
+        # --- Project-level backlog actions ---
+        backlog_actions = self.project.get('actions', [])
+        if backlog_actions:
+            action_names = set()
+            for aidx, action in enumerate(backlog_actions):
+                action_name = action.get('name', '')
+                path = f"actions[{aidx}]"
+
+                if action_name in action_names:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{path}.name",
+                        "issue": f"Duplicate action name '{action_name}' in project-level actions",
+                        "expected": "Unique action names within the project-level backlog",
+                        "actual": action_name,
+                        "suggestion": "Rename this action to be unique within the backlog"
+                    })
+                    has_errors = True
+                action_names.add(action_name)
+
+                has_errors |= self._validate_single_action(
+                    action, path, team_member_names,
+                    declared_alpha_names, declared_wp_names,
+                    project_outcome_names
+                )
+
+        # --- Cycle-level actions ---
         for idx, cycle in enumerate(self.project.get('cycles', [])):
             cycle_name = cycle.get('name', f'[{idx}]')
             actions = cycle.get('actions', [])
@@ -479,57 +569,11 @@ class ProjectValidator:
                     has_errors = True
                 action_names.add(action_name)
 
-                for assigned in action.get('assignedTo', []):
-                    if assigned not in team_member_names:
-                        self.errors.append({
-                            "category": "integrity",
-                            "severity": "error",
-                            "path": f"{path}.assignedTo",
-                            "issue": f"assignedTo '{assigned}' does not match any TeamMember in the project team",
-                            "expected": f"One of: {sorted(team_member_names)}" if team_member_names else "Define team members first",
-                            "actual": assigned,
-                            "suggestion": "Use a name that matches a TeamMember in the project's team"
-                        })
-                        has_errors = True
-
-                for ai_name in action.get('advancesAlphaInstances', []):
-                    if declared_alpha_names and ai_name not in declared_alpha_names:
-                        self.errors.append({
-                            "category": "integrity",
-                            "severity": "error",
-                            "path": f"{path}.advancesAlphaInstances",
-                            "issue": f"advancesAlphaInstances references undeclared alpha instance name '{ai_name}'",
-                            "expected": f"One of: {sorted(declared_alpha_names)}",
-                            "actual": ai_name,
-                            "suggestion": "Use an alpha instance name declared in plan.pattern.alphaInstanceNames"
-                        })
-                        has_errors = True
-
-                for wp_name in action.get('developsWorkProductInstances', []):
-                    if declared_wp_names and wp_name not in declared_wp_names:
-                        self.errors.append({
-                            "category": "integrity",
-                            "severity": "error",
-                            "path": f"{path}.developsWorkProductInstances",
-                            "issue": f"developsWorkProductInstances references undeclared work product instance name '{wp_name}'",
-                            "expected": f"One of: {sorted(declared_wp_names)}",
-                            "actual": wp_name,
-                            "suggestion": "Use a work product instance name declared in plan.pattern.workProductInstanceNames"
-                        })
-                        has_errors = True
-
-                for oi_name in action.get('outcomeInstanceNames', []):
-                    if oi_name not in all_outcome_names:
-                        self.errors.append({
-                            "category": "integrity",
-                            "severity": "error",
-                            "path": f"{path}.outcomeInstanceNames",
-                            "issue": f"outcomeInstanceNames '{oi_name}' does not match any OutcomeInstance at project or cycle level",
-                            "expected": f"One of: {sorted(all_outcome_names)}" if all_outcome_names else "Define outcome instances first",
-                            "actual": oi_name,
-                            "suggestion": "Use an OutcomeInstance name from the project or cycle outcomes"
-                        })
-                        has_errors = True
+                has_errors |= self._validate_single_action(
+                    action, path, team_member_names,
+                    declared_alpha_names, declared_wp_names,
+                    all_outcome_names
+                )
 
         return not has_errors
 

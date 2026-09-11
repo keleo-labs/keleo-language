@@ -132,26 +132,42 @@ A ProjectCycle extends ProjectStateSection (inheriting `alphaInstances`, `workPr
 
 #### Action
 
-An Action is a concrete, assigned, time-bound task within a project cycle. Actions bridge the gap between cycle objectives (what we're trying to achieve) and the team's day-to-day work (what each person is doing). They optionally trace back to a practice-defined Activity for methodology context, without requiring a full template-instance pattern.
+An Action is a concrete task within a project. When placed in a cycle's actions array, it is assigned and time-bound operational work. When placed in the project-level actions array (the backlog), it represents a candidate task awaiting cycle assignment. Actions bridge the gap between objectives (what we're trying to achieve) and the team's day-to-day work (what each person is doing). They optionally trace back to a practice-defined Activity for methodology context, without requiring a full template-instance pattern.
 
 **Structure:**
 
-- `name` (required) — action title, unique within the parent cycle
+- `name` (required) — action title, unique within its containing array (the parent cycle's actions or the project-level backlog)
 - `description` (optional) — what needs to be done
 - `activityName` (optional) — symbolic link to an Activity.name in the resolved practice or method scope, providing methodology traceability
 - `assignedTo` (optional) — array of strings, symbolic links to TeamMember.name values in the project's team
-- `status` (optional) — current status: `"not-started"`, `"in-progress"`, `"done"`, `"blocked"`, or `"deferred"`
+- `status` (optional) — current status: `"not-started"`, `"in-progress"`, `"done"`, `"blocked"`, `"deferred"`, or `"discarded"`
 - `dueAt` (optional) — ISO timestamp target completion date
 - `completedAt` (optional) — ISO timestamp recording when the action was completed; absent while open
 - `advancesAlphaInstances` (optional) — array of strings, symbolic links to AlphaInstance.name values identifying the alpha-state objectives this action advances
 - `developsWorkProductInstances` (optional) — array of strings, symbolic links to WorkProductInstance.name values identifying the work product objectives this action develops
 - `outcomeInstanceNames` (optional) — array of strings, symbolic links to OutcomeInstance.name values at the project or cycle level
 - `evidence` (optional) — ExternalLink referencing the deliverable or supporting evidence
+- `test` (optional) — a Test object (Given/When/Then) defining the acceptance criterion for verifying the action is complete. Complements `evidence` (what was produced) by defining the evaluation standard (how we know it's done)
 - `notes` (optional) — array of Note objects for timestamped commentary, updates, or blocker descriptions
 
 **Relationship to Activity (practice-level):**
 
 An Action is NOT an ActivityInstance. Activities are practice-level methodology constructs defining swimlanes of work with structural contributions (`contributesTo`, `worksOn`). Actions are project-level operational tasks — specific, concrete, and assigned to individuals. The optional `activityName` provides a traceability link to the methodology without coupling the two.
+
+#### Project-Level Action Backlog
+
+The `actions` array on Project provides a staging area for candidate actions not yet assigned to a cycle. This is the project backlog.
+
+- `actions` (optional) — array of Action objects representing proposed work the team reviews during cycle planning
+
+**Workflow:**
+
+1. **Capture** — action ideas are created in `project.actions` with minimal detail (typically `name` and `description`)
+2. **Review** — during cycle planning, the team reviews the backlog
+3. **Promote** — accepted actions are copied to a cycle's `actions` array, gaining cycle-specific detail
+4. **Discard** — rejected candidates are marked with `status: "discarded"` and optionally annotated with `notes`
+
+Project-level and cycle-level actions use the same Action type. When validating project-level actions, `outcomeInstanceNames` resolves against project-level outcome instances only (not cycle-level outcomes).
 
 #### Relationship Between Sections
 
@@ -520,7 +536,7 @@ Scenario: WorkProductInstance metrics are structurally valid
   Then validation succeeds — metric structure is validated by JSON Schema
 ```
 
-### Feature: Action validation (rules 17–22)
+### Feature: Action validation (rules 17–22, 27–28)
 
 ```gherkin
 Scenario: Unique action names within a cycle
@@ -592,6 +608,42 @@ Scenario: Action outcomeInstanceNames references non-existent outcome instance
   And a cycle action with outcomeInstanceNames ["Unknown Outcome"]
   When the project is validated
   Then a validation error is reported: outcomeInstanceNames "Unknown Outcome" does not match any OutcomeInstance at project or cycle level
+
+Scenario: Unique action names within the project-level backlog
+  Given a project with backlog actions named "Set up CI/CD", "Write ADR"
+  When the project is validated
+  Then validation succeeds for project-level action name uniqueness
+
+Scenario: Duplicate action names in the project-level backlog
+  Given a project with two backlog actions both named "Set up CI/CD"
+  When the project is validated
+  Then a validation error is reported: duplicate action name "Set up CI/CD" in project-level actions
+
+Scenario: Project-level action assignedTo references valid team member
+  Given a project team with members named "Alice Chen", "Bob Smith"
+  And a project-level action with assignedTo ["Alice Chen"]
+  When the project is validated
+  Then validation succeeds for that action's assignedTo
+
+Scenario: Project-level action assignedTo references non-existent team member
+  Given a project team with members named "Alice Chen", "Bob Smith"
+  And a project-level action with assignedTo ["Charlie Unknown"]
+  When the project is validated
+  Then a validation error is reported: assignedTo "Charlie Unknown" does not match any TeamMember in the project team
+
+Scenario: Project-level action outcomeInstanceNames resolves against project-level outcomes only
+  Given a project with OutcomeInstance named "FY26 Revenue" at project level
+  And a cycle with OutcomeInstance named "Sprint Revenue" at cycle level
+  And a project-level action with outcomeInstanceNames ["FY26 Revenue"]
+  When the project is validated
+  Then validation succeeds for that action's outcomeInstanceNames
+
+Scenario: Project-level action outcomeInstanceNames rejects cycle-level outcome reference
+  Given a project with no project-level OutcomeInstance named "Sprint Revenue"
+  And a cycle with OutcomeInstance named "Sprint Revenue" at cycle level
+  And a project-level action with outcomeInstanceNames ["Sprint Revenue"]
+  When the project is validated
+  Then a validation error is reported: outcomeInstanceNames "Sprint Revenue" does not match any OutcomeInstance at project level
 ```
 
 ### Feature: Instance relationship validation (rules 23–26)
