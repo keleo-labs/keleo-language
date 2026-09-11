@@ -326,12 +326,14 @@ An OutcomeInstance has:
 - `outcomeName` — symbolic link to the practice-defined Outcome template
 - `measure` — the specific target as free text (e.g., "1.5M GBP ACV", "75% lifecycle completion")
 - `targetValue` — optional numeric target for comparison with the computed aggregate
-- `unit` — optional unit of `targetValue` (should match contributing metric units)
+- `actualValue` — optional current actual measured value, updated as real data is collected
+- `forecastValue` — optional projected value based on current trajectory and contributing metrics
+- `unit` — optional unit of `targetValue`, `actualValue`, and `forecastValue` (should match contributing metric units)
 - `status` — current achievement: `not-started`, `in-progress`, `achieved`, `missed`, or `deferred`
 - `evidence` — optional ExternalLink to supporting evidence
 - `notes` — optional timestamped progress notes
 
-The computed aggregate is **derived at read time** and is not stored on the OutcomeInstance. `status` is author-set; tooling does not infer it from computed vs `targetValue`.
+The computed aggregate is **derived at read time** and is not stored on the OutcomeInstance. `actualValue` records confirmed measurements; `forecastValue` captures projections. `status` is author-set; tooling does not infer it from computed vs `targetValue`.
 
 **Placement**
 

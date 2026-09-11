@@ -282,7 +282,9 @@ OutcomeInstance is a project-level instantiation of a practice-defined Outcome. 
 - `description` (optional) — project-specific context
 - `measure` (optional) — the specific target as free text (e.g. "1.5M GBP ACV", "MTTR under 4 hours"). Instantiates the practice's measureDescription with a concrete value
 - `targetValue` (optional) — numeric target for comparison with the computed aggregate
-- `unit` (optional) — unit of `targetValue` (e.g. "GBP"); should match contributing metric units
+- `actualValue` (optional) — current actual measured value, updated as real data is collected
+- `forecastValue` (optional) — projected value based on current trajectory and contributing metrics
+- `unit` (optional) — unit of `targetValue`, `actualValue`, and `forecastValue` (e.g. "GBP"); should match contributing metric units
 - `status` (optional) — current achievement status: `"not-started"`, `"in-progress"`, `"achieved"`, `"missed"`, or `"deferred"`
 - `evidence` (optional) — ExternalLink referencing external evidence supporting the status
 - `notes` (optional) — array of Note objects tracking outcome progress
