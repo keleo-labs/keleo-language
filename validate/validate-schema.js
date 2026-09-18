@@ -184,6 +184,22 @@ function validateAcyclicity(data) {
     errors.push(`Circular prerequisite dependency: ${cycle.join(' → ')}`);
   }
 
+  // PersonaGroup.personaGroupNames hierarchy
+  const pgEdges = new Map();
+  const pgNodes = new Set();
+  for (const p of practices) {
+    for (const pg of (p.personaGroups || [])) {
+      pgNodes.add(pg.name);
+      if (pg.personaGroupNames && pg.personaGroupNames.length > 0) {
+        pgEdges.set(pg.name, pg.personaGroupNames);
+        for (const child of pg.personaGroupNames) pgNodes.add(child);
+      }
+    }
+  }
+  for (const cycle of detectDAGCycles(pgNodes, pgEdges)) {
+    errors.push(`Circular reference in PersonaGroup.personaGroupNames: ${cycle.join(' → ')}`);
+  }
+
   // ChangeRequest.supersedes (Project documents)
   for (const projCycle of (data.cycles || [])) {
     const crParent = {};

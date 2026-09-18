@@ -80,6 +80,46 @@ Activities support an optional `test` property and an optional `examples` array 
 
 The Persona acts as a direct container for required competencies via the competencies array (linking to CompetencyLevelReference). For broader team mapping, the PersonaGroup element allows tooling to cluster multiple related roles, allowing ActivitySpaces to assign workflows to entire departments rather than isolated individuals.
 
+#### 8.2.1 Hierarchical PersonaGroup Aggregation
+
+A PersonaGroup may include other PersonaGroups as members via the optional `personaGroupNames` array (alongside the existing `personaNames` array for direct Persona membership). This creates a hierarchical aggregation where a parent group transitively includes all personas from its child groups.
+
+**Use cases:**
+- **Departmental rollups:** A "Cross-Functional Team" group includes sub-groups "Engineering Team" and "Product Team", each of which directly names individual personas.
+- **Baseline extension:** A baseline defines broad role groups; an extension practice creates a specialized sub-group and includes it in the baseline group via merge.
+
+**Membership resolution:** The effective member set of a PersonaGroup is the union of:
+1. All personas named directly in `personaNames`.
+2. All personas in the transitive closure of groups named in `personaGroupNames` (recursively expanding each child group's `personaNames` and `personaGroupNames`).
+
+**Acyclicity constraint:** The directed graph formed by `personaGroupNames` references must be a DAG. A group cannot directly or transitively include itself. See [Section 14](acyclicity.md) for the full constraint specification.
+
+**Example:**
+```json
+{
+  "personaGroups": [
+    {
+      "name": "Engineering Team",
+      "description": "Technical implementation roles.",
+      "personaNames": ["Platform Engineer", "Site Reliability Engineer"]
+    },
+    {
+      "name": "Product Team",
+      "description": "Product strategy and design roles.",
+      "personaNames": ["Product Manager", "UX Designer"]
+    },
+    {
+      "name": "Delivery Squad",
+      "description": "Cross-functional delivery team combining engineering and product.",
+      "personaNames": ["Scrum Master"],
+      "personaGroupNames": ["Engineering Team", "Product Team"]
+    }
+  ]
+}
+```
+
+In this example, "Delivery Squad" effectively includes: Scrum Master, Platform Engineer, Site Reliability Engineer, Product Manager, UX Designer.
+
 ## 9 Lifecycle Orchestration: Patterns and Phase Models
 
 Methodologies are orchestrated into overarching temporal models using Pattern elements.

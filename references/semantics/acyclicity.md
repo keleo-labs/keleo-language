@@ -78,6 +78,19 @@ Because `partOf` and `mapsTo` are mutually exclusive on a single work product bu
 
 **Constraint:** Construct a single directed graph where each work product with `partOf` or `mapsTo` has exactly one outgoing edge to its target. This combined graph must be acyclic.
 
+#### 14.1.7 PersonaGroup Membership Hierarchy (`PersonaGroup.personaGroupNames`)
+
+**Property:** `PersonaGroup.personaGroupNames` — array of PersonaGroup names that this group includes as sub-groups.
+
+**Graph:** Each PersonaGroup with `personaGroupNames` entries forms edges from the parent group to each named child group. The resulting graph across all PersonaGroups in scope (baseline + practice + dependencies) must be acyclic.
+
+**Invalid Examples:**
+- **Self-reference:** PersonaGroup "Team A" with `personaGroupNames: ["Team A"]`
+- **Mutual:** PersonaGroup "Team A" includes "Team B", PersonaGroup "Team B" includes "Team A"
+- **Transitive:** PersonaGroup "A" includes "B", "B" includes "C", "C" includes "A"
+
+**Constraint:** For any PersonaGroup X, walking the `personaGroupNames` references transitively must never revisit a previously visited group.
+
 ### 14.2 Cross-Element Prerequisite Cycles
 
 Background prerequisites create cross-element dependency graphs that are harder to detect than single-property hierarchies because cycles span multiple element types and properties.
@@ -168,15 +181,17 @@ Practices also reference baselines via `baselinePracticeName`. While a practice 
 | `baselinePracticeNames` | PracticeBaseline | Document dependencies | All baselines in registry |
 | `practiceDependencyNames` | Practice | Document dependencies | All practices in registry |
 | `supersedes` | ChangeRequest | Revision chain | All change requests for target document |
+| `personaGroupNames` | PersonaGroup | Membership hierarchy | All persona groups in baseline + practice + dependencies |
 
 **Validation Order:** Validate acyclicity constraints in this order, as earlier checks enable meaningful later checks:
 
 1. Document dependency graphs (baseline and practice dependencies)
 2. Alpha hierarchy (`contributesTo` + `mapsTo` combined)
 3. Work product hierarchy (`partOf` + `mapsTo` combined)
-4. Cross-element prerequisites (backgrounds)
-5. State-level contributions (`contributesToState`)
-6. Revision chains (`supersedes`)
+4. PersonaGroup membership hierarchy (`personaGroupNames`)
+5. Cross-element prerequisites (backgrounds)
+6. State-level contributions (`contributesToState`)
+7. Revision chains (`supersedes`)
 
 ### 14.6 Implementation Requirements
 

@@ -165,7 +165,7 @@ Defines Work Products — the tangible artifacts providing empirical evidence to
 
 ## 8 Execution Boundaries and Organizational Roles
 
-Defines the execution model: Activity Spaces as generalized effort boundaries, Activities as specific actionable swimlanes with `worksOn` and competency requirements (8.1), Gherkin-inspired structure on activities for execution scenarios (8.1.1), and organizational Personas and PersonaGroups (8.2). Read when designing activities, defining organizational roles, or adding Gherkin test structures to activities.
+Defines the execution model: Activity Spaces as generalized effort boundaries, Activities as specific actionable swimlanes with `worksOn` and competency requirements (8.1), Gherkin-inspired structure on activities for execution scenarios (8.1.1), organizational Personas and PersonaGroups (8.2), and hierarchical PersonaGroup aggregation via `personaGroupNames` for composing groups from sub-groups (8.2.1). Read when designing activities, defining organizational roles, composing persona group hierarchies, or adding Gherkin test structures to activities.
 
 **Full guidance:** [semantics/execution-and-patterns.md](semantics/execution-and-patterns.md) — Sections 8-9
 

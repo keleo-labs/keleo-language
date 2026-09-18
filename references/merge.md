@@ -331,7 +331,7 @@ Competencies merge by canonical name. Within a competency:
 
 **Personas** merge by canonical name. The `competencies` array is unioned and deduplicated by `competencyName::competencyLevelName` composite key.
 
-**PersonaGroups** merge by canonical name. The `personaNames` string array is unioned and deduplicated.
+**PersonaGroups** merge by canonical name. The `personaNames` string array is unioned and deduplicated. The `personaGroupNames` string array (when present on either side) is unioned and deduplicated using the same primitive array strategy.
 
 ### 6.8 Narrative Merging
 
@@ -688,10 +688,10 @@ When resolving a standalone Practice (not within a Method), the system builds a 
 - **Activities**: Direct declarations within activity spaces.
 - **Competencies**: `requiredCompetencies` entries, `recommendedCompetencyLevels` entries.
 - **Work products**: Direct declarations, `worksOn` entries from activities.
-- **Personas and persona groups**: Direct declarations, `personaNames` within groups.
+- **Personas and persona groups**: Direct declarations, `personaNames` within groups, `personaGroupNames` within groups.
 - **Patterns**: Direct declarations, including nested pattern view references.
 
-This closure is expanded transitively: if alpha A is in the closure and alpha B declares `contributesTo: "A"`, then B enters the closure too. Persona group membership is similarly expanded — if a group is in the closure, all its member personas are included.
+This closure is expanded transitively: if alpha A is in the closure and alpha B declares `contributesTo: "A"`, then B enters the closure too. Persona group membership is similarly expanded — if a group is in the closure, all its member personas are included and all its member sub-groups (via `personaGroupNames`) are transitively included.
 
 All baseline alphas and activity spaces are always included in the closure to provide a complete view of the baseline coverage, even if the extension practice does not explicitly reference them.
 
