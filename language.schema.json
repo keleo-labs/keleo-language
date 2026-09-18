@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/language.schema.json",
-  "$comment": "schemaVersion:2.14.0",
+  "$comment": "schemaVersion:2.15.0",
   "title": "Practice language (from language.mmd)",
   "description": "JSON Schema derived from the Mermaid classDiagram in language.mmd. Identity is by name; most cross-links are string names (not embedded objects). Root validation discriminates Practice vs Method vs PracticeBaseline. Method can use embedded objects (baselinePractice + practices) or string references (baselinePracticeName + practiceNames) or a mix.",
   "$defs": {
@@ -27,7 +27,7 @@
       "description": "Common identity and prose fields for named practice artifacts. tags optional: omit, structured buckets, or legacy string[].",
       "required": ["name", "description"],
       "properties": {
-        "kind": { "type": "string", "enum": ["practice", "method", "practiceBaseline", "project", "practiceElementAlias", "workProduct", "workProductInstance", "alpha", "alphaInstance", "activitySpace", "activity", "persona", "personaGroup", "pattern", "patternGroup", "patternView", "outcome", "narrativeType", "citation", "acknowledgement", "test"] },
+        "kind": { "type": "string", "enum": ["practice", "method", "practiceBaseline", "project", "integrationMapping", "practiceElementAlias", "workProduct", "workProductInstance", "alpha", "alphaInstance", "activitySpace", "activity", "persona", "personaGroup", "pattern", "patternGroup", "patternView", "outcome", "narrativeType", "citation", "acknowledgement", "test"] },
         "name": { "type": "string" },
         "description": { "type": "string" },
         "tags": {
@@ -1532,7 +1532,7 @@
         },
         "documentType": {
           "type": "string",
-          "enum": ["practiceBaseline", "practice", "method", "project", "changeRequest", "changeSet"],
+          "enum": ["practiceBaseline", "practice", "method", "project", "integrationMapping", "changeRequest", "changeSet"],
           "description": "The root type of the JSON document, matching the schema's root discrimination result."
         },
         "documentName": {
@@ -2108,7 +2108,7 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["document", "sheet", "channel", "crm", "folder"],
+          "enum": ["document", "sheet", "channel", "crm", "folder", "api"],
           "description": "Optional classification of the linked resource type. Tool-agnostic: describes what the resource IS, not which tool hosts it. When absent, the link is unclassified."
         }
       },
@@ -2445,6 +2445,461 @@
           "type": "string",
           "pattern": "^\\d+\\.\\d+\\.\\d+$",
           "description": "Version of the Practice Language schema this change set was authored against (e.g. '1.0.0'). Consumers use this to determine compatibility before parsing."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ServiceConnection": {
+      "type": "object",
+      "description": "Tool-agnostic connection details for an external service instance. Identifies the tool, the canonical resource, and any parameters needed to resolve query templates.",
+      "required": ["tool", "link"],
+      "properties": {
+        "tool": {
+          "type": "string",
+          "description": "Name of the external tool or platform (e.g., 'Salesforce', 'Jira', 'Dataverse'). Tool-agnostic: describes the tool, not vendor vocabulary."
+        },
+        "link": {
+          "$ref": "#/$defs/ExternalLink",
+          "description": "Canonical URI for this service instance (e.g., the Salesforce org URL, Jira project URL)."
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "value"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Parameter name, matching QueryTemplate.parameters entries."
+              },
+              "value": {
+                "type": "string",
+                "description": "Resolved value for this parameter in this project context."
+              },
+              "description": {
+                "type": "string",
+                "description": "What this parameter value represents."
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "Connection-specific parameter values resolved for this project. Names should match QueryTemplate.parameters defined in the referenced IntegrationMapping."
+        }
+      },
+      "additionalProperties": false
+    },
+    "MappingTarget": {
+      "type": "object",
+      "description": "Declares what schema element an external entity maps to. The targetKind determines how elementName is resolved: alpha → Alpha.name, workProduct → WorkProduct.name, outcome → Outcome.name, action → Action name template.",
+      "required": ["targetKind", "elementName", "tier"],
+      "properties": {
+        "targetKind": {
+          "type": "string",
+          "enum": ["alpha", "workProduct", "outcome", "action"],
+          "description": "Which schema element type this target creates or updates."
+        },
+        "elementName": {
+          "type": "string",
+          "description": "Symbolic link to the target element, resolved by targetKind (e.g., Alpha.name when targetKind is 'alpha')."
+        },
+        "instanceNameTemplate": {
+          "type": "string",
+          "description": "Template for generating instance names from external field values. Use {FieldName} placeholders (e.g., '{Opportunity.Name}')."
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["direct", "pattern", "llm-assisted"],
+          "description": "Mapping confidence tier. direct: deterministic x→a. pattern: regex or fuzzy matching. llm-assisted: requires LLM semantic interpretation."
+        },
+        "condition": {
+          "type": "string",
+          "description": "When this target applies. For direct/pattern tiers: a simple expression. For llm-assisted: natural-language description."
+        }
+      },
+      "additionalProperties": false
+    },
+    "FieldMapping": {
+      "type": "object",
+      "description": "Maps an external system field to a specific property on a schema element instance. The target identifies which property is written; the tier determines how the mapping is executed.",
+      "required": ["name", "externalField", "tier", "target"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Identifier for this field mapping (e.g., 'stage-to-state', 'acv-to-deal-value')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Explanation of what this mapping does and any constraints."
+        },
+        "externalField": {
+          "type": "string",
+          "description": "Field path in the external system (e.g., 'STAGE_NAME', 'ACV_OPPORTUNITY_AMOUNT')."
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["direct", "pattern", "llm-assisted"],
+          "description": "Mapping confidence tier."
+        },
+        "target": {
+          "type": "object",
+          "description": "What schema property this field maps to.",
+          "properties": {
+            "property": {
+              "type": "string",
+              "enum": ["stateName", "metric", "checklistState", "levelOfDetailName", "link", "status", "value", "evidence"],
+              "description": "Well-known target property. Mutually exclusive with path."
+            },
+            "path": {
+              "type": "string",
+              "description": "JSON-path expression for custom property targets not covered by the property enum. Mutually exclusive with property."
+            },
+            "metricName": {
+              "type": "string",
+              "description": "When property is 'metric': the Metric.name to write to on the target WorkProductInstance."
+            },
+            "metricUnit": {
+              "type": "string",
+              "description": "When property is 'metric': the unit for the metric value."
+            },
+            "description": {
+              "type": "string",
+              "description": "Guidance for the llm-assisted tier explaining how to interpret and apply this mapping."
+            }
+          },
+          "oneOf": [
+            { "required": ["property"] },
+            { "required": ["path"] }
+          ],
+          "additionalProperties": false
+        },
+        "transform": {
+          "type": "string",
+          "description": "Transformation expression applied to the external value before writing (e.g., URL template, arithmetic, string formatting)."
+        },
+        "valueMap": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from", "to"],
+            "properties": {
+              "from": {
+                "type": "string",
+                "description": "External value to match (literal string, or regex pattern when matchType is 'pattern')."
+              },
+              "to": {
+                "type": "string",
+                "description": "Schema value to write when matched."
+              },
+              "matchType": {
+                "type": "string",
+                "enum": ["exact", "pattern", "contains"],
+                "description": "How to compare the external value against 'from'. Defaults to 'exact' when omitted."
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "Explicit value-to-value mappings. Evaluated in order; first match wins."
+        }
+      },
+      "additionalProperties": false
+    },
+    "QueryTemplate": {
+      "type": "object",
+      "description": "A reusable query definition for retrieving data from an external service. Supports parameterised queries (direct/pattern tiers) and natural-language intents (llm-assisted tier).",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Identifier for this query template (e.g., 'resolve-account', 'windowed-opportunities')."
+        },
+        "description": {
+          "type": "string",
+          "description": "What data this query retrieves."
+        },
+        "intent": {
+          "type": "string",
+          "description": "Natural-language intent for LLM-routed or Dataverse-style queries."
+        },
+        "template": {
+          "type": "string",
+          "description": "Parameterised query string (SQL, URL template, SOQL, etc.). Use {paramName} placeholders matching parameters entries."
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Parameter name matching {placeholders} in template and ServiceConnection.parameters entries."
+              },
+              "description": {
+                "type": "string",
+                "description": "What this parameter represents."
+              },
+              "source": {
+                "type": "string",
+                "description": "Where to resolve the value at runtime (e.g., 'service.parameters', 'project.links')."
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "Declared parameters for this query template."
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["direct", "pattern", "llm-assisted"],
+          "description": "Mapping confidence tier for this query."
+        }
+      },
+      "additionalProperties": false
+    },
+    "EntityMapping": {
+      "type": "object",
+      "description": "Declares how one external entity type maps to schema elements. Each EntityMapping covers a single external entity type (e.g., 'Opportunity', 'Account') and specifies the target elements, field-level mappings, identity resolution, and conditional logic.",
+      "required": ["name", "externalEntityType", "targets"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Identifier for this entity mapping (e.g., 'opportunity-to-opportunity')."
+        },
+        "description": {
+          "type": "string",
+          "description": "What external entity this mapping covers."
+        },
+        "externalEntityType": {
+          "type": "string",
+          "description": "Type name in the external system (e.g., 'Opportunity', 'Account', 'TSPC__AP__c')."
+        },
+        "cardinality": {
+          "type": "string",
+          "enum": ["one-to-one", "one-to-many", "conditional"],
+          "description": "Relationship cardinality between external entity and schema instances. one-to-one: each entity creates exactly one instance. one-to-many: each entity creates multiple instances. conditional: cardinality depends on runtime conditions."
+        },
+        "priority": {
+          "type": "integer",
+          "description": "Cross-mapping conflict resolution priority. When multiple IntegrationMappings target the same element, the EntityMapping with the higher priority wins. Defaults to 0 when omitted."
+        },
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/MappingTarget" },
+          "description": "What schema elements this external entity maps to (one or more)."
+        },
+        "fieldMappings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/FieldMapping" },
+          "description": "How external fields map to instance properties."
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "description", "when", "then"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Identifier for this condition."
+              },
+              "description": {
+                "type": "string",
+                "description": "What this condition checks and why."
+              },
+              "when": {
+                "type": "string",
+                "description": "Condition expression or natural-language description."
+              },
+              "then": {
+                "type": "string",
+                "description": "Action to take when condition is true (e.g., 'skip', 'use-target X', 'override-field Y')."
+              },
+              "tier": {
+                "type": "string",
+                "enum": ["direct", "pattern", "llm-assisted"],
+                "description": "Mapping confidence tier for evaluating this condition."
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "Conditional logic controlling when entity mappings or specific targets apply."
+        },
+        "identityKeys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["externalField", "matchTarget"],
+            "properties": {
+              "externalField": {
+                "type": "string",
+                "description": "Field path in the external system used as the identity key."
+              },
+              "matchTarget": {
+                "type": "string",
+                "enum": ["instanceName", "linkUri", "linkName", "metricValue"],
+                "description": "What property on the existing instance to match against."
+              },
+              "matchType": {
+                "type": "string",
+                "enum": ["exact", "contains", "pattern"],
+                "description": "How to compare the external value against the match target. Defaults to 'exact' when omitted."
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": "How to match external records to existing instances (for update-vs-create resolution)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "IntegrationMapping": {
+      "description": "A standalone document declaring how external system entities map to Practice Language elements. Distributed independently in .keleo bundles, referencing a practice or method by name. Supports three confidence tiers: direct (deterministic), pattern (regex/fuzzy), and llm-assisted (semantic interpretation).",
+      "allOf": [
+        { "$ref": "#/$defs/PracticeElement" },
+        {
+          "type": "object",
+          "required": ["serviceKind", "entityMappings"],
+          "properties": {
+            "serviceKind": {
+              "type": "string",
+              "enum": ["crm", "project-management", "document-store", "data-warehouse", "api", "file"],
+              "description": "Functional classification of the external service. Tool-agnostic: describes what the service does, not which product it is."
+            },
+            "practiceName": {
+              "type": "string",
+              "description": "Symbolic link to the Practice whose elements this mapping targets. Optional; when present, validators check that elementName references resolve against this practice."
+            },
+            "methodName": {
+              "type": "string",
+              "description": "Symbolic link to a Method whose elements this mapping targets. Alternative to practiceName."
+            },
+            "entityMappings": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/EntityMapping" },
+              "description": "How external entities map to schema elements."
+            },
+            "queryTemplates": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/QueryTemplate" },
+              "description": "Reusable query definitions for retrieving data from the external service."
+            },
+            "conflictPolicy": {
+              "type": "object",
+              "description": "Default conflict resolution strategy for this mapping. Applied when multiple sources provide values for the same target property.",
+              "properties": {
+                "defaultStrategy": {
+                  "type": "string",
+                  "enum": ["first-writer", "last-writer", "highest-state", "manual"],
+                  "description": "Default strategy when no field-specific rule applies."
+                },
+                "rules": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["property", "strategy"],
+                    "properties": {
+                      "property": {
+                        "type": "string",
+                        "description": "Which property this rule applies to (e.g., 'stateName', 'instanceName')."
+                      },
+                      "strategy": {
+                        "type": "string",
+                        "enum": ["first-writer", "last-writer", "highest-state", "manual"],
+                        "description": "Conflict resolution strategy for this specific property."
+                      },
+                      "description": {
+                        "type": "string",
+                        "description": "Rationale for this conflict resolution rule."
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "description": "Field-specific conflict resolution rules that override the default strategy."
+                }
+              },
+              "additionalProperties": false
+            },
+            "version": {
+              "type": "string",
+              "description": "Version of this integration mapping document. Recommended format: semver (e.g. '1.0.0')."
+            },
+            "schemaVersion": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "description": "Version of the Practice Language schema this document was authored against."
+            },
+            "authors": { "type": "array", "items": { "type": "string" } },
+            "createdAt": { "type": "string" },
+            "updatedAt": { "type": "string" },
+            "keywords": { "type": "array", "items": { "type": "string" } },
+            "citations": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Citation" },
+              "description": "Bibliographic references relevant to this integration mapping."
+            },
+            "links": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ExternalLink" },
+              "description": "External references such as API documentation, service guides, or configuration references."
+            }
+          },
+          "oneOf": [
+            {
+              "required": ["practiceName"],
+              "not": { "required": ["methodName"] }
+            },
+            {
+              "required": ["methodName"],
+              "not": { "required": ["practiceName"] }
+            },
+            {
+              "not": {
+                "anyOf": [
+                  { "required": ["practiceName"] },
+                  { "required": ["methodName"] }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "IntegrationInstance": {
+      "type": "object",
+      "description": "A project-level connection to an external service using a practice-defined IntegrationMapping. Carries service connection details, sync state, and a journal of sync operations.",
+      "required": ["name", "integrationMappingName", "service"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Project-specific name for this integration connection (e.g., 'Acme CRM — Opportunities')."
+        },
+        "description": {
+          "type": "string",
+          "description": "What this integration connection is for."
+        },
+        "integrationMappingName": {
+          "type": "string",
+          "description": "Symbolic link to the IntegrationMapping document that defines the mapping rules (must match IntegrationMapping.name)."
+        },
+        "service": {
+          "$ref": "#/$defs/ServiceConnection",
+          "description": "Connection details for the external service instance."
+        },
+        "lastSyncedAt": {
+          "type": "string",
+          "description": "ISO timestamp of the last sync operation."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "paused", "disconnected"],
+          "description": "Current state of this integration connection."
+        },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Note" },
+          "description": "Timestamped journal of sync operations and observations."
         }
       },
       "additionalProperties": false
@@ -2829,6 +3284,11 @@
               "type": "array",
               "items": { "$ref": "#/$defs/ExternalLink" },
               "description": "Optional project-wide external links not specific to a tracked alpha/work-product instance (e.g. remembered Smartsheet workspace/folder/plan URLs, team charter, way-of-working document)."
+            },
+            "integrations": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/IntegrationInstance" },
+              "description": "Active integration connections to external services. Each entry connects a specific service instance to an IntegrationMapping that defines how external entities map to this project's practice elements. Multiple integrations can cover different systems or different aspects of the same system."
             }
           },
           "oneOf": [
@@ -2860,29 +3320,36 @@
     "else": {
       "if": {
         "type": "object",
-        "anyOf": [
-          { "required": ["practiceName"] },
-          { "required": ["methodName"] }
-        ]
+        "required": ["serviceKind"]
       },
-      "then": { "$ref": "#/$defs/Project" },
+      "then": { "$ref": "#/$defs/IntegrationMapping" },
       "else": {
         "if": {
           "type": "object",
           "anyOf": [
-            { "required": ["practices"] },
-            { "required": ["practiceNames"] },
-            { "required": ["baselinePractice"] }
+            { "required": ["practiceName"] },
+            { "required": ["methodName"] }
           ]
         },
-        "then": { "$ref": "#/$defs/Method" },
+        "then": { "$ref": "#/$defs/Project" },
         "else": {
           "if": {
             "type": "object",
-            "required": ["baselinePracticeName"]
+            "anyOf": [
+              { "required": ["practices"] },
+              { "required": ["practiceNames"] },
+              { "required": ["baselinePractice"] }
+            ]
           },
-          "then": { "$ref": "#/$defs/Practice" },
-          "else": { "$ref": "#/$defs/PracticeBaseline" }
+          "then": { "$ref": "#/$defs/Method" },
+          "else": {
+            "if": {
+              "type": "object",
+              "required": ["baselinePracticeName"]
+            },
+            "then": { "$ref": "#/$defs/Practice" },
+            "else": { "$ref": "#/$defs/PracticeBaseline" }
+          }
         }
       }
     }

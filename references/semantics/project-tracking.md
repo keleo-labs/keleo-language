@@ -568,3 +568,9 @@ When validating project-level actions, `outcomeInstanceNames` resolves against p
   "cycles": [ "..." ]
 }
 ```
+
+### 12.10 Integration Instances and External System Connections
+
+Projects can connect to external systems via the `integrations` array, which holds IntegrationInstance entries. Each IntegrationInstance references a standalone IntegrationMapping document that declares how external entities map to practice elements. Multiple integrations can cover different systems (CRM, project management, document stores) or different aspects of the same system.
+
+For full semantic guidance on IntegrationMapping documents, entity mappings, the three-tier mapping model, and conflict resolution, see [§15 Integration Mappings](integration-mappings.md).

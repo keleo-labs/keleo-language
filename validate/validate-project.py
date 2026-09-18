@@ -577,6 +577,119 @@ class ProjectValidator:
 
         return not has_errors
 
+    INTEGRATION_STATUS_VALUES = {"active", "paused", "disconnected"}
+
+    def validate_integrations(self) -> bool:
+        """Validate IntegrationInstance entries in the project's integrations array."""
+        has_errors = False
+        integrations = self.project.get('integrations', [])
+        if not integrations:
+            return True
+
+        integration_names = set()
+        for idx, integration in enumerate(integrations):
+            if not isinstance(integration, dict):
+                continue
+            path = f"integrations[{idx}]"
+            int_name = integration.get('name', '')
+
+            # 1. Unique IntegrationInstance names
+            if int_name in integration_names:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{path}.name",
+                    "issue": f"Duplicate integration name: '{int_name}'",
+                    "expected": "Unique integration names within the project",
+                    "actual": int_name,
+                    "suggestion": "Rename this integration to be unique"
+                })
+                has_errors = True
+            integration_names.add(int_name)
+
+            # 2. Cross-document reference warning for integrationMappingName
+            mapping_name = integration.get('integrationMappingName')
+            if mapping_name:
+                self.warnings.append({
+                    "category": "integrity",
+                    "severity": "warning",
+                    "path": f"{path}.integrationMappingName",
+                    "issue": f"integrationMappingName '{mapping_name}' references an external IntegrationMapping document that is not loaded — cannot validate",
+                    "expected": "A valid IntegrationMapping.name in the resolved practice or method scope",
+                    "actual": mapping_name,
+                    "suggestion": "Ensure an IntegrationMapping document with this name exists in the practice/method"
+                })
+
+            # 3. Validate ServiceConnection structure
+            service = integration.get('service')
+            if isinstance(service, dict):
+                service_path = f"{path}.service"
+
+                tool = service.get('tool', '')
+                if not tool or not tool.strip():
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{service_path}.tool",
+                        "issue": "ServiceConnection.tool must be non-empty",
+                        "expected": "A non-empty tool name (e.g., 'Salesforce', 'Jira')",
+                        "actual": repr(tool),
+                        "suggestion": "Provide the name of the external tool or platform"
+                    })
+                    has_errors = True
+
+                link = service.get('link')
+                if isinstance(link, dict):
+                    link_name = link.get('name', '')
+                    if not link_name or not link_name.strip():
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{service_path}.link.name",
+                            "issue": "ServiceConnection.link must have a non-empty name",
+                            "expected": "A non-empty link name identifying the service instance",
+                            "actual": repr(link_name),
+                            "suggestion": "Provide a label for the service link (e.g., 'Acme Salesforce Org')"
+                        })
+                        has_errors = True
+
+                # 5. Unique parameter names within each ServiceConnection
+                parameters = service.get('parameters', [])
+                if parameters:
+                    param_names = set()
+                    for pidx, param in enumerate(parameters):
+                        if not isinstance(param, dict):
+                            continue
+                        p_name = param.get('name', '')
+                        if p_name in param_names:
+                            self.errors.append({
+                                "category": "integrity",
+                                "severity": "error",
+                                "path": f"{service_path}.parameters[{pidx}].name",
+                                "issue": f"Duplicate parameter name '{p_name}' in ServiceConnection",
+                                "expected": "Unique parameter names within a ServiceConnection",
+                                "actual": p_name,
+                                "suggestion": "Rename this parameter to be unique within the connection"
+                            })
+                            has_errors = True
+                        param_names.add(p_name)
+
+            # 4. Validate status if present
+            status = integration.get('status')
+            if status and status not in self.INTEGRATION_STATUS_VALUES:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{path}.status",
+                    "issue": f"Invalid integration status: '{status}'",
+                    "expected": f"One of: {sorted(self.INTEGRATION_STATUS_VALUES)}",
+                    "actual": status,
+                    "suggestion": "Use 'active', 'paused', or 'disconnected'"
+                })
+                has_errors = True
+
+        return not has_errors
+
     def validate_schema_version(self) -> bool:
         schema_comment = self.schema.get('$comment', '')
         if schema_comment.startswith('schemaVersion:'):
@@ -675,6 +788,9 @@ def main():
 
     progress("Validating priority thresholds...")
     validator.validate_priority_thresholds()
+
+    progress("Validating integrations...")
+    validator.validate_integrations()
 
     progress("Validating schema version...")
     validator.validate_schema_version()

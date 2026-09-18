@@ -41,6 +41,9 @@
    - 8.1 [Activity Spaces and Activities](semantics/execution-and-patterns.md#81-activity-spaces-and-activities)
      - 8.1.1 [Gherkin-Inspired Structure on Activities](semantics/execution-and-patterns.md#811-gherkin-inspired-structure-on-activities)
    - 8.2 [Organizational Roles and Persona Definitions](semantics/execution-and-patterns.md#82-organizational-roles-and-persona-definitions)
+     - 8.2.1 [Hierarchical PersonaGroup Aggregation](semantics/execution-and-patterns.md#821-hierarchical-personagroup-aggregation)
+     - 8.2.2 [Persona Reuse and Redeclaration](semantics/execution-and-patterns.md#822-persona-reuse-and-redeclaration)
+     - 8.2.3 [PersonaGroup Composition and Reuse](semantics/execution-and-patterns.md#823-personagroup-composition-and-reuse)
 9. [Lifecycle Orchestration: Patterns and Phase Models](semantics/execution-and-patterns.md#9-lifecycle-orchestration-patterns-and-phase-models)
    - 9.1 [Pattern Orchestration and Narrative Hooks](semantics/execution-and-patterns.md#91-pattern-orchestration-and-narrative-hooks)
    - 9.2 [The PatternView: Complete Structure and Semantics](semantics/execution-and-patterns.md#92-the-patternview-complete-structure-and-semantics)
@@ -79,7 +82,19 @@
     - 14.4 [Revision Chain Acyclicity](semantics/acyclicity.md#144-revision-chain-acyclicity)
     - 14.5 [Validation Rules Summary](semantics/acyclicity.md#145-validation-rules-summary)
     - 14.6 [Implementation Requirements](semantics/acyclicity.md#146-implementation-requirements)
-15. [Conclusion](#15-conclusion)
+15. [Integration Mappings](semantics/integration-mappings.md)
+    - 15.1 [Purpose and Design Rationale](semantics/integration-mappings.md#151-purpose-and-design-rationale)
+    - 15.2 [Three-Tier Mapping Model](semantics/integration-mappings.md#152-three-tier-mapping-model)
+    - 15.3 [Document Structure and Root Discrimination](semantics/integration-mappings.md#153-document-structure-and-root-discrimination)
+    - 15.4 [Entity Mapping Authoring](semantics/integration-mappings.md#154-entity-mapping-authoring)
+    - 15.5 [Field Mapping and Value Maps](semantics/integration-mappings.md#155-field-mapping-and-value-maps)
+    - 15.6 [Identity Resolution and Create vs Update](semantics/integration-mappings.md#156-identity-resolution-and-create-vs-update)
+    - 15.7 [Query Templates](semantics/integration-mappings.md#157-query-templates)
+    - 15.8 [Conditional Logic](semantics/integration-mappings.md#158-conditional-logic)
+    - 15.9 [Conflict Resolution](semantics/integration-mappings.md#159-conflict-resolution)
+    - 15.10 [Project-Level Integration Instances](semantics/integration-mappings.md#1510-project-level-integration-instances)
+    - 15.11 [Bundle Distribution](semantics/integration-mappings.md#1511-bundle-distribution)
+16. [Conclusion](#16-conclusion)
 
 ---
 
@@ -165,7 +180,7 @@ Defines Work Products — the tangible artifacts providing empirical evidence to
 
 ## 8 Execution Boundaries and Organizational Roles
 
-Defines the execution model: Activity Spaces as generalized effort boundaries, Activities as specific actionable swimlanes with `worksOn` and competency requirements (8.1), Gherkin-inspired structure on activities for execution scenarios (8.1.1), organizational Personas and PersonaGroups (8.2), and hierarchical PersonaGroup aggregation via `personaGroupNames` for composing groups from sub-groups (8.2.1). Read when designing activities, defining organizational roles, composing persona group hierarchies, or adding Gherkin test structures to activities.
+Defines the execution model: Activity Spaces as generalized effort boundaries, Activities as specific actionable swimlanes with `worksOn` and competency requirements (8.1), Gherkin-inspired structure on activities for execution scenarios (8.1.1), organizational Personas and PersonaGroups (8.2), hierarchical PersonaGroup aggregation via `personaGroupNames` for composing groups from sub-groups (8.2.1), persona reuse and redeclaration guidance with cardinality targets (8.2.2), and PersonaGroup composition patterns for building groups from existing sub-groups (8.2.3). Read when designing activities, defining organizational roles, composing persona group hierarchies, consolidating personas across practices, or adding Gherkin test structures to activities.
 
 **Full guidance:** [semantics/execution-and-patterns.md](semantics/execution-and-patterns.md) — Sections 8-9
 
@@ -219,6 +234,14 @@ Consolidates all acyclicity constraints for directed reference graphs in the Pra
 
 ---
 
-## 15 Conclusion
+## 15 Integration Mappings
+
+Defines the IntegrationMapping system for bridging external services (CRM, project management, document stores, etc.) to Practice Language project elements. Covers purpose and design rationale (15.1), the three-tier mapping model with direct, pattern, and llm-assisted confidence levels (15.2), document structure and root discrimination via serviceKind (15.3), entity mapping authoring with targets and cardinality (15.4), field mapping and value maps for property-level translation (15.5), identity resolution for create-vs-update decisions (15.6), reusable parameterised query templates (15.7), conditional logic for subtype routing and target activation (15.8), conflict resolution strategies and priority-based cross-mapping arbitration (15.9), project-level IntegrationInstance connections with sync state tracking (15.10), and bundle distribution patterns for independent or practice-bundled packaging (15.11). Read when authoring integration mappings, connecting external services to projects, or designing sync runtimes.
+
+**Full guidance:** [semantics/integration-mappings.md](semantics/integration-mappings.md)
+
+---
+
+## 16 Conclusion
 
 The transformation of organizational endeavors from static, document-driven processes to dynamic, state-driven ecosystems requires a highly rigorous operational architecture. The Practice Language JSON Schema provides the structural capacity to model extreme complexity across any domain. Maximizing its efficacy, however, demands profound semantic guidance. By enforcing strict ontological tagging taxonomies, embedding blocking failure logic and quantitative thresholds into validation checklists, and defining automated mathematical triggers for Alpha state transitions, enterprise architects eliminate process ambiguity. Furthermore, operationalizing the schema through strict physical Work Product URI linking, explicitly linked organizational Persona Groups, and programmatic root-level methodology discrimination ensures that the methodology aligns precisely with operational reality. By orchestrating these elements through conditional Pattern Views tethered to specific cognitive narrative frameworks, this semantic guidance framework transforms the JSON Schema from a mere structural validator into a prescriptive, highly actionable operational engine capable of driving modern hyperscale transformations.
