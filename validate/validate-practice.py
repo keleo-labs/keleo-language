@@ -944,16 +944,16 @@ class PracticeValidator:
                 part_of = wp.get('partOf')
                 maps_to = wp.get('mapsTo')
 
-                # Mutual exclusivity: partOf and mapsTo cannot coexist
-                if part_of and maps_to:
+                # partOf and mapsTo may coexist but must reference different work products
+                if part_of and maps_to and part_of == maps_to:
                     self.errors.append({
                         "category": "integrity",
                         "severity": "error",
                         "path": wp_path,
-                        "issue": f"Work product '{wp.get('name')}' has both partOf and mapsTo (mutually exclusive)",
-                        "expected": "Either partOf OR mapsTo, not both",
+                        "issue": f"Work product '{wp.get('name')}' has partOf and mapsTo referencing the same work product: '{part_of}'",
+                        "expected": "partOf and mapsTo must reference different work products",
                         "actual": f"partOf: '{part_of}', mapsTo: '{maps_to}'",
-                        "suggestion": "Use partOf for containment (sub-artifact within parent). Use mapsTo for variant mapping (IS-A variant with same LODs). Remove one."
+                        "suggestion": "partOf models containment (sub-artifact within parent). mapsTo models variant mapping (IS-A variant with same LODs). They must reference different targets."
                     })
                     has_errors = True
 
@@ -1210,41 +1210,50 @@ class PracticeValidator:
             )
 
         # Detect circular partOf/mapsTo chains across all work products
-        # Both partOf and mapsTo create parent edges; cycles can span both types
-        wp_parent_map = {}
+        # Both partOf and mapsTo create parent edges; a work product may have both
+        wp_edges = {}
         for practice_scan in practices:
             for wp in practice_scan.get('workProducts', []):
-                parent = wp.get('partOf') or wp.get('mapsTo')
-                if parent:
-                    wp_parent_map[wp['name']] = parent
+                edges = set()
+                if wp.get('partOf'):
+                    edges.add(wp['partOf'])
+                if wp.get('mapsTo'):
+                    edges.add(wp['mapsTo'])
+                if edges:
+                    wp_edges[wp['name']] = edges
         for dep in self.dependencies:
             for wp in dep.get('workProducts', []):
-                parent = wp.get('partOf') or wp.get('mapsTo')
-                if parent:
-                    wp_parent_map[wp['name']] = parent
+                if wp['name'] not in wp_edges:
+                    edges = set()
+                    if wp.get('partOf'):
+                        edges.add(wp['partOf'])
+                    if wp.get('mapsTo'):
+                        edges.add(wp['mapsTo'])
+                    if edges:
+                        wp_edges[wp['name']] = edges
 
         reported_cycles = set()
-        for wp_name in wp_parent_map:
-            visited = {wp_name}
-            current = wp_parent_map[wp_name]
-            while current in wp_parent_map:
-                if current in visited:
-                    cycle_key = frozenset(visited | {current})
-                    if cycle_key not in reported_cycles:
-                        reported_cycles.add(cycle_key)
-                        self.errors.append({
-                            "category": "integrity",
-                            "severity": "error",
-                            "path": "workProducts",
-                            "issue": f"Circular partOf/mapsTo chain detected involving work product '{wp_name}'",
-                            "expected": "Acyclic partOf/mapsTo relationships",
-                            "actual": f"Cycle: {wp_name} -> {' -> '.join(sorted(visited - {wp_name}))} -> {current}",
-                            "suggestion": "Remove one partOf or mapsTo reference to break the cycle"
-                        })
-                        has_errors = True
-                    break
-                visited.add(current)
-                current = wp_parent_map.get(current)
+        for start_name in wp_edges:
+            stack = [(start_name, {start_name})]
+            while stack:
+                current, visited = stack.pop()
+                for neighbor in wp_edges.get(current, set()):
+                    if neighbor in visited:
+                        cycle_key = frozenset(visited | {neighbor})
+                        if cycle_key not in reported_cycles:
+                            reported_cycles.add(cycle_key)
+                            self.errors.append({
+                                "category": "integrity",
+                                "severity": "error",
+                                "path": "workProducts",
+                                "issue": f"Circular partOf/mapsTo chain detected involving work product '{start_name}'",
+                                "expected": "Acyclic partOf/mapsTo relationships",
+                                "actual": f"Cycle: {start_name} -> {' -> '.join(sorted(visited - {start_name}))} -> {neighbor}",
+                                "suggestion": "Remove one partOf or mapsTo reference to break the cycle"
+                            })
+                            has_errors = True
+                    elif neighbor in wp_edges:
+                        stack.append((neighbor, visited | {neighbor}))
 
         return not has_errors
 
@@ -1423,6 +1432,46 @@ class PracticeValidator:
                             'alignment_score': f'{alignment_score:.0%}'
                         },
                         'suggestion': 'State alignment is moderate. Verify that alpha description also aligns with parent description to confirm correct contributesTo choice.'
+                    })
+
+        # Concentration check: flag when multiple alphas target the same parent
+        # with weak alignment — suggests the agent defaulted without evaluating alternatives
+        for practice in practices:
+            practice_name = practice.get('name', 'Unknown')
+            target_counts = {}
+            target_weak = {}
+            all_parent_alphas = {**self.baseline_alphas, **self.dep_alphas}
+            for alpha in practice.get('alphas', []):
+                ct = alpha.get('contributesTo')
+                if not ct:
+                    continue
+                alpha_name = alpha.get('name', 'Unknown')
+                target_counts.setdefault(ct, []).append(alpha_name)
+                if ct in all_parent_alphas:
+                    parent_states = [s['name'] for s in all_parent_alphas[ct].get('states', [])]
+                    child_states = [s['name'] for s in alpha.get('states', [])]
+                    score, _ = self._calculate_state_alignment(child_states, parent_states)
+                    if score < 0.25:
+                        target_weak.setdefault(ct, []).append(alpha_name)
+
+            for target, alphas_list in target_counts.items():
+                weak_alphas = target_weak.get(target, [])
+                if len(alphas_list) >= 3 and len(weak_alphas) >= 2:
+                    self.warnings.append({
+                        'category': 'semantic',
+                        'severity': 'warning',
+                        'practice': practice_name,
+                        'issue': f'contributesTo concentration: {len(alphas_list)} alphas target '
+                                 f'\'{target}\', {len(weak_alphas)} with <25% state alignment',
+                        'details': {
+                            'target': target,
+                            'all_alphas': alphas_list,
+                            'weak_alignment_alphas': weak_alphas,
+                        },
+                        'suggestion': 'Multiple alphas defaulting to the same parent with weak '
+                                      'alignment suggests the target was not evaluated against '
+                                      'alternatives. Review each alpha\'s contributesTo target '
+                                      'independently.'
                     })
 
         return True  # Semantic validation never fails, only warns
@@ -2052,28 +2101,40 @@ class PracticeValidator:
         """Detect cycles in the combined partOf/mapsTo work product graph."""
         has_errors = False
 
-        parent_map = {}
+        edges = {}
         for practice in practices:
             for wp in practice.get('workProducts', []):
-                parent = wp.get('partOf') or wp.get('mapsTo')
-                if parent:
-                    parent_map[wp['name']] = parent
+                wp_edges = set()
+                if wp.get('partOf'):
+                    wp_edges.add(wp['partOf'])
+                if wp.get('mapsTo'):
+                    wp_edges.add(wp['mapsTo'])
+                if wp_edges:
+                    edges[wp['name']] = wp_edges
 
         for dep in self.dependencies:
             for wp in dep.get('workProducts', []):
-                parent = wp.get('partOf') or wp.get('mapsTo')
-                if parent and wp['name'] not in parent_map:
-                    parent_map[wp['name']] = parent
+                if wp['name'] not in edges:
+                    wp_edges = set()
+                    if wp.get('partOf'):
+                        wp_edges.add(wp['partOf'])
+                    if wp.get('mapsTo'):
+                        wp_edges.add(wp['mapsTo'])
+                    if wp_edges:
+                        edges[wp['name']] = wp_edges
 
+        WHITE, GRAY, BLACK = 0, 1, 2
+        color = {name: WHITE for name in edges}
         reported_cycles = set()
-        for start_name in parent_map:
-            visited = []
-            visited_set = set()
-            current = start_name
-            while current in parent_map:
-                if current in visited_set:
-                    cycle_start_idx = visited.index(current)
-                    cycle = visited[cycle_start_idx:] + [current]
+
+        def dfs(node, path):
+            nonlocal has_errors
+            color[node] = GRAY
+            path.append(node)
+            for neighbor in edges.get(node, set()):
+                if neighbor in color and color[neighbor] == GRAY:
+                    cycle_start_idx = path.index(neighbor)
+                    cycle = path[cycle_start_idx:] + [neighbor]
                     cycle_key = frozenset(cycle)
                     if cycle_key not in reported_cycles:
                         reported_cycles.add(cycle_key)
@@ -2087,10 +2148,14 @@ class PracticeValidator:
                             "suggestion": "Remove one partOf or mapsTo reference to break the cycle"
                         })
                         has_errors = True
-                    break
-                visited.append(current)
-                visited_set.add(current)
-                current = parent_map[current]
+                elif neighbor in color and color[neighbor] == WHITE:
+                    dfs(neighbor, path)
+            path.pop()
+            color[node] = BLACK
+
+        for node in edges:
+            if color.get(node, WHITE) == WHITE:
+                dfs(node, [])
 
         return has_errors
 

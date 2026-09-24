@@ -71,12 +71,13 @@ Both `contributesTo` and `mapsTo` reference parent alphas, and an alpha may have
 
 #### 14.1.6 Mixed `partOf`/`mapsTo` Chains (Work Products)
 
-Because `partOf` and `mapsTo` are mutually exclusive on a single work product but both reference parent work products, cycles can span both relationship types. The acyclicity constraint applies to the **union** of both edge sets.
+Both `partOf` and `mapsTo` reference parent work products, and a work product may have both (targeting different work products). Cycles can span both relationship types. The acyclicity constraint applies to the **union** of both edge sets.
 
-**Invalid Example:**
+**Invalid Examples:**
 - WorkProduct "A" partOf "B", WorkProduct "B" mapsTo "C", WorkProduct "C" partOf "A"
+- WorkProduct "A" mapsTo "B" and partOf "C", WorkProduct "C" mapsTo "A"
 
-**Constraint:** Construct a single directed graph where each work product with `partOf` or `mapsTo` has exactly one outgoing edge to its target. This combined graph must be acyclic.
+**Constraint:** Construct a single directed graph where each work product's `partOf` and `mapsTo` values are outgoing edges to their targets (a work product with both properties has two outgoing edges). This combined graph must be acyclic.
 
 #### 14.1.7 PersonaGroup Membership Hierarchy (`PersonaGroup.personaGroupNames`)
 

@@ -317,14 +317,13 @@ Examples:
 
 **When NOT to Use `mapsTo`**
 
-- When the work product is logically contained within a larger work product — use `partOf` instead
 - When the work product needs different levels of detail from the parent — `mapsTo` requires identical LOD names and sequences
 - When the relationship is "contributes evidence to" rather than "is a variant of" — use `contributesTo` on LevelOfDetail to connect work products to alpha states
 
 **Structural Rules**
 
 - `mapsTo` is optional (0..1) — a work product may map to at most one parent
-- `mapsTo` and `partOf` are **mutually exclusive** — a work product cannot be both a component of and a variant of another work product
+- May coexist with `partOf` but must reference a **different** work product (see [Section 7.7 — Combined `mapsTo` and `partOf`](#77-combined-mapsto-and-partof))
 - The value is a symbolic link: it must exactly match a `WorkProduct.name` in the same practice, a dependency practice, or the baseline
 - Self-references are invalid: a work product cannot `mapsTo` itself
 - Circular chains are invalid: if A mapsTo B, then B must not directly or transitively declare mapsTo or partOf A. See [Section 14 — Acyclicity Constraints and Circular Reference Protection](acyclicity.md#14-acyclicity-constraints-and-circular-reference-protection) for the comprehensive acyclicity rules and implementation requirements
@@ -335,7 +334,7 @@ Examples:
 - **`partOf`** models **containment**: a sub-artifact physically contained within a parent artifact (e.g., "API Contract" partOf "Architecture")
 - **`mapsTo`** models **variant equivalence**: a specialized version of the same artifact type (e.g., "Cloud Architecture" mapsTo "Architecture")
 
-The semantic distinction matters: `partOf` declares structural nesting of deliverables; `mapsTo` declares that the variant IS the parent artifact, viewed through a domain-specific lens. On merge, `mapsTo` work products are embedded in the parent's `variants` array ([Section 4.2](composition.md#42-practice-and-method-composition-merge)), enabling UIs to present them as related types.
+The two relationships are orthogonal: `partOf` declares structural nesting of deliverables; `mapsTo` declares that the variant IS another work product, viewed through a domain-specific lens. A work product may use both when it is simultaneously a variant of one work product and a component of another. On merge, `mapsTo` work products are embedded in the parent's `variants` array ([Section 4.2](composition.md#42-practice-and-method-composition-merge)), enabling UIs to present them as related types.
 
 **Merge Behavior**
 
@@ -376,4 +375,73 @@ During practice composition ([Section 4.2](composition.md#42-practice-and-method
 ```
 
 **Reasoning**: Cloud Architecture IS an Architecture — it follows the same maturity levels (Outlined → Detailed → Validated) with cloud-specific checklists. Using `mapsTo` rather than `partOf` because: (a) it has the same LOD progression as its parent, (b) it is a distinct named variant, not a sub-component contained within the parent, and (c) on merge it should appear within the Architecture work product's `variants` array for UI rendering.
+
+### 7.7 Combined `mapsTo` and `partOf`
+
+A work product may declare both `mapsTo` and `partOf` when it is simultaneously a **variant** of one work product and a **component** of another. The `mapsTo` identifies what kind of artifact it is (variant equivalence); the `partOf` organises where it sits in the containment hierarchy.
+
+**When to Use Both**
+
+Use both when a work product is a domain-specific variant of a parent type AND is logically contained within a different, larger deliverable.
+
+Examples:
+- "Cloud Architecture" mapsTo "Architecture", partOf "Platform Specification" — it IS an Architecture (same LODs) and is a component of the Platform Specification
+- "Security Test Plan" mapsTo "Test Plan", partOf "Security Assessment" — it IS a Test Plan variant and is contained within the broader Security Assessment
+
+**Structural Rules**
+
+- `mapsTo` and `partOf` must reference **different** work products — a work product cannot be both a variant of and a component of the same work product
+- All existing rules for each property apply independently: `mapsTo` requires matching LODs; `partOf` requires the target to exist; self-references are invalid for both
+- Acyclicity applies to the union graph of both edge types — see [Section 14.1.6](acyclicity.md#1416-mixed-partofmapsto-chains-work-products)
+
+**`partOf` Inheritance from `mapsTo`**
+
+When a work product declares `mapsTo` but **not** `partOf`, the merge algorithm inherits the `partOf` value from the `mapsTo` target work product (if that target has one). This keeps variants organised in the same containment hierarchy as their parent type without requiring authors to redeclare `partOf` on every variant.
+
+- Inheritance runs during post-merge finalization, after binding resolution and before component aggregation
+- An explicitly declared `partOf` always takes precedence — inheritance only fills the gap when `partOf` is absent
+- Inherited `partOf` triggers normal component aggregation: the variant appears in the containment parent's `components` array
+
+**Merge Behavior**
+
+On merge, both relationships trigger their respective aggregation passes independently:
+- `mapsTo` → the work product is embedded in the mapsTo target's `variants` array (Section 7.2b of [merge.md](../merge.md))
+- `partOf` → the work product is embedded in the partOf target's `components` array (Section 7.2c of [merge.md](../merge.md))
+
+**Example**
+
+```json
+{
+  "workProducts": [
+    {
+      "name": "Architecture",
+      "description": "Technical blueprint detailing infrastructure and integration patterns.",
+      "partOf": "Platform Specification",
+      "levelsOfDetail": [
+        { "name": "Outlined", "seq": 1, "description": "High-level block diagram.", "checklist": [] },
+        { "name": "Detailed", "seq": 2, "description": "Comprehensive documentation.", "checklist": [] },
+        { "name": "Validated", "seq": 3, "description": "Production-proven architecture.", "checklist": [] }
+      ]
+    },
+    {
+      "name": "Cloud Architecture",
+      "description": "Cloud-specific architecture variant.",
+      "mapsTo": "Architecture",
+      "levelsOfDetail": [
+        { "name": "Outlined", "seq": 1, "description": "High-level block diagram.", "checklist": [
+          { "seq": 1, "name": "Cloud provider selected", "description": "Target cloud platform identified" }
+        ] },
+        { "name": "Detailed", "seq": 2, "description": "Comprehensive documentation.", "checklist": [
+          { "seq": 1, "name": "Multi-region strategy documented", "description": "Geographic distribution defined" }
+        ] },
+        { "name": "Validated", "seq": 3, "description": "Production-proven architecture.", "checklist": [
+          { "seq": 1, "name": "Cloud scaling validated", "description": "Auto-scaling confirmed under load" }
+        ] }
+      ]
+    }
+  ]
+}
+```
+
+**Reasoning**: "Cloud Architecture" declares `mapsTo: "Architecture"` because it IS an Architecture (same LOD progression with cloud-specific checklists). It does not declare `partOf` explicitly — during merge, it inherits `partOf: "Platform Specification"` from its mapsTo target "Architecture". After merge, "Cloud Architecture" appears in both `Architecture.variants` and `Platform Specification.components`.
 

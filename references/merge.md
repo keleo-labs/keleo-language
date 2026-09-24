@@ -44,6 +44,7 @@
 7. [Post-Merge Finalization](#7-post-merge-finalization)
    - 7.1 [Binding Resolution](#71-binding-resolution)
    - 7.2 [Supporting Alpha Aggregation](#72-supporting-alpha-aggregation)
+   - 7.2d [Work Product `partOf` Inheritance from `mapsTo`](#72d-work-product-partof-inheritance-from-mapsto)
    - 7.2c [Work Product Component Aggregation](#72c-work-product-component-aggregation)
    - 7.3 [Focus Name Propagation](#73-focus-name-propagation)
    - 7.4 [Baseline Description Re-stamping](#74-baseline-description-re-stamping)
@@ -301,7 +302,7 @@ Work products merge by canonical name. When two work products share the same nam
   - **Checklists** within a level merge by canonical name (same logic as alpha state checklists).
   - Results are sorted by `seq` value.
 - **`partOf`** merges as a scalar: the first non-empty value (from the kernel or earliest overlay) wins.
-- **`mapsTo`**: The first non-empty value wins (base priority). Mutually exclusive with `partOf`.
+- **`mapsTo`**: The first non-empty value wins (base priority). May coexist with `partOf` (must reference a different work product).
 - **`expectedMetrics`**: unioned by canonical `name`. Overlay description/unit take precedence when the same name appears on both sides.
 - **`variants`**: Populated during post-merge finalization (see Section 7.2b).
 
@@ -438,12 +439,13 @@ After all extension layers have been merged into the accumulator, several finali
 3. Alpha variant aggregation (Section 7.2a)
 4. Work product binding resolution (Section 7.1.2)
 5. Work product variant aggregation (Section 7.2b)
-6. Work product component aggregation (Section 7.2c)
-7. Focus name propagation (Section 7.3, Phase 1)
-8. Implicit focus placeholder finalization (Section 7.3, Phase 2)
-9. Baseline description re-stamping (Section 7.4)
+6. Work product `partOf` inheritance from `mapsTo` (Section 7.2d)
+7. Work product component aggregation (Section 7.2c)
+8. Focus name propagation (Section 7.3, Phase 1)
+9. Implicit focus placeholder finalization (Section 7.3, Phase 2)
+10. Baseline description re-stamping (Section 7.4)
 
-This ordering is load-bearing: binding resolution must precede aggregation so that injected `contributesTo`/`mapsTo`/`partOf` relationships are picked up by the supporting-alpha, variant, and component passes. Focus propagation must follow aggregation so that all structural relationships are in place before inferring swimlane assignments. Description re-stamping runs last to guarantee no intermediate operation can leave extension-layer prose on baseline-defined elements.
+This ordering is load-bearing: binding resolution must precede aggregation so that injected `contributesTo`/`mapsTo`/`partOf` relationships are picked up by the supporting-alpha, variant, and component passes. `partOf` inheritance from `mapsTo` must run after variant aggregation and before component aggregation so that inherited `partOf` values are picked up by the component pass. Focus propagation must follow aggregation so that all structural relationships are in place before inferring swimlane assignments. Description re-stamping runs last to guarantee no intermediate operation can leave extension-layer prose on baseline-defined elements.
 
 ### 7.1 Binding Resolution
 
@@ -527,13 +529,13 @@ For each `WorkProductBinding` in the Method's `bindings.workProductBindings` arr
    - If `relationship` is `"contribution"`: set the source work product's `partOf` property to the target work product's name.
    - If `relationship` is `"variant"`: set the source work product's `mapsTo` property to the target work product's name.
    - If the source work product already has the relevant property set (from its own baseline), the binding is **silently skipped** — method-level bindings do not override existing within-baseline relationships.
-   - `partOf` and `mapsTo` are mutually exclusive — if a binding would set one while the other is already present, the binding is silently skipped.
+   - When both `partOf` and `mapsTo` are present, they must reference different work products — if a binding would create a same-target conflict, the binding is silently skipped.
 
 3. **Inject LOD-to-state contribution mappings** *(specified but not yet implemented)***.** For each `lodContributions` entry on the source work product, find the level of detail matching `fromLevelOfDetail` within the source work product's `levelsOfDetail` array. Add an `AlphaContribution` entry to that LOD's `contributesTo` array, mapping to the target work product's corresponding alpha state via the `toLevelOfDetail` mapping. If the LOD already contributes to the target alpha state, deduplicate.
 
 > **Implementation note:** The current implementation resolves work product bindings for `partOf` and `mapsTo` relationships only. LOD-level contribution injection from `lodContributions` is not yet implemented.
 
-**Ordering dependency:** This step must run before Section 7.2 (Supporting Alpha Aggregation), Sections 7.2a/7.2b (Variant Aggregation), and Section 7.2c (Component Aggregation) because those passes walk `contributesTo`, `mapsTo`, and `partOf` declarations. By injecting relationships first, supporting alpha arrays, variant arrays, and component arrays are built automatically without additional logic.
+**Ordering dependency:** This step must run before Section 7.2 (Supporting Alpha Aggregation), Sections 7.2a/7.2b (Variant Aggregation), Section 7.2d (`partOf` inheritance), and Section 7.2c (Component Aggregation) because those passes walk `contributesTo`, `mapsTo`, and `partOf` declarations. By injecting relationships first, supporting alpha arrays, variant arrays, component arrays, and inherited `partOf` values are built automatically without additional logic.
 
 ### 7.2 Supporting Alpha Aggregation
 
@@ -556,6 +558,14 @@ Every work product that declares a `mapsTo` relationship is automatically added 
 The aggregation walks all work products, collects `mapsTo → variant work product` mappings, and appends the full variant WorkProduct objects into each parent's `variants` array (deduplicating by name).
 
 Work product `variants` does NOT participate in LOD rollup or maturity calculations. A variant is a 1:1 type equivalence — it IS the parent artifact, viewed through a domain-specific lens (e.g., "Cloud Architecture" is an "Architecture" with cloud-specific checklists). UIs and renderers use the `variants` array to present related artifact types within the parent work product's context.
+
+### 7.2d Work Product `partOf` Inheritance from `mapsTo`
+
+After variant aggregation and before component aggregation, a pass walks all work products that declare `mapsTo` but **not** `partOf`. For each such work product, if the `mapsTo` target has a `partOf` value, that value is copied to the variant work product.
+
+This ensures that variants are automatically organised in the same containment hierarchy as their parent type without requiring authors to redeclare `partOf` on every variant. An explicitly declared `partOf` always takes precedence — this pass only fills the gap when `partOf` is absent.
+
+**Ordering dependency:** This step must run after variant aggregation (Section 7.2b) so that `mapsTo` relationships are fully resolved, and before component aggregation (Section 7.2c) so that inherited `partOf` values are picked up by the component pass.
 
 ### 7.2c Work Product Component Aggregation
 

@@ -172,7 +172,7 @@ Defines Alphas (Abstract-Level Progress Health Attributes) — the essential con
 
 ## 7 Evidentiary Verification via Work Product Elements
 
-Defines Work Products — the tangible artifacts providing empirical evidence to validate Alpha state progressions. Covers work product structure and Level of Detail (LOD) progression (7.1), artifact instantiation and concurrency (7.2), work product instance semantics for declaration vs evidence chains (7.3), instance metrics (7.4), containment composition via `partOf` (7.5), and variant mapping via `mapsTo` (7.6). Read when designing work products, defining LOD progressions, or establishing containment/variant relationships between artifacts.
+Defines Work Products — the tangible artifacts providing empirical evidence to validate Alpha state progressions. Covers work product structure and Level of Detail (LOD) progression (7.1), artifact instantiation and concurrency (7.2), work product instance semantics for declaration vs evidence chains (7.3), instance metrics (7.4), containment composition via `partOf` (7.5), variant mapping via `mapsTo` (7.6), and combined `mapsTo` + `partOf` usage with `partOf` inheritance (7.7). Read when designing work products, defining LOD progressions, or establishing containment/variant relationships between artifacts.
 
 **Full guidance:** [semantics/work-products.md](semantics/work-products.md)
 
