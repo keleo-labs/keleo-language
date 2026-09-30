@@ -65,6 +65,8 @@ Because abstract naming conventions can obscure domain-specific adaptations, a p
 
 Purpose: Allows practices to adopt terminology from source methodologies or organizational vocabulary while preserving structural references to canonical baseline names.
 
+**Alias Scope: The alias must preserve the element's meaning and scope.** An alias introduces a domain-specific term for what the element represents across the entire practice or method context — it does not narrow the element to one practice's perspective. When a method composes multiple practices, the same alias should make sense to all of them. An alias that only fits one practice's viewpoint signals that the concept should be a specialisation (`contributesTo`), not an alias. For example, aliasing "Platform" to "OpenShift" is correct (OpenShift IS the platform); aliasing "Platform" to "Observability Host" is incorrect (it narrows scope to one practice).
+
 #### **CRITICAL RULE: Strict Alias Isolation**
 
 Vendor-specific or localized names must be isolated entirely within the PracticeElementAlias array. **The aliasName string must NEVER be used for internal structural references within the JSON document.** All structural relationships (such as alphaName inside an AlphaContribution, activitySpaceName inside an Activity, or contributesTo on a new alpha) must strictly use the canonical baseline name. The alias serves ONLY as a presentation-layer substitution, not a structural foreign key.
