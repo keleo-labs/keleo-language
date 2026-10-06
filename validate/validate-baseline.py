@@ -55,6 +55,31 @@ class BaselineValidator:
         if self.parent_baseline:
             self._index_parent_baseline()
 
+        # A baseline that declares a parent is not root-level, so its alphas
+        # may carry contributesTo/mapsTo onto the parent's alphas. Read from
+        # the declaration rather than from whether a parent file was supplied,
+        # so the rule does not change depending on how the tool was invoked.
+        self.extends_parent = bool(
+            self.baseline.get('baselinePracticeNames')
+            or self.baseline.get('baselinePracticeName')
+        )
+
+    def _resolves_in_parent(self, target) -> bool:
+        """True if an alpha reference resolves in the parent baseline.
+
+        Without a parent file to check against, assume the reference is good:
+        the declaration alone establishes that the alpha is not root-level,
+        and reporting an unverifiable reference as an error would make the
+        result depend on whether the caller passed a parent file.
+        """
+        if not self.parent_baseline:
+            return True
+        names = target if isinstance(target, list) else [target]
+        return all(
+            (n.get('alphaName') if isinstance(n, dict) else n) in self.parent_alphas
+            for n in names
+        )
+
     def _load_json(self, file_path: Path) -> Dict:
         """Load and parse JSON file"""
         try:
@@ -205,29 +230,36 @@ class BaselineValidator:
             alpha_name = alpha.get('name', f'<unnamed-{idx}>')
             prefix = f"alphas[{idx}]"
 
-            # Check for contributesTo (should NOT exist in baseline alphas)
-            if 'contributesTo' in alpha:
+            # contributesTo and mapsTo are root-level violations only when this
+            # baseline has no parent. A baseline that extends another (declared
+            # via baselinePracticeNames) may legitimately contribute to or map
+            # onto the parent's alphas — Platform Adoption Essentials does this
+            # with Deliverable, inherited from Project Essentials.
+            for prop, noun in (('contributesTo', 'specialized'), ('mapsTo', 'variants')):
+                if prop not in alpha:
+                    continue
+                target = alpha.get(prop)
+                if self.extends_parent and self._resolves_in_parent(target):
+                    continue
+                if self.extends_parent:
+                    issue = (f"Baseline alpha '{alpha_name}' has {prop} "
+                             f"'{target}', which is not an alpha of the parent baseline")
+                    suggestion = (f"Point {prop} at a parent baseline alpha, or "
+                                  f"remove it")
+                else:
+                    issue = (f"Baseline alpha '{alpha_name}' has {prop} property - "
+                             f"baseline alphas are root-level")
+                    suggestion = (f"Remove {prop} property (baseline alphas are "
+                                  f"foundational, not {noun})")
                 self.errors.append({
                     "category": "baseline",
                     "severity": "error",
-                    "path": f"{prefix}.contributesTo",
-                    "issue": f"Baseline alpha '{alpha_name}' has contributesTo property - baseline alphas are root-level",
-                    "expected": "No contributesTo property",
-                    "actual": alpha.get('contributesTo'),
-                    "suggestion": "Remove contributesTo property (baseline alphas are foundational, not specialized)"
-                })
-                has_errors = True
-
-            # Check for mapsTo (should NOT exist in baseline alphas)
-            if 'mapsTo' in alpha:
-                self.errors.append({
-                    "category": "baseline",
-                    "severity": "error",
-                    "path": f"{prefix}.mapsTo",
-                    "issue": f"Baseline alpha '{alpha_name}' has mapsTo property - baseline alphas are root-level",
-                    "expected": "No mapsTo property",
-                    "actual": alpha.get('mapsTo'),
-                    "suggestion": "Remove mapsTo property (baseline alphas are foundational, not variants)"
+                    "path": f"{prefix}.{prop}",
+                    "issue": issue,
+                    "expected": ("An alpha of the parent baseline"
+                                 if self.extends_parent else f"No {prop} property"),
+                    "actual": target,
+                    "suggestion": suggestion
                 })
                 has_errors = True
 
