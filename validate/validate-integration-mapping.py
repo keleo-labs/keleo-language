@@ -252,6 +252,40 @@ class IntegrationMappingValidator:
 
         return not has_errors
 
+    def validate_query_sources(self) -> bool:
+        """A template step needs a template string. Direct steps should not follow an llm-assisted step."""
+        has_errors = False
+        for idx, qt in enumerate(self.mapping.get("queryTemplates") or []):
+            steps = (qt.get("source") or {}).get("steps") or []
+            seen_llm = False
+            for sidx, step in enumerate(steps):
+                path = f"queryTemplates[{idx}].source.steps[{sidx}]"
+                if step.get("component") == "template" and not (qt.get("template") or "").strip():
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": path,
+                        "issue": "template source step requires a query template string",
+                        "expected": "QueryTemplate.template",
+                        "actual": qt.get("template"),
+                        "suggestion": "Set template, or remove the template step",
+                    })
+                    has_errors = True
+                tier = step.get("tier")
+                if tier == "llm-assisted":
+                    seen_llm = True
+                elif seen_llm and tier in ("direct", "pattern"):
+                    self.warnings.append({
+                        "category": "integrity",
+                        "severity": "warning",
+                        "path": path,
+                        "issue": "direct or pattern step follows an llm-assisted step",
+                        "expected": "direct and pattern steps before llm-assisted",
+                        "actual": tier,
+                        "suggestion": "Move the mechanical step earlier in source.steps",
+                    })
+        return not has_errors
+
     def validate_schema_version(self) -> bool:
         doc_version = self.mapping.get('schemaVersion')
         if not doc_version:
@@ -329,6 +363,9 @@ def main():
 
     progress("Validating element references...")
     validator.validate_element_references()
+
+    progress("Validating query sources...")
+    validator.validate_query_sources()
 
     progress("Validating schema version...")
     validator.validate_schema_version()

@@ -286,7 +286,18 @@ The `queryTemplates` array on IntegrationMapping defines reusable query definiti
 - `template` -- parameterised query string (SQL, SOQL, URL template, etc.). Uses `{paramName}` placeholders.
 - `intent` -- natural-language description for LLM-routed queries. Used when the query cannot be expressed as a mechanical template.
 - `parameters` -- declared parameters. Each parameter has a `name` (matching `{placeholders}` in the template), `description`, and optional `source` indicating where to resolve the value at runtime.
-- `tier` -- execution tier. Direct/pattern templates can be executed mechanically by substituting parameters; llm-assisted intents need LLM interpretation.
+- `tier` -- execution tier when `source` is omitted. Direct/pattern templates can be executed mechanically by substituting parameters; llm-assisted intents need LLM interpretation.
+- `source` -- optional ordered recovery chain. Each step names a `component` and a `tier`. Walk the steps until one returns rows. A direct or pattern step that errors or returns nothing falls through. An llm-assisted step is the last resort and is not a mechanical retry. Place direct and pattern steps before llm-assisted steps.
+
+**Source components:**
+
+| Component | Tier | What it uses |
+|---|---|---|
+| `template` | direct or pattern | The sibling `template` string, with parameters substituted |
+| `ui-api-related-list` | direct | Salesforce UI API related list. Requires `relatedList` and `parent` (a query parameter name) |
+| `retrieve-by-id` | direct | One record loaded by Id. Requires `sobject` |
+| `parameterized-search` | direct | Search when query is gated. Requires `sobject` |
+| `skill` | llm-assisted | A named skill. Requires `skill`. Optional `reference` is a path inside that skill |
 
 Parameters are resolved at runtime from the ServiceConnection's `parameters` array on the IntegrationInstance. The parameter `name` in the query template matches the parameter `name` in the service connection, providing the resolution bridge.
 
@@ -308,6 +319,34 @@ Parameters are resolved at runtime from the ServiceConnection's `parameters` arr
     }
   ],
   "tier": "direct"
+}
+```
+
+When the template is known to fail closed (for example a security gate), declare the recovery chain on the same template:
+
+```json
+{
+  "name": "closeplan-deals",
+  "template": "SELECT Id, Name FROM TSPC__Deal__c WHERE TSPC__Opportunity__c = '{opportunityId}'",
+  "tier": "direct",
+  "source": {
+    "steps": [
+      {"component": "template", "tier": "direct"},
+      {
+        "component": "ui-api-related-list",
+        "tier": "direct",
+        "relatedList": "TSPC__Deals__r",
+        "parent": "opportunityId"
+      },
+      {"component": "retrieve-by-id", "tier": "direct", "sobject": "TSPC__Deal__c"},
+      {
+        "component": "skill",
+        "tier": "llm-assisted",
+        "skill": "research-sales-cloud",
+        "reference": "references/meddpicc-tab.md"
+      }
+    ]
+  }
 }
 ```
 
