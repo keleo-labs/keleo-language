@@ -47,6 +47,7 @@
    - 7.2d [Work Product `partOf` Inheritance from `mapsTo`](#72d-work-product-partof-inheritance-from-mapsto)
    - 7.2c [Work Product Component Aggregation](#72c-work-product-component-aggregation)
    - 7.2e [Specificity Chain Accumulation](#72e-specificity-chain-accumulation)
+   - 7.2f [Suppression Resolution](#72f-suppression-resolution)
    - 7.3 [Focus Name Propagation](#73-focus-name-propagation)
    - 7.4 [Baseline Description Re-stamping](#74-baseline-description-re-stamping)
    - 7.5 [Synthesized Element Stub Generation](#75-synthesized-element-stub-generation)
@@ -443,9 +444,10 @@ After all extension layers have been merged into the accumulator, several finali
 6. Work product `partOf` inheritance from `mapsTo` (Section 7.2d)
 7. Work product component aggregation (Section 7.2c)
 8. Specificity chain accumulation (Section 7.2e)
-9. Focus name propagation (Section 7.3, Phase 1)
-10. Implicit focus placeholder finalization (Section 7.3, Phase 2)
-11. Baseline description re-stamping (Section 7.4)
+9. Suppression resolution (Section 7.2f)
+10. Focus name propagation (Section 7.3, Phase 1)
+11. Implicit focus placeholder finalization (Section 7.3, Phase 2)
+12. Baseline description re-stamping (Section 7.4)
 
 This ordering is load-bearing: binding resolution must precede aggregation so that injected `contributesTo`/`mapsTo`/`partOf` relationships are picked up by the supporting-alpha, variant, and component passes. `partOf` inheritance from `mapsTo` must run after variant aggregation and before component aggregation so that inherited `partOf` values are picked up by the component pass. Focus propagation must follow aggregation so that all structural relationships are in place before inferring swimlane assignments. Description re-stamping runs last to guarantee no intermediate operation can leave extension-layer prose on baseline-defined elements.
 
@@ -588,6 +590,24 @@ For each merged element, collect the `specificityName` of every layer that contr
 **`specificityName` is authored; `specificity` is not.** A `specificityName` present in a source document is input to this pass. A `specificity` array present in a source document is a validation error and is discarded here rather than merged, because the chain depends on which practices are loaded and an authored value cannot know that.
 
 **Ordering dependency:** This pass must run after all layers have merged, so every contribution is visible. It is independent of the aggregation passes above and may run in any order relative to them.
+
+### 7.2f Suppression Resolution
+
+A practice may switch off an element it inherits by declaring `suppressed: true` on it (see [Section 4.9](semantics/composition.md#49-restricting-inherited-content)). This pass removes suppressed elements from the accumulator.
+
+**Ordering is load-bearing.** The pass must run **after** all layers have overlaid, so that a suppression declared in a dependent practice can reach an element contributed by the practice it depends on; and **before** synthesized element stub generation (Section 7.5) and before dangling-reference validation, so that nothing is synthesized for an element that is about to disappear and so that references into a suppressed element are reported rather than silently satisfied by a stub.
+
+**Resolution.** For each element carrying `suppressed: true`, determine whether any other loaded document requires it — by redeclaring it without suppression, or by referencing it. Where none does, remove the element. Where one does, the conflict resolves by declaration precedence, which is built once per composition:
+
+1. Baselines before practices.
+2. Within baselines, the order of `baselinePracticeNames`.
+3. Within practices, the order of `practiceDependencyNames`.
+4. A practice from another baseline family takes the position of its own baseline, resolved through `baselinePracticeName`.
+5. Earlier in the order wins.
+
+Record the outcome on the merged element rather than applying it silently: where precedence overrode a suppression or a requirement, note which document won, so the result is traceable to a decision rather than appearing arbitrary.
+
+**Sequence numbers are not renumbered.** Removing a state or level of detail leaves a gap in `seq`; consumers order by `seq` and must not assume contiguity.
 
 ### 7.3 Focus Name Propagation
 

@@ -1489,6 +1489,175 @@ class PracticeValidator:
 
         return not has_errors
 
+    def _precedence_order(self) -> List[str]:
+        """Declaration precedence for suppression conflicts, highest precedence first.
+
+        Baselines outrank practices; within each group, declaration order decides. A
+        practice from another baseline family takes the position of its own baseline,
+        which is what makes two practices from different families comparable at all.
+        See semantics/composition.md section 4.9.1.
+        """
+        order = []
+        for baseline in reversed(self._resolve_baseline_chain()):
+            name = baseline.get('name')
+            if name and name not in order:
+                order.append(name)
+            for parent in baseline.get('baselinePracticeNames', []):
+                if parent not in order:
+                    order.append(parent)
+
+        baseline_position = {name: idx for idx, name in enumerate(order)}
+        practices = []
+        for dep in self.dependencies:
+            name = dep.get('name')
+            if not name:
+                continue
+            # A dependency's rank is its own baseline's rank, then its declaration order.
+            rank = baseline_position.get(dep.get('baselinePracticeName'), len(order))
+            practices.append((rank, len(practices), name))
+        order.extend(name for _, _, name in sorted(practices))
+
+        own = self.practice.get('name')
+        if own and own not in order:
+            order.append(own)
+        return order
+
+    def validate_suppression(self) -> bool:
+        """Validate that suppressed elements are inherited and leave nothing dangling.
+
+        See semantics/composition.md section 4.9. One property on PracticeElement covers
+        whole elements and parts alike, because every part type extends PracticeElement.
+        """
+        has_errors = False
+        inherited = self._inherited_element_names()
+
+        if 'suppressed' in self.practice:
+            self.errors.append({
+                "category": "integrity",
+                "severity": "error",
+                "path": "suppressed",
+                "issue": "'suppressed' declared on the document root",
+                "expected": "suppression applies to inherited practice elements, not to the document",
+                "actual": "root.suppressed is present",
+                "suggestion": "Remove 'suppressed' from the document root"
+            })
+            has_errors = True
+
+        suppressed_states = set()
+        suppressed_lods = set()
+        suppressed_elements = set()
+
+        for practice, path, collection, element in self._walk_elements():
+            name = element.get('name', '<unnamed>')
+
+            if element.get('suppressed') is True:
+                suppressed_elements.add((collection, name))
+                if name not in inherited.get(collection, set()):
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{path}.suppressed",
+                        "issue": f"'{name}' is not inherited, so there is nothing to suppress",
+                        "expected": "suppressed only on an element inherited through the baseline chain or a dependency",
+                        "actual": f"'{name}' is declared by this practice itself",
+                        "suggestion": f"Remove the declaration of '{name}' rather than suppressing it"
+                    })
+                    has_errors = True
+
+            # Parts: states and levels of detail carry the same property.
+            for part_key, part_collection, bucket in (
+                ('states', 'states', suppressed_states),
+                ('levelsOfDetail', 'levelsOfDetail', suppressed_lods),
+            ):
+                for part_idx, part in enumerate(element.get(part_key, [])):
+                    if not isinstance(part, dict) or part.get('suppressed') is not True:
+                        continue
+                    part_name = part.get('name', f'{part_key}[{part_idx}]')
+                    bucket.add((name, part_name))
+                    if f"{name}::{part_name}" not in inherited.get(part_collection, set()):
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{path}.{part_key}[{part_idx}].suppressed",
+                            "issue": f"'{part_name}' on '{name}' is not inherited, so there is nothing to suppress",
+                            "expected": "suppressed only on a part inherited through the baseline chain or a dependency",
+                            "actual": f"'{part_name}' is declared by this practice itself",
+                            "suggestion": f"Remove '{part_name}' rather than suppressing it"
+                        })
+                        has_errors = True
+
+        if not (suppressed_states or suppressed_lods or suppressed_elements):
+            return not has_errors
+
+        # Anything still pointing at a suppressed element or part is dangling once the
+        # merge removes it. Reporting it here is the whole value of the check: the
+        # author suppressing an element is the person who can fix the references.
+        has_errors |= self._report_suppressed_references(
+            suppressed_elements, suppressed_states, suppressed_lods)
+        return not has_errors
+
+    def _report_suppressed_references(self, elements, states, lods) -> bool:
+        """Report references into suppressed elements and parts."""
+        found = False
+        suppressed_alphas = {name for collection, name in elements if collection == 'alphas'}
+        suppressed_wps = {name for collection, name in elements if collection == 'workProducts'}
+
+        is_method = 'practices' in self.practice or 'baselinePractice' in self.practice
+        practices = self.practice.get('practices', []) if is_method else [self.practice]
+
+        def flag(path, what, referenced_by):
+            nonlocal found
+            self.errors.append({
+                "category": "integrity",
+                "severity": "error",
+                "path": path,
+                "issue": f"{referenced_by} references {what}, which this practice suppresses",
+                "expected": "no reference to a suppressed element or part survives the merge",
+                "actual": what,
+                "suggestion": "Remove the reference, or do not suppress what is still needed"
+            })
+            found = True
+
+        for practice_idx, practice in enumerate(practices):
+            prefix = f"practices[{practice_idx}]." if is_method else ""
+            for p_idx, pattern in enumerate(practice.get('patterns', [])):
+                for v_idx, view in enumerate(pattern.get('patternViews', [])):
+                    for a_idx, entry in enumerate(view.get('alphaStates', [])):
+                        if not isinstance(entry, dict):
+                            continue
+                        alpha_name = entry.get('alphaName')
+                        state_name = entry.get('stateName')
+                        path = f"{prefix}patterns[{p_idx}].patternViews[{v_idx}].alphaStates[{a_idx}]"
+                        if alpha_name in suppressed_alphas:
+                            flag(path, f"suppressed alpha '{alpha_name}'", "Pattern view")
+                        elif (alpha_name, state_name) in states:
+                            flag(path, f"suppressed state '{alpha_name}::{state_name}'", "Pattern view")
+
+            for o_idx, outcome in enumerate(practice.get('outcomes', [])):
+                for m_idx, mc in enumerate(outcome.get('metricContributions', [])):
+                    alpha_name = mc.get('alphaName')
+                    base = f"{prefix}outcomes[{o_idx}].metricContributions[{m_idx}]"
+                    if alpha_name in suppressed_alphas:
+                        flag(base, f"suppressed alpha '{alpha_name}'", "Outcome metric contribution")
+                    for w_idx, weight in enumerate(mc.get('forecastWeights', [])):
+                        if (alpha_name, weight.get('stateName')) in states:
+                            flag(f"{base}.forecastWeights[{w_idx}]",
+                                 f"suppressed state '{alpha_name}::{weight.get('stateName')}'",
+                                 "Forecast weight")
+
+            for a_idx, activity in enumerate(practice.get('activities', [])):
+                for w_idx, works in enumerate(activity.get('worksOn', [])):
+                    wp_name = works.get('workProductName')
+                    path = f"{prefix}activities[{a_idx}].worksOn[{w_idx}]"
+                    if wp_name in suppressed_wps:
+                        flag(path, f"suppressed work product '{wp_name}'", "Activity worksOn")
+                    elif (wp_name, works.get('levelOfDetailName')) in lods:
+                        flag(path,
+                             f"suppressed level of detail '{wp_name}::{works.get('levelOfDetailName')}'",
+                             "Activity worksOn")
+
+        return found
+
     def validate_semantic_alignment(self) -> bool:
         """
         Validate semantic appropriateness of contributesTo relationships.
@@ -3435,6 +3604,9 @@ def main():
 
     progress("Validating specificity declarations...")
     specificity_valid = validator.validate_specificity()
+
+    progress("Validating suppression of inherited content...")
+    suppression_valid = validator.validate_suppression()
 
     progress("Validating semantic alignment...")
     semantic_valid = validator.validate_semantic_alignment()
