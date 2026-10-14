@@ -4,7 +4,7 @@
   "description": "A deliberately restricted variant: it inherits the container platform concern but switches off the parts that a single-node deployment model cannot support.",
   "baselinePracticeName": "Fixture Essentials",
   "version": "1.0.0",
-  "schemaVersion": "2.18.0",
+  "schemaVersion": "3.0.0",
   "authors": [
     "keleo-language fixtures"
   ],

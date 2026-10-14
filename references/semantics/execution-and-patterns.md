@@ -588,7 +588,7 @@ Real endeavours are layered, not a queue. Some patterns follow one another, some
 | `nested` | Inside the pattern in `relativeTo`, bounded by it | A smaller cycle inside a larger plan: a sprint inside each phase of a milestone plan |
 | `onDemand` | Nothing. Entered when `trigger` is recognised | A pattern run because circumstances called for it, not because it was next |
 
-Omitting `relationship` means `sequential`, which is what every stage meant before the property existed.
+**`relationship` is always declared.** There is no default and omitting it is an error. How a pattern is layered into an endeavour is a modelling decision — whether assurance runs alongside delivery or waits its turn changes what the orchestration means — and a reader should not have to infer that from silence. A stage that genuinely follows the one before says `"relationship": "sequential"` and says it out loud.
 
 **`seq` means different things by relationship.** For a sequential stage it is position in the order and must be unique among the sequential stages. For every other relationship it is the anchor point for presentation, and stages that begin alongside one another may share it. This is the one place the property is not a strict total order, and it is deliberate: concurrency has no total order to express.
 

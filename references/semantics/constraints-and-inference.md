@@ -183,7 +183,21 @@ Worth stating plainly, because each of these is something a reader may assume.
   package is a packaging concern — see
   [`specifications/packaging.md`](../../specifications/packaging.md).
 
-### 16.8 Conformance
+### 16.8 Breaking Changes and Migration
+
+The schema follows semantic versioning, and a MAJOR bump means some document that was valid is no longer. Each one is recorded here with what to change.
+
+#### 3.0.0 — `OrchestrationStage.relationship` is required
+
+**What changed.** `relationship` was introduced in 2.22.0 as optional, defaulting to `sequential`. It is now required and has no default, so a stage that omits it is rejected.
+
+**Who is affected.** Only documents declaring `patternOrchestrations`, a construct introduced in 2.21.0. No baseline or practice in the corpus used it at the time of the change, so the practical migration set was empty.
+
+**How to migrate.** Add `"relationship": "sequential"` to any stage that does not declare one. That is exactly what the omission meant, so the change is mechanical and cannot alter behaviour.
+
+**Why it was worth a major bump.** How a pattern is layered into an endeavour — following, alongside, inside, or on recognition of need — is a modelling decision that changes what the orchestration means. A default let the most consequential property on the stage be set by silence, and a reader could not tell a deliberate choice from an unconsidered one.
+
+### 16.9 Conformance
 
 A document conforms when it validates against `language.schema.json` **and** passes the
 validator for its kind with zero errors. Warnings are advisory: they report things that

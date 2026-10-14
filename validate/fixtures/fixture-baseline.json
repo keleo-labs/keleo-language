@@ -3,7 +3,7 @@
   "name": "Fixture Essentials",
   "description": "Minimal baseline for the keleo-language validator fixtures. Deliberately generic and not a real methodology \u2014 it exists so new schema properties can be exercised before any authored document uses them.",
   "version": "1.0.0",
-  "schemaVersion": "2.18.0",
+  "schemaVersion": "3.0.0",
   "authors": [
     "keleo-language fixtures"
   ],

@@ -4,7 +4,7 @@
   "description": "Makes the baseline Platform concern specific to an internal developer platform, without narrowing what it covers.",
   "baselinePracticeName": "Fixture Essentials",
   "version": "1.0.0",
-  "schemaVersion": "2.18.0",
+  "schemaVersion": "3.0.0",
   "authors": [
     "keleo-language fixtures"
   ],

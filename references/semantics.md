@@ -111,7 +111,8 @@
     - 16.5 [Progression and Measurement Guarantees](semantics/constraints-and-inference.md#165-progression-and-measurement-guarantees)
     - 16.6 [Composition Guarantees](semantics/constraints-and-inference.md#166-composition-guarantees)
     - 16.7 [What the Language Does Not Guarantee](semantics/constraints-and-inference.md#167-what-the-language-does-not-guarantee)
-    - 16.8 [Conformance](semantics/constraints-and-inference.md#168-conformance)
+    - 16.8 [Breaking Changes and Migration](semantics/constraints-and-inference.md#168-breaking-changes-and-migration)
+    - 16.9 [Conformance](semantics/constraints-and-inference.md#169-conformance)
 17. [Conclusion](#17-conclusion)
 
 ---
@@ -262,7 +263,7 @@ Defines the IntegrationMapping system for bridging external services (CRM, proje
 
 ## 16 Constraints and Inference Guarantees
 
-States what the language guarantees about a document, in one place, for someone building validation into a program rather than authoring by hand. Covers how to read a guarantee and which layer expresses it (16.1), reference guarantees including exact case-sensitive symbolic links, name uniqueness and resolution scope (16.2), structural guarantees including no floating elements and relationship exclusivity (16.3), the acyclicity set and the temporal edges excluded from it (16.4), progression and measurement guarantees around recognised points and forecast weights (16.5), composition guarantees covering the merge specification, merge-populated properties and suppression precedence (16.6), an explicit list of what the language does *not* guarantee (16.7), and what conformance means (16.8). Each guarantee names the validator enforcing it, or records that nothing does. Read when implementing a validator, wiring the language into an agent loop, or deciding whether a document can be trusted.
+States what the language guarantees about a document, in one place, for someone building validation into a program rather than authoring by hand. Covers how to read a guarantee and which layer expresses it (16.1), reference guarantees including exact case-sensitive symbolic links, name uniqueness and resolution scope (16.2), structural guarantees including no floating elements and relationship exclusivity (16.3), the acyclicity set and the temporal edges excluded from it (16.4), progression and measurement guarantees around recognised points and forecast weights (16.5), composition guarantees covering the merge specification, merge-populated properties and suppression precedence (16.6), an explicit list of what the language does *not* guarantee (16.7), the record of breaking changes and how to migrate past each one (16.8), and what conformance means (16.9). Each guarantee names the validator enforcing it, or records that nothing does. Read when implementing a validator, wiring the language into an agent loop, or deciding whether a document can be trusted.
 
 **Full guidance:** [semantics/constraints-and-inference.md](semantics/constraints-and-inference.md)
 
