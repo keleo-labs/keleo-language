@@ -318,6 +318,7 @@ Patterns merge by canonical name. When two patterns share the same name:
   - `narrativeElementName`: The first non-empty value wins.
   - `activitySpaces` and `activities` string arrays are unioned.
   - **`alphaStates`** (AlphaContribution arrays) merge using pattern-view-specific logic that unions alpha state entries by `alphaName::stateName` key.
+  - **`loopsBackTo`** is a single object, so scalar handling applies and the overlay wins. The same is true of `loopsBackTo` on a State (Section 6.2). Two practices declaring different loop targets on one view or one state is a modelling conflict rather than something to resolve silently — the overlay winning is a tie-break, not an answer, and the authors should agree on the shape of the cycle. Note also that a practice redeclaring a baseline alpha can turn a ladder into a loop by adding `loopsBackTo` to one of its states; that is a semantic change to the inherited concern and the redeclaration's description should say so.
   - **`alphaInstances`** merge by canonical instance name:
     - `evidenceBy` arrays are deduplicated by `name::workProductName::levelOfDetailName` composite key.
   - Results are sorted by `seq` value.

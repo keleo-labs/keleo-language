@@ -657,3 +657,50 @@ An Opportunity can be associated with an Initiative Card without that card being
 
 The Initiative Card may declare the reverse (`alphaInstanceName` + `incoming` / `purpose`). Either side is enough for traversal.
 
+
+### 6.8 Cyclical State Models
+
+Most alpha state models are ladders: each state represents more maturity than the last, the final state means the concern is done, and progress is a climb. That remains the default and the common case.
+
+Some concerns are not like that. An operational concern cycles — a service moves through healthy, degraded and recovering and back to healthy; a continuous-improvement concern moves through measured, analysed and improved and round again. Forcing those into a ladder misrepresents the domain, because reaching the last state does not mean the concern is finished.
+
+`loopsBackTo` on the state that closes the cycle declares the return, using the same shape as the pattern-level edge in [Section 9.2a](execution-and-patterns.md#92a-cyclical-patterns-declaring-that-phases-repeat):
+
+```json
+{
+  "name": "Improved",
+  "description": "A change has been made and its effect confirmed.",
+  "seq": 4,
+  "checklist": [ ],
+  "loopsBackTo": {
+    "stateName": "Measured",
+    "description": "Each improvement is re-measured, starting the next round."
+  }
+}
+```
+
+**The test for which kind you have.** If reaching the last state means the concern is **done**, it is a ladder. If it means the concern is **ready to go round again**, it is a loop. That is the whole distinction, and it is worth applying deliberately — most concerns are ladders, and declaring a loop on one makes the model harder to read for no gain.
+
+#### 6.8.1 One-Time Prefix States
+
+A cycle rarely starts at the first state. Setup states commonly precede the recurring part: a service is Provisioned and Configured once, then cycles through Healthy, Degraded and Recovering for the rest of its life. The edge re-enters at the first **recurring** state, not at `seq` 0.
+
+This is the case a simple "this alpha is cyclical" flag could not express, and the reason the mechanism is an edge rather than a boolean.
+
+#### 6.8.2 What a Lap Means
+
+**Checklist items do not carry over.** An item completed on a previous lap is not automatically complete on this one. The project's `current` section records the state of the lap being worked; the history of earlier laps lives in the project's closed cycles. See [Section 12.7](project-tracking.md#127-cycles-and-operational-work-tracking).
+
+**Outcome recognition sits at the state that closes the cycle.** That is the natural recognised point for a cyclical alpha, and under the highest-achieved rule a later lap does not reduce the weight already achieved. The same rule governs cyclical patterns, which is why the two were specified together.
+
+**Scoring is largely unaffected**, because the scores that matter do not depend on a monotonic ladder. The Alpha Coverage Score counts states carrying a non-empty checklist, normalised by total state count, and Alpha Instance Progress is a completion ratio over the current state's checklist items — both order-independent. Only the secondary ordinal expression of progress assumes a ladder; see [`specifications/scoring.md`](../../specifications/scoring.md) for what it does on a cyclical alpha.
+
+#### 6.8.3 Cycling Is Not Regressing
+
+Two different things can look like an alpha moving backwards, and they should not be conflated.
+
+A **cyclical state model** says the states recur by design: going from Improved back to Measured is the model working as intended. A **fall back** is a project recording that a concern lost ground it previously held — a platform that was Operating is no longer Operating. That is an enactment event on a ladder, not a cycle, and it is recorded in the project's `current` section. Nothing forbids it; see [Section 12.4](project-tracking.md#124-current-target-and-cycles).
+
+What remains forbidden is inferring a fall back from **external data**. A sync runtime reading a stale or out-of-order record from an external system must not move a progressive alpha backwards on that basis — a fall back is a deliberate team judgement. See [Section 15.9](integration-mappings.md#159-conflict-resolution).
+
+**Acyclicity is unaffected.** `loopsBackTo` is a temporal edge and takes no part in the constraints of [Section 14](acyclicity.md). In particular, an alpha whose states loop may still not declare a cycle in `State.contributesToState` or in `Background.alphaStates` — those are structural and prerequisite graphs, and a cycle in either is unsatisfiable however many times the work goes round.

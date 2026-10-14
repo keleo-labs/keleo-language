@@ -308,6 +308,53 @@ To maintain focus and prevent matrix bloat, operational tooling and authors shou
 
 This comprehensive structure enables PatternViews to orchestrate methodology execution, tracking both abstract progression (alphaStates) and concrete instances (alphaInstances), coordinating deliverables (workProducts), declaring work product maturity objectives (workProductLevels), and guiding work (activities), all while providing narrative context that connects the phase to stakeholder-friendly storytelling frameworks.
 
+### 9.2a Cyclical Patterns: Declaring That Phases Repeat
+
+Iterative delivery is cyclical. A pattern's views advance in `seq` order, and until now the guidance described nothing but forward motion, so an author reading it reasonably concluded that a recurring cycle — plan, build, review, adapt, repeat — could not be expressed. Nothing in fact forbade it; the absence of any statement was doing the work.
+
+`loopsBackTo` on the view where the cycle closes declares the return:
+
+```json
+{
+  "name": "Adapt",
+  "description": "Fold what the review found back into the plan.",
+  "seq": 4,
+  "alphaStates": [ ],
+  "loopsBackTo": {
+    "patternViewName": "Plan",
+    "description": "Each increment re-plans from what the last one proved.",
+    "condition": {
+      "name": "More increments remain",
+      "given": ["the release objective is not yet met"],
+      "when": ["the increment review completes"],
+      "then": ["the team re-enters planning for the next increment"]
+    }
+  }
+}
+```
+
+**An edge, not a range.** The loop is expressed as an edge from the closing view to the view it returns to, rather than as a cycle declared on the pattern. This composes: several edges give nested or chained cycles — a build loop inside a release loop — where a single range could express only one cycle per pattern. It is also what gets drawn, as an arc from a later column back to an earlier one in the pattern matrix. And it leaves `seq` as the ordering authority, so a consumer that does not understand `loopsBackTo` still renders a correct linear pattern.
+
+#### 9.2a.1 What Repeats, and What Does Not
+
+**The work repeats; the maturity does not reset.** A loop re-runs the activities and work product maturation of the views it spans. A re-entered view's declared `alphaStates` are the **minimum that must hold on that pass**, not a reset to that state. Re-entering a "Plan" view that declares `Platform → Identified` does not mean the platform stops being Available; it means planning happens again with the platform at least Identified.
+
+**Progress does not drop when a team iterates.** On re-entering an earlier view, the achieved forecast is the **highest weight reached on any pass**, not the weight attached to the view currently being worked. Without this rule a team's reported progress would fall every time they went round, which is precisely the complaint that cyclical delivery was impossible to represent honestly.
+
+**The loop is a path to the end, not an alternative to it.** The pattern's final view remains the terminal objective. A cycle is how a team reaches it, and `loopsBackTo.condition` states when the loop is taken rather than exited.
+
+**Sequential view pruning needs an exception inside a loop.** [Section 9.2](#92-the-patternview-complete-structure-and-semantics) rule 2 says to omit an alpha from a later view when its state is unchanged. On a re-entered view most states hold, so pruning strictly applied would empty the view out and hide what the iteration actually works on. Inside a loop, show what the iteration works on even where the state is unchanged.
+
+#### 9.2a.2 Enacting a Cycle in a Project
+
+The project side of this already existed before the declaration did. A `ProjectCycle` carries an optional `patternViewName`, and [Section 12.7](project-tracking.md#127-cycles-and-operational-work-tracking) already allowed several cycles to contribute to the same phase.
+
+What `loopsBackTo` adds is the practice-level statement that going round again was *intended*. Successive cycles carrying the **same** `patternViewName` with different per-instance target states are what distinguish one lap from the next. See [Section 12.4](project-tracking.md#124-current-target-and-cycles) for how a cycle expresses its targets.
+
+#### 9.2a.3 Relationship to the Acyclicity Constraints
+
+Patterns appear nowhere in [Section 14](acyclicity.md), and a `loopsBackTo` edge does not change that. It is a **temporal** edge — it says work repeats — whereas Section 14 governs **structural** graphs: containment, specialization, and prerequisites. A pattern whose views loop still may not declare a cycle in `Background.alphaStates` or `Background.workProductLevels`; a prerequisite cycle is unsatisfiable regardless of how many times the work goes round.
+
 ### 9.3 Pattern Groups: Organising Patterns for Navigation
 
 In methods composed of many practices, patterns from all practices are unioned into a flat list. A method with three practices contributing three patterns each produces nine patterns; a five-practice method may have fifteen or more. At this scale a flat list becomes unwieldy — users need navigational structure to find the patterns relevant to their current concern.
@@ -483,4 +530,3 @@ Forecast weights enable systems to compute weighted projections before full reco
 - `ObjectiveContribution.patternName` must match a Pattern.name in the practice or its dependencies
 - `ObjectiveContribution.recognizedAtPatternViewName` must match a PatternView.name within the named pattern
 - `ObjectiveContribution.forecastWeights[].patternViewName` must match a PatternView.name within the named pattern
-

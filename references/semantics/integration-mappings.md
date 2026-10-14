@@ -418,8 +418,12 @@ The `conflictPolicy` object on IntegrationMapping sets the baseline strategy:
 |----------|-----------|----------|
 | `first-writer` | First value written wins; subsequent writes are ignored | Instance names, identity properties |
 | `last-writer` | Most recent value overwrites previous | Regularly refreshed data (metrics, timestamps) |
-| `highest-state` | Keeps the value that represents the most advanced progression | Alpha state names (states should only advance) |
+| `highest-state` | Keeps the value that represents the most advanced progression | Alpha state names on progressive state models |
 | `manual` | Flags the conflict for human resolution | Ambiguous or high-stakes properties |
+
+`highest-state` assumes the alpha's states form a progression. Where the state model is cyclical — states that recur by design rather than climb, see [Section 6.8](alphas.md#68-cyclical-state-models) — there is no most-advanced state for the strategy to compare, so use `last-writer` instead. The sync then reflects where the concern currently sits in its cycle, which is the only meaningful answer.
+
+The rule worth holding on to here is narrow and concerns what a runtime may **infer**. A project may record a concern falling back ([Section 12.4](project-tracking.md#124-current-target-and-cycles)), but that is a deliberate judgement by the team. A sync reading a stale or out-of-order external record has no basis for the same conclusion, so it advances a progressive alpha and does not move it back.
 
 **Entity-level priority:**
 
@@ -434,7 +438,7 @@ The `priority` field on EntityMapping resolves cross-mapping conflicts when mult
     {
       "property": "stateName",
       "strategy": "highest-state",
-      "description": "Alpha states should only advance; never regress from external data."
+      "description": "A sync advances a progressive alpha and does not move it back — a fall back is a deliberate team judgement, not something inferred from external data. Use last-writer where the state model is cyclical."
     },
     {
       "property": "instanceName",

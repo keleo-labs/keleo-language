@@ -1,0 +1,156 @@
+{
+  "kind": "practice",
+  "name": "Fixture Cyclical Operations",
+  "description": "Exercises cyclical state models and looping patterns: a concern whose states recur after a one-time setup prefix, driven by a pattern whose phases repeat.",
+  "baselinePracticeName": "Fixture Essentials",
+  "version": "1.0.0",
+  "schemaVersion": "2.20.0",
+  "authors": [
+    "keleo-language fixtures"
+  ],
+  "createdAt": "2026-10-14",
+  "updatedAt": "2026-10-14",
+  "keywords": [
+    "fixture",
+    "cyclical",
+    "validator"
+  ],
+  "alphas": [
+    {
+      "kind": "alpha",
+      "name": "Service Health",
+      "description": "Whether a running service is behaving as the people depending on it expect.",
+      "focusName": "Delivery",
+      "contributesTo": "Service",
+      "states": [
+        {
+          "name": "Instrumented",
+          "seq": 1,
+          "description": "Signals exist that would reveal the service misbehaving.",
+          "checklist": [
+            {
+              "name": "Signals emitted",
+              "seq": 1,
+              "description": "The service emits the signals its health is judged by."
+            }
+          ]
+        },
+        {
+          "name": "Healthy",
+          "seq": 2,
+          "description": "The service is behaving within its agreed bounds.",
+          "checklist": [
+            {
+              "name": "Within bounds",
+              "seq": 1,
+              "description": "Every health signal sits inside its agreed threshold."
+            }
+          ]
+        },
+        {
+          "name": "Degraded",
+          "seq": 3,
+          "description": "The service is outside its agreed bounds and someone knows.",
+          "checklist": [
+            {
+              "name": "Breach acknowledged",
+              "seq": 1,
+              "description": "The breach is acknowledged by someone able to act on it."
+            }
+          ]
+        },
+        {
+          "name": "Recovering",
+          "seq": 4,
+          "description": "A corrective action is in flight and its effect is being watched.",
+          "checklist": [
+            {
+              "name": "Action in flight",
+              "seq": 1,
+              "description": "A corrective action has been taken and its effect is being measured."
+            }
+          ],
+          "loopsBackTo": {
+            "stateName": "Healthy",
+            "description": "Recovery returns the service to health, and the cycle runs again for the next incident.",
+            "condition": {
+              "name": "Recovery confirmed",
+              "given": [
+                "a corrective action has been applied"
+              ],
+              "when": [
+                "the health signals return within their thresholds"
+              ],
+              "then": [
+                "the service is considered healthy again and watched for the next breach"
+              ],
+              "description": "Whether the corrective action restored the service, deciding if the cycle runs again."
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "patterns": [
+    {
+      "kind": "pattern",
+      "name": "Operate and Recover",
+      "description": "The repeating loop of running a service and restoring it when it slips.",
+      "patternViews": [
+        {
+          "kind": "patternView",
+          "name": "Instrument",
+          "seq": 1,
+          "description": "Make the service observable before relying on it.",
+          "alphaStates": [
+            {
+              "alphaName": "Service Health",
+              "stateName": "Instrumented"
+            }
+          ]
+        },
+        {
+          "kind": "patternView",
+          "name": "Run",
+          "seq": 2,
+          "description": "Operate the service within its agreed bounds.",
+          "alphaStates": [
+            {
+              "alphaName": "Service Health",
+              "stateName": "Healthy"
+            }
+          ]
+        },
+        {
+          "kind": "patternView",
+          "name": "Respond",
+          "seq": 3,
+          "description": "Act on a breach and confirm the service recovers.",
+          "alphaStates": [
+            {
+              "alphaName": "Service Health",
+              "stateName": "Recovering"
+            }
+          ],
+          "loopsBackTo": {
+            "patternViewName": "Run",
+            "description": "Each incident returns the service to normal running.",
+            "condition": {
+              "name": "Service restored",
+              "given": [
+                "a breach has been responded to"
+              ],
+              "when": [
+                "the service returns within its thresholds"
+              ],
+              "then": [
+                "the team resumes normal running until the next breach"
+              ],
+              "description": "Whether the service is back within its thresholds, deciding if normal running resumes."
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

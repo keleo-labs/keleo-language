@@ -76,6 +76,12 @@ Both sections contain:
 
 The target section allows users to define objectives that may differ from the full pattern — for example, targeting a subset of alpha states or marking certain checklist items as not required.
 
+**A concern may fall back.** `current` is an assessment, not a ratchet. Where a concern loses ground it previously held — a platform that was Operating is no longer Operating, a service that was Live has been withdrawn — the project records the earlier state, and that is a correct use of the section rather than a modelling error. A team may always state where things actually stand.
+
+Two limits on that. A fall back is a **deliberate judgement by the team**, so a sync runtime reading an external system must not infer one from a stale or out-of-order record (see [Section 15.9](integration-mappings.md#159-conflict-resolution)). And `target` does not move with it: the goal stays where it was unless someone deliberately changes it, otherwise a setback would quietly redefine success.
+
+**Cycles target specific states, not just a phase.** A cycle's `alphaInstances` and `workProductInstances` carry the states and levels of detail that cycle is driving toward — the same structure `current` and `target` use, read here as the objective for this bounded period. Where the plan's pattern loops (see [Section 9.2a](execution-and-patterns.md#92a-cyclical-patterns-declaring-that-phases-repeat)), successive cycles may carry the **same** `patternViewName` with different per-instance targets. That is what distinguishes one lap from the next, and it is why a cyclical plan needs no additional structure to track: the lap is the cycle.
+
 ### 12.5 ChecklistState and Evidence Tracking
 
 ChecklistState tracks the completion status of individual checklist items within the project context. It provides a bridge between the practice-defined checklists (on Alpha States and WorkProduct LevelsOfDetail) and real-world execution.
@@ -228,7 +234,7 @@ The `cycles` section is where a project tracks its operational work — the conc
 
 A ProjectCycle extends ProjectStateSection with cycle-specific metadata (`name`, `description`, `startedAt`, `completedAt`, `patternViewName`). The term "cycle" avoids methodology-specific connotations (sprint, iteration, increment) while clearly conveying a repeatable work period. Teams name cycles according to their own cadence: "Sprint 1", "Q3 2026", "August", "Release 2.0", etc.
 
-The optional `patternViewName` links a cycle to a phase in the project plan's Pattern. This establishes traceability between operational work periods and the overarching lifecycle plan — a team can see which plan phase each cycle contributes to, and multiple cycles may contribute to the same phase (e.g. several sprints within a "Build" phase).
+The optional `patternViewName` links a cycle to a phase in the project plan's Pattern. This establishes traceability between operational work periods and the overarching lifecycle plan — a team can see which plan phase each cycle contributes to, and multiple cycles may contribute to the same phase (e.g. several sprints within a "Build" phase). Where the plan's pattern declares a loop with `loopsBackTo`, this is also how repetition is recorded: each pass through the looped views is one or more cycles naming the same views again, with the targets appropriate to that lap. See [Section 9.2a.2](execution-and-patterns.md#92a2-enacting-a-cycle-in-a-project).
 
 A cycle progresses through three phases:
 
