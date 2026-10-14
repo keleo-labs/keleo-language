@@ -40,6 +40,7 @@
    - 6.13 [Acknowledgement Merging](#613-acknowledgement-merging)
    - 6.14 [Reference Merging](#614-reference-merging)
    - 6.15 [PatternGroup Merging](#615-patterngroup-merging)
+   - 6.15a [PatternOrchestration Merging](#615a-patternorchestration-merging)
    - 6.16 [Outcome Merging](#616-outcome-merging)
 7. [Post-Merge Finalization](#7-post-merge-finalization)
    - 7.1 [Binding Resolution](#71-binding-resolution)
@@ -315,7 +316,7 @@ Patterns merge by canonical name. When two patterns share the same name:
 - `narrativeTypeName`: The first non-empty value wins.
 - **PatternViews** merge by canonical name within the pattern:
   - The `seq` value from the overlay takes precedence.
-  - `narrativeElementName`: The first non-empty value wins.
+  - `narrativeContexts`: Merged by composite key, under the general NarrativeContexts rule below. (An earlier revision of this spec named a `narrativeElementName` property here; PatternView has no such property.)
   - `activitySpaces` and `activities` string arrays are unioned.
   - **`alphaStates`** (AlphaContribution arrays) merge using pattern-view-specific logic that unions alpha state entries by `alphaName::stateName` key.
   - **`loopsBackTo`** is a single object, so scalar handling applies and the overlay wins. The same is true of `loopsBackTo` on a State (Section 6.2). Two practices declaring different loop targets on one view or one state is a modelling conflict rather than something to resolve silently — the overlay winning is a tie-break, not an answer, and the authors should agree on the shape of the cycle. Note also that a practice redeclaring a baseline alpha can turn a ladder into a loop by adding `loopsBackTo` to one of its states; that is a semantic change to the inherited concern and the redeclaration's description should say so.
@@ -343,7 +344,7 @@ The merge algorithm handles two distinct narrative structures:
 
 **Narratives** (top-level narrative entries): Merge by canonical name. When two narratives share the same name, they are merged using the core record merge function, which recursively merges their nested structures.
 
-**NarrativeContexts** (within PatternViews and other containers): Merge additively by composite key `narrativeElementName::seq`. When two contexts share the same key:
+**NarrativeContexts** (within PatternViews, OrchestrationStages and other containers): Merge additively by composite key `narrativeElementName::seq`. When two contexts share the same key:
 
 - Non-prose fields merge using the core record merge function.
 - Prose content (stored in `context`, `content`, `narrativeContext`, `body`, `text`, or `description` fields) is **concatenated** (base prose followed by overlay prose, separated by double newline), not replaced.
@@ -406,6 +407,9 @@ References merge by canonical name using the core record merge function. Same-na
 
 ### 6.15 PatternGroup Merging
 
+> **Deprecated as of schema 2.21.0** in favour of orchestration merging (Section 6.15a). The behaviour below is unchanged and remains in force: a deprecated construct that quietly stops merging fails silently, which is worse for consumers than removing it outright. Removal is scheduled for the next major version.
+
+
 **PatternGroups** merge by canonical name. When two practices define a PatternGroup with the same canonical name, the groups merge into a single group:
 
 - **Description**: follows the baseline-preservation rule (Section 4.2).
@@ -415,6 +419,18 @@ References merge by canonical name using the core record merge function. Same-na
 - **seq** (group ordering): overlay takes precedence, allowing extension practices to reorder groups contributed by earlier practices.
 
 PatternGroups with unique names from either the base or overlay are preserved as-is. A pattern name should appear in at most one PatternGroup; if the same pattern name appears in multiple groups after merge, tooling should warn and use the first occurrence.
+
+### 6.15a PatternOrchestration Merging
+
+Orchestrations merge by canonical name. Within an orchestration, `stages` merge by `patternName`:
+
+- `seq` from the overlay takes precedence.
+- `entryCriteria` and `exitCriteria`: the first non-empty value wins.
+- `narrativeContexts` merge by the composite key `narrativeElementName::seq`, under the general rule in Section 6.17.
+- `narrativeTypeName` on the orchestration: the first non-empty value wins.
+- Stages are sorted by `seq` after merging.
+
+**This is not the PatternGroup contract.** Groups merge across practices by canonical name as a deliberate mechanism for collecting patterns from many authors into shared categories. Orchestrations merge by name only so that a practice can refine an orchestration it inherits; the ordering belongs to one author, and two unrelated practices independently declaring an orchestration with the same name is a naming collision rather than a contribution.
 
 ### 6.16 Outcome Merging
 

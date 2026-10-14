@@ -357,6 +357,12 @@ Patterns appear nowhere in [Section 14](acyclicity.md), and a `loopsBackTo` edge
 
 ### 9.3 Pattern Groups: Organising Patterns for Navigation
 
+> **Deprecated as of schema 2.21.0.** Use [pattern orchestration](#95-pattern-orchestration-sequencing-patterns-across-an-endeavour) instead. Orchestration does everything a group does and adds the sequencing and entry/exit criteria that groups were increasingly being bent into expressing, and the other thing groups were used for — seeing which practice a pattern came from — is already available without them, because the merge stamps `sourcePracticeName` on every pattern ([merge.md Section 8.1](../merge.md#81-practice-level-provenance-sourcepracticename)).
+>
+> Pattern groups remain valid and are still merged exactly as described below; 203 authored documents use them and none of them break. They are scheduled for removal at the next major version.
+>
+> **Migrating.** Where the order of a group's entries means *then* — this pattern, then that one — it was already an orchestration, so declare it as one and give each stage its criteria. Where the group only answered *which practice contributed this?*, drop it and group on `sourcePracticeName` at the point of display. Baselines defining canonical groups with empty `entries` under [Section 9.3.1](#931-baseline-defined-canonical-groups) should stop doing so; that is the strongest form of the construct and the one with the most to unpick, so it is being handled as its own piece of work rather than alongside this change.
+
 In methods composed of many practices, patterns from all practices are unioned into a flat list. A method with three practices contributing three patterns each produces nine patterns; a five-practice method may have fifteen or more. At this scale a flat list becomes unwieldy — users need navigational structure to find the patterns relevant to their current concern.
 
 **PatternGroup** provides this structure. A PatternGroup is a named element that contains an ordered list of pattern references (`entries`), each pairing a `patternName` with a `seq` for sort order within the group. The group itself carries an optional `seq` for ordering groups relative to each other.
@@ -530,3 +536,59 @@ Forecast weights enable systems to compute weighted projections before full reco
 - `ObjectiveContribution.patternName` must match a Pattern.name in the practice or its dependencies
 - `ObjectiveContribution.recognizedAtPatternViewName` must match a PatternView.name within the named pattern
 - `ObjectiveContribution.forecastWeights[].patternViewName` must match a PatternView.name within the named pattern
+
+### 9.5 Pattern Orchestration: Sequencing Patterns Across an Endeavour
+
+Most patterns address one aspect of an endeavour — initial bootstrap, steady-state operation, cyclical change, release management, decommissioning. A `PatternOrchestration` expresses the level above: the shape of the whole, and which constituent pattern applies when.
+
+```json
+{
+  "kind": "patternOrchestration",
+  "name": "Platform Endeavour",
+  "description": "The whole life of a platform, from first build to retirement.",
+  "narrativeTypeName": "STAR",
+  "stages": [
+    {
+      "patternName": "Bootstrap the Platform",
+      "seq": 1,
+      "exitCriteria": {
+        "name": "Platform is usable",
+        "description": "Whether the platform can carry a real workload.",
+        "given": ["the platform has been built"],
+        "when": ["a team deploys a production workload to it"],
+        "then": ["the workload runs without manual intervention by the platform team"]
+      },
+      "narrativeContexts": [
+        { "seq": 1, "narrativeElementName": "Situation", "context": "No shared foundation exists and every team builds its own." }
+      ]
+    },
+    {
+      "patternName": "Operate and Recover",
+      "seq": 2,
+      "entryCriteria": {
+        "alphaStates": [{ "alphaName": "Platform", "stateName": "Operating" }]
+      }
+    }
+  ]
+}
+```
+
+**Why a distinct construct and not an extension of PatternGroup.** A group's name is a merge contract — [Section 9.3.1](#931-baseline-defined-canonical-groups) has baselines define canonical groups and extension practices merge into them by name — whereas an orchestration is authored by one owner. Putting sequencing and criteria on groups would produce an ordering no single author owns, with each practice's `seq` values competing. Reusing `Pattern` recursively is also wrong: a `PatternView` requires `alphaStates`, and a view that orchestrates sub-patterns has none of its own.
+
+**Entry criteria reuse `Background`.** It already expresses alpha-state and work-product-level prerequisites, and it is already covered by the acyclicity constraints in [Section 14.2](acyclicity.md#142-cross-element-prerequisite-cycles), so the stage prerequisite graph is protected against cycles without a new rule. Exit criteria reuse `Test`, matching how Gherkin is already carried on activities and checklists.
+
+**Ordering is by `seq`, and that is all.** There is deliberately no conditional-successor graph in this version. Branching should be added when a real case needs it rather than guessed at now.
+
+#### 9.5.1 Narrative Binding
+
+Where an orchestration declares a `narrativeTypeName`, its design follows that narrative template, and its stages reference the template's component parts — exactly the relationship a Pattern has with its PatternViews.
+
+Each stage's `narrativeContexts` entry carries a `seq`, a `narrativeElementName` resolving to a `NarrativeElement` **inside the NarrativeType named on the enclosing orchestration**, and the authored `context` prose for that stage. A four-stage orchestration under a STAR narrative can place one stage per narrative element; a stage may also span more than one element, as a pattern view can.
+
+`narrativeTypeName` is optional, as it is on `Pattern`. A stage carrying `narrativeContexts` requires its orchestration to declare one, which crosses object boundaries and so is enforced by the validator rather than the schema.
+
+#### 9.5.2 Reuse and Cycles
+
+**A pattern may appear in several orchestrations.** Reuse across different shapes of endeavour is the point — a release pattern belongs to more than one programme shape. This is the counterpart of [Section 9.3.7](#937-ungrouped-patterns), which limits a pattern to one group.
+
+**A recurring phase is a stage whose pattern loops.** There is no separate "this stage repeats" property, because [Section 9.2a](#92a-cyclical-patterns-declaring-that-phases-repeat) already provides one: a stage naming a pattern that declares `loopsBackTo` is a recurring phase. Steady-state operation and cyclical change are exactly the phases that need it.

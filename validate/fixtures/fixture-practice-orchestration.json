@@ -1,0 +1,154 @@
+{
+  "kind": "practice",
+  "name": "Fixture Platform Endeavour",
+  "description": "Exercises pattern orchestration: two patterns sequenced into the shape of a whole endeavour, with entry and exit criteria and a narrative template.",
+  "baselinePracticeName": "Fixture Essentials",
+  "version": "1.0.0",
+  "schemaVersion": "2.21.0",
+  "authors": [
+    "keleo-language fixtures"
+  ],
+  "createdAt": "2026-10-14",
+  "updatedAt": "2026-10-14",
+  "keywords": [
+    "fixture",
+    "orchestration",
+    "validator"
+  ],
+  "patterns": [
+    {
+      "kind": "pattern",
+      "name": "Bootstrap the Platform",
+      "narrativeTypeName": "STAR",
+      "description": "Bringing a shared foundation into existence for the first time.",
+      "patternViews": [
+        {
+          "kind": "patternView",
+          "name": "Agree the Need",
+          "seq": 1,
+          "description": "Establish that a shared foundation is worth building.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Identified"
+            }
+          ],
+          "narrativeContexts": [
+            {
+              "seq": 1,
+              "narrativeElementName": "Situation",
+              "context": "Every team builds its own foundation and the duplication is visible."
+            }
+          ]
+        },
+        {
+          "kind": "patternView",
+          "name": "Stand It Up",
+          "seq": 2,
+          "description": "Build the foundation and let a team use it.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Available"
+            }
+          ],
+          "narrativeContexts": [
+            {
+              "seq": 1,
+              "narrativeElementName": "Action",
+              "context": "The first golden path is built and proved with a willing team."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "pattern",
+      "name": "Run the Platform",
+      "description": "Keeping the foundation healthy once teams depend on it.",
+      "patternViews": [
+        {
+          "kind": "patternView",
+          "name": "Operate",
+          "seq": 1,
+          "description": "Carry production workloads within agreed bounds.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Operating"
+            }
+          ]
+        },
+        {
+          "kind": "patternView",
+          "name": "Improve",
+          "seq": 2,
+          "description": "Act on what operating the platform reveals.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Operating"
+            }
+          ],
+          "loopsBackTo": {
+            "patternViewName": "Operate",
+            "description": "Each improvement returns the platform to normal running."
+          }
+        }
+      ]
+    }
+  ],
+  "patternOrchestrations": [
+    {
+      "kind": "patternOrchestration",
+      "name": "Platform Endeavour",
+      "description": "The whole life of a platform, from first build through steady-state running.",
+      "narrativeTypeName": "STAR",
+      "stages": [
+        {
+          "patternName": "Bootstrap the Platform",
+          "seq": 1,
+          "exitCriteria": {
+            "name": "Platform is usable",
+            "description": "Whether the platform can carry a real workload unaided.",
+            "given": [
+              "the platform has been built"
+            ],
+            "when": [
+              "a team deploys a production workload to it"
+            ],
+            "then": [
+              "the workload runs without intervention by the platform team"
+            ]
+          },
+          "narrativeContexts": [
+            {
+              "seq": 1,
+              "narrativeElementName": "Task",
+              "context": "Prove a shared foundation is worth having before asking anyone to depend on it."
+            }
+          ]
+        },
+        {
+          "patternName": "Run the Platform",
+          "seq": 2,
+          "entryCriteria": {
+            "alphaStates": [
+              {
+                "alphaName": "Platform",
+                "stateName": "Available"
+              }
+            ]
+          },
+          "narrativeContexts": [
+            {
+              "seq": 1,
+              "narrativeElementName": "Result",
+              "context": "Teams ship on the shared foundation and the platform team runs it."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
