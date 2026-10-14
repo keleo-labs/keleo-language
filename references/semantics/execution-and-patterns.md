@@ -357,7 +357,7 @@ Patterns appear nowhere in [Section 14](acyclicity.md), and a `loopsBackTo` edge
 
 ### 9.3 Pattern Groups: Organising Patterns for Navigation
 
-> **Deprecated as of schema 2.21.0.** Use [pattern orchestration](#95-pattern-orchestration-sequencing-patterns-across-an-endeavour) instead. Orchestration does everything a group does and adds the sequencing and entry/exit criteria that groups were increasingly being bent into expressing, and the other thing groups were used for — seeing which practice a pattern came from — is already available without them, because the merge stamps `sourcePracticeName` on every pattern ([merge.md Section 8.1](../merge.md#81-practice-level-provenance-sourcepracticename)).
+> **Deprecated as of schema 2.21.0.** Use [pattern orchestration](#95-pattern-orchestration-layering-patterns-across-an-endeavour) instead. Orchestration does everything a group does and adds the sequencing and entry/exit criteria that groups were increasingly being bent into expressing, and the other thing groups were used for — seeing which practice a pattern came from — is already available without them, because the merge stamps `sourcePracticeName` on every pattern ([merge.md Section 8.1](../merge.md#81-practice-level-provenance-sourcepracticename)).
 >
 > Pattern groups remain valid and are still merged exactly as described below; 203 authored documents use them and none of them break. They are scheduled for removal at the next major version.
 >
@@ -537,9 +537,9 @@ Forecast weights enable systems to compute weighted projections before full reco
 - `ObjectiveContribution.recognizedAtPatternViewName` must match a PatternView.name within the named pattern
 - `ObjectiveContribution.forecastWeights[].patternViewName` must match a PatternView.name within the named pattern
 
-### 9.5 Pattern Orchestration: Sequencing Patterns Across an Endeavour
+### 9.5 Pattern Orchestration: Layering Patterns Across an Endeavour
 
-Most patterns address one aspect of an endeavour — initial bootstrap, steady-state operation, cyclical change, release management, decommissioning. A `PatternOrchestration` expresses the level above: the shape of the whole, and which constituent pattern applies when.
+Most patterns address one aspect of an endeavour — initial bootstrap, steady-state operation, cyclical change, release management, decommissioning. A `PatternOrchestration` expresses the level above: the shape of the whole, and how its constituent patterns are layered against one another. Some follow one another, some run alongside, some repeat inside the phases of a larger plan, and some are reached for when the team recognises the need.
 
 ```json
 {
@@ -577,9 +577,74 @@ Most patterns address one aspect of an endeavour — initial bootstrap, steady-s
 
 **Entry criteria reuse `Background`.** It already expresses alpha-state and work-product-level prerequisites, and it is already covered by the acyclicity constraints in [Section 14.2](acyclicity.md#142-cross-element-prerequisite-cycles), so the stage prerequisite graph is protected against cycles without a new rule. Exit criteria reuse `Test`, matching how Gherkin is already carried on activities and checklists.
 
-**Ordering is by `seq`, and that is all.** There is deliberately no conditional-successor graph in this version. Branching should be added when a real case needs it rather than guessed at now.
+#### 9.5.1 How a Stage Is Placed
 
-#### 9.5.1 Narrative Binding
+Real endeavours are layered, not a queue. Some patterns follow one another, some run alongside one another for a stretch, some repeat inside the phases of a larger plan, and some are run because the team recognised partway through that they were needed. `relationship` says which of these a stage is.
+
+| Relationship | Placed by | Use for |
+|---|---|---|
+| `sequential` | Its own `seq`, after the preceding sequential stage | Phases that genuinely follow one another — bootstrap, then steady-state, then decommissioning |
+| `concurrent` | The span of the pattern in `relativeTo` | A parallel track at the same level: assurance running alongside delivery for the whole of it |
+| `nested` | Inside the pattern in `relativeTo`, bounded by it | A smaller cycle inside a larger plan: a sprint inside each phase of a milestone plan |
+| `onDemand` | Nothing. Entered when `trigger` is recognised | A pattern run because circumstances called for it, not because it was next |
+
+Omitting `relationship` means `sequential`, which is what every stage meant before the property existed.
+
+**`seq` means different things by relationship.** For a sequential stage it is position in the order and must be unique among the sequential stages. For every other relationship it is the anchor point for presentation, and stages that begin alongside one another may share it. This is the one place the property is not a strict total order, and it is deliberate: concurrency has no total order to express.
+
+**Concurrent against nested.** Both run during another pattern, and the distinction is subordination. A concurrent stage is a peer: it has its own lifetime, the host does not bound it, and it renders as a track beside the host. A nested stage is contained: the host's phase boundary ends it, and it renders inside the host. If the question "what happens to this pattern when the host's phase ends?" answers *it stops*, it is nested; if it answers *it carries on*, it is concurrent.
+
+##### Scoping to particular phases
+
+`relativeTo.viewNames` narrows a concurrent or nested stage to named views of the host pattern. Omitted, the stage covers the whole host.
+
+##### Repeating inside each phase
+
+`recurrence` decides whether the stage runs once across the span it is placed in, or restarts for each host view in scope.
+
+```json
+{
+  "patternName": "Sprint",
+  "seq": 2,
+  "relationship": "nested",
+  "relativeTo": { "patternName": "Milestone Plan" },
+  "recurrence": "perView",
+  "exitCriteria": {
+    "name": "Increment accepted",
+    "description": "Whether the increment met the phase objective it was serving.",
+    "given": ["a sprint has run to its end"],
+    "when": ["the increment is reviewed against the phase objective"],
+    "then": ["the increment is accepted or its shortfall carries into the next sprint"]
+  }
+}
+```
+
+That is the milestone-plan-with-sprints case: the sprint pattern repeats within every phase of the host plan rather than running once across all of them. `"recurrence": "once"`, the default, places the stage once across the whole span.
+
+Repetition *within* a single run of a pattern is a different thing and is already handled — a pattern whose own views loop uses `loopsBackTo` ([Section 9.2a](#92a-cyclical-patterns-declaring-that-phases-repeat)). Use `recurrence` for "this pattern starts again at each phase boundary", and `loopsBackTo` for "this pattern's own phases go round".
+
+##### Patterns the team reaches for
+
+An `onDemand` stage has no position. It declares a `trigger` — what the team recognises that causes the pattern to be run — and is entered whenever that holds, however many times that turns out to be.
+
+```json
+{
+  "patternName": "Incident Response",
+  "seq": 4,
+  "relationship": "onDemand",
+  "trigger": {
+    "name": "Production impact recognised",
+    "description": "What the team notices that causes the incident pattern to be run.",
+    "given": ["the platform is carrying production workloads"],
+    "when": ["a user-visible failure is recognised by anyone on the team"],
+    "then": ["the incident response pattern is entered regardless of the phase in progress"]
+  }
+}
+```
+
+This is the difference between a plan and a repertoire. Sequential, concurrent and nested stages say what the endeavour intends to do; an `onDemand` stage says what it is prepared to do.
+
+#### 9.5.2 Narrative Binding
 
 Where an orchestration declares a `narrativeTypeName`, its design follows that narrative template, and its stages reference the template's component parts — exactly the relationship a Pattern has with its PatternViews.
 
@@ -587,8 +652,8 @@ Each stage's `narrativeContexts` entry carries a `seq`, a `narrativeElementName`
 
 `narrativeTypeName` is optional, as it is on `Pattern`. A stage carrying `narrativeContexts` requires its orchestration to declare one, which crosses object boundaries and so is enforced by the validator rather than the schema.
 
-#### 9.5.2 Reuse and Cycles
+#### 9.5.3 Reuse and Cycles
 
-**A pattern may appear in several orchestrations.** Reuse across different shapes of endeavour is the point — a release pattern belongs to more than one programme shape. This is the counterpart of [Section 9.3.7](#937-ungrouped-patterns), which limits a pattern to one group.
+**A pattern may appear in several orchestrations**, and more than once within one. Reuse is the point: a release pattern belongs to more than one programme shape, and a sprint pattern may be nested in the phases of a milestone plan *and* run on demand when an unplanned increment is needed. What must not repeat is the same pattern placed the same way twice — two stages naming the same pattern with the same `relativeTo` are a duplicate, not a layer. This is the counterpart of [Section 9.3.7](#937-ungrouped-patterns), which limits a pattern to one group.
 
 **A recurring phase is a stage whose pattern loops.** There is no separate "this stage repeats" property, because [Section 9.2a](#92a-cyclical-patterns-declaring-that-phases-repeat) already provides one: a stage naming a pattern that declares `loopsBackTo` is a recurring phase. Steady-state operation and cyclical change are exactly the phases that need it.

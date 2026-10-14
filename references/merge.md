@@ -422,13 +422,14 @@ PatternGroups with unique names from either the base or overlay are preserved as
 
 ### 6.15a PatternOrchestration Merging
 
-Orchestrations merge by canonical name. Within an orchestration, `stages` merge by `patternName`:
+Orchestrations merge by canonical name. Within an orchestration, `stages` merge by the composite key `patternName::relationship::relativeTo.patternName` — not by `patternName` alone, because one pattern may legitimately be placed more than once in an orchestration, nested inside a plan and also available on demand. Merging those two together would silently collapse a layer:
 
 - `seq` from the overlay takes precedence.
 - `entryCriteria` and `exitCriteria`: the first non-empty value wins.
 - `narrativeContexts` merge by the composite key `narrativeElementName::seq`, under the general rule in Section 6.17.
+- `relationship`, `recurrence`, `relativeTo` and `trigger`: the overlay wins as scalars, since each describes placement rather than content, and a layer that merged halfway would describe a shape neither author intended.
 - `narrativeTypeName` on the orchestration: the first non-empty value wins.
-- Stages are sorted by `seq` after merging.
+- Stages are sorted by `seq` after merging. `seq` is unique only among sequential stages, so the sort is not a total order; stages sharing a `seq` begin alongside one another and may be presented in any stable order.
 
 **This is not the PatternGroup contract.** Groups merge across practices by canonical name as a deliberate mechanism for collecting patterns from many authors into shared categories. Orchestrations merge by name only so that a practice can refine an orchestration it inherits; the ordering belongs to one author, and two unrelated practices independently declaring an orchestration with the same name is a naming collision rather than a contribution.
 

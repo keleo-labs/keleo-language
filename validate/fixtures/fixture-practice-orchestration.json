@@ -1,10 +1,10 @@
 {
   "kind": "practice",
   "name": "Fixture Platform Endeavour",
-  "description": "Exercises pattern orchestration: two patterns sequenced into the shape of a whole endeavour, with entry and exit criteria and a narrative template.",
+  "description": "Exercises pattern orchestration as a layered model: sequenced phases, a parallel track, a sprint repeating inside each phase of a milestone plan, and a pattern reached for on demand.",
   "baselinePracticeName": "Fixture Essentials",
   "version": "1.0.0",
-  "schemaVersion": "2.21.0",
+  "schemaVersion": "2.22.0",
   "authors": [
     "keleo-language fixtures"
   ],
@@ -96,13 +96,153 @@
           }
         }
       ]
+    },
+    {
+      "kind": "pattern",
+      "name": "Milestone Plan",
+      "description": "The coarse phases a long-running delivery passes through.",
+      "patternViews": [
+        {
+          "kind": "patternView",
+          "name": "Foundations",
+          "seq": 1,
+          "description": "Put in place what everything later depends on.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Identified"
+            }
+          ]
+        },
+        {
+          "kind": "patternView",
+          "name": "Build Out",
+          "seq": 2,
+          "description": "Grow the platform to carry real work.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Available"
+            }
+          ]
+        },
+        {
+          "kind": "patternView",
+          "name": "Hand Over",
+          "seq": 3,
+          "description": "Transfer the platform to the team that will run it.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Operating"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "pattern",
+      "name": "Sprint",
+      "description": "A short increment of work, planned and reviewed within a phase.",
+      "patternViews": [
+        {
+          "kind": "patternView",
+          "name": "Plan the Increment",
+          "seq": 1,
+          "description": "Agree what this increment will deliver.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Identified"
+            }
+          ]
+        },
+        {
+          "kind": "patternView",
+          "name": "Review the Increment",
+          "seq": 2,
+          "description": "Judge the increment against what was agreed.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Available"
+            }
+          ],
+          "loopsBackTo": {
+            "patternViewName": "Plan the Increment",
+            "description": "Each increment feeds the planning of the next."
+          }
+        }
+      ]
+    },
+    {
+      "kind": "pattern",
+      "name": "Security Assurance",
+      "description": "Continuous assurance that the platform remains defensible.",
+      "patternViews": [
+        {
+          "kind": "patternView",
+          "name": "Establish Controls",
+          "seq": 1,
+          "description": "Agree the controls the platform must satisfy.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Identified"
+            }
+          ]
+        },
+        {
+          "kind": "patternView",
+          "name": "Verify Controls",
+          "seq": 2,
+          "description": "Confirm the controls hold as the platform changes.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Operating"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "pattern",
+      "name": "Incident Response",
+      "description": "Restoring service when something user-visible breaks.",
+      "patternViews": [
+        {
+          "kind": "patternView",
+          "name": "Contain",
+          "seq": 1,
+          "description": "Limit the impact before diagnosing it.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Available"
+            }
+          ]
+        },
+        {
+          "kind": "patternView",
+          "name": "Restore",
+          "seq": 2,
+          "description": "Return the platform to normal running.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Operating"
+            }
+          ]
+        }
+      ]
     }
   ],
   "patternOrchestrations": [
     {
       "kind": "patternOrchestration",
       "name": "Platform Endeavour",
-      "description": "The whole life of a platform, from first build through steady-state running.",
+      "description": "The whole life of a platform: sequenced phases, with assurance alongside, sprints inside each phase, and incident response always available.",
       "narrativeTypeName": "STAR",
       "stages": [
         {
@@ -127,7 +267,8 @@
               "narrativeElementName": "Task",
               "context": "Prove a shared foundation is worth having before asking anyone to depend on it."
             }
-          ]
+          ],
+          "relationship": "sequential"
         },
         {
           "patternName": "Run the Platform",
@@ -146,7 +287,73 @@
               "narrativeElementName": "Result",
               "context": "Teams ship on the shared foundation and the platform team runs it."
             }
-          ]
+          ],
+          "relationship": "sequential"
+        },
+        {
+          "patternName": "Security Assurance",
+          "seq": 1,
+          "relationship": "concurrent",
+          "relativeTo": {
+            "patternName": "Milestone Plan"
+          },
+          "exitCriteria": {
+            "name": "Controls hold at hand over",
+            "description": "Whether the agreed controls still hold when the platform changes hands.",
+            "given": [
+              "controls were agreed at the start of the plan"
+            ],
+            "when": [
+              "the platform is handed to the team that will run it"
+            ],
+            "then": [
+              "every agreed control is verified against the platform as it then stands"
+            ]
+          }
+        },
+        {
+          "patternName": "Sprint",
+          "seq": 2,
+          "relationship": "nested",
+          "relativeTo": {
+            "patternName": "Milestone Plan",
+            "viewNames": [
+              "Foundations",
+              "Build Out"
+            ]
+          },
+          "recurrence": "perView",
+          "exitCriteria": {
+            "name": "Increment accepted",
+            "description": "Whether the increment met the phase objective it was serving.",
+            "given": [
+              "a sprint has run to its end"
+            ],
+            "when": [
+              "the increment is reviewed against the phase objective"
+            ],
+            "then": [
+              "the increment is accepted or its shortfall carries into the next sprint"
+            ]
+          }
+        },
+        {
+          "patternName": "Incident Response",
+          "seq": 3,
+          "relationship": "onDemand",
+          "trigger": {
+            "name": "Production impact recognised",
+            "description": "What the team notices that causes the incident pattern to be run.",
+            "given": [
+              "the platform is carrying production workloads"
+            ],
+            "when": [
+              "a user-visible failure is recognised by anyone on the team"
+            ],
+            "then": [
+              "the incident response pattern is entered regardless of the phase in progress"
+            ]
+          }
         }
       ]
     }

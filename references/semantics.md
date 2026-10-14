@@ -54,9 +54,10 @@
    - 9.2a [Cyclical Patterns: Declaring That Phases Repeat](semantics/execution-and-patterns.md#92a-cyclical-patterns-declaring-that-phases-repeat)
    - 9.3 [Pattern Groups: Organising Patterns for Navigation](semantics/execution-and-patterns.md#93-pattern-groups-organising-patterns-for-navigation) — **deprecated, see 9.5**
    - 9.4 [Outcome Definitions and Value Measurement](semantics/execution-and-patterns.md#94-outcome-definitions-and-value-measurement)
-   - 9.5 [Pattern Orchestration: Sequencing Patterns Across an Endeavour](semantics/execution-and-patterns.md#95-pattern-orchestration-sequencing-patterns-across-an-endeavour)
-     - 9.5.1 [Narrative Binding](semantics/execution-and-patterns.md#951-narrative-binding)
-     - 9.5.2 [Reuse and Cycles](semantics/execution-and-patterns.md#952-reuse-and-cycles)
+   - 9.5 [Pattern Orchestration: Layering Patterns Across an Endeavour](semantics/execution-and-patterns.md#95-pattern-orchestration-layering-patterns-across-an-endeavour)
+     - 9.5.1 [How a Stage Is Placed](semantics/execution-and-patterns.md#951-how-a-stage-is-placed)
+     - 9.5.2 [Narrative Binding](semantics/execution-and-patterns.md#952-narrative-binding)
+     - 9.5.3 [Reuse and Cycles](semantics/execution-and-patterns.md#953-reuse-and-cycles)
 10. [Narrative Management](semantics/narrative-and-assets.md#10-narrative-management)
     - 10.1 [Narrative Tooling Synchronization and Execution Guidelines](semantics/narrative-and-assets.md#101-narrative-tooling-synchronization-and-execution-guidelines)
     - 10.2 [Cognitive Storytelling Frameworks](semantics/narrative-and-assets.md#102-cognitive-storytelling-frameworks)
