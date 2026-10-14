@@ -1737,6 +1737,175 @@ class PracticeValidator:
 
         return not has_errors
 
+    def _narrative_elements_in_scope(self) -> Dict[str, set]:
+        """NarrativeType.name -> set of its NarrativeElement names, across the whole scope."""
+        if getattr(self, '_narrative_cache', None) is not None:
+            return self._narrative_cache
+
+        types = defaultdict(set)
+        is_method = 'practices' in self.practice or 'baselinePractice' in self.practice
+        own = self.practice.get('practices', []) if is_method else [self.practice]
+        for doc in self._resolve_baseline_chain() + self.dependencies + own:
+            for nt in doc.get('narrativeTypes', []):
+                if not isinstance(nt, dict) or 'name' not in nt:
+                    continue
+                for ne in nt.get('narrativeElements', []):
+                    if isinstance(ne, dict) and 'name' in ne:
+                        types[nt['name']].add(ne['name'])
+        self._narrative_cache = types
+        return types
+
+    def _check_narrative_contexts(self, contexts, narrative_type_name, owner, path,
+                                  severity="error") -> bool:
+        """Contexts must name elements of the NarrativeType declared on their parent.
+
+        Section 9.2 has always required this for pattern views and nothing enforced it.
+        Retrofitting it as an error would invalidate documents that have been valid for
+        as long as the rule has existed, so pattern views get a warning and the migration
+        path, while orchestration stages -- a construct with no installed base -- are
+        held to it from the start. Both report the same defect; only the severity differs.
+        """
+        if not contexts:
+            return False
+        has_errors = False
+        types = self._narrative_elements_in_scope()
+        sink = self.errors if severity == "error" else self.warnings
+
+        def report(entry):
+            entry["severity"] = severity
+            sink.append(entry)
+            return severity == "error"
+
+        if not narrative_type_name:
+            return report({
+                "category": "integrity",
+                "path": path,
+                "issue": f"'{owner}' declares narrativeContexts but its parent declares no narrativeTypeName",
+                "expected": "narrative contexts resolve against a declared narrative type",
+                "actual": "no narrativeTypeName on the parent",
+                "suggestion": "Declare narrativeTypeName on the parent, or remove the narrativeContexts"
+            })
+
+        known = types.get(narrative_type_name)
+        if known is None:
+            return report({
+                "category": "integrity",
+                "path": path,
+                "issue": f"Narrative type '{narrative_type_name}' is not in scope",
+                "expected": "a NarrativeType declared in the baseline chain, a dependency, or this document",
+                "actual": narrative_type_name,
+                "suggestion": f"Declare it, or name one of: {sorted(types)}"
+            })
+
+        for idx, context in enumerate(contexts):
+            if not isinstance(context, dict):
+                continue
+            element_name = context.get('narrativeElementName')
+            if element_name not in known:
+                has_errors |= report({
+                    "category": "integrity",
+                    "path": f"{path}[{idx}].narrativeElementName",
+                    "issue": f"'{element_name}' is not an element of narrative type '{narrative_type_name}'",
+                    "expected": f"one of: {sorted(known)}",
+                    "actual": element_name,
+                    "suggestion": f"Name an element of '{narrative_type_name}', or change the parent's narrativeTypeName"
+                })
+        return has_errors
+
+    def validate_orchestrations(self) -> bool:
+        """Validate pattern orchestrations, and narrative binding on patterns too.
+
+        See semantics/execution-and-patterns.md section 9.5. The narrative-resolution
+        check is shared with patterns because the rule is the same one level down and
+        has never been enforced there either.
+        """
+        has_errors = False
+        is_method = 'practices' in self.practice or 'baselinePractice' in self.practice
+        practices = self.practice.get('practices', []) if is_method else [self.practice]
+
+        for practice_idx, practice in enumerate(practices):
+            prefix = f"practices[{practice_idx}]." if is_method else ""
+            pattern_names = {p['name'] for p in practice.get('patterns', [])
+                             if isinstance(p, dict) and 'name' in p}
+
+            # Shared rule, applied to patterns: section 9.2 required this already.
+            for p_idx, pattern in enumerate(practice.get('patterns', [])):
+                for v_idx, view in enumerate(pattern.get('patternViews', [])):
+                    has_errors |= self._check_narrative_contexts(
+                        view.get('narrativeContexts'),
+                        pattern.get('narrativeTypeName'),
+                        view.get('name', f'view[{v_idx}]'),
+                        f"{prefix}patterns[{p_idx}].patternViews[{v_idx}].narrativeContexts",
+                        severity="warning")
+
+            for o_idx, orch in enumerate(practice.get('patternOrchestrations', [])):
+                o_path = f"{prefix}patternOrchestrations[{o_idx}]"
+                o_name = orch.get('name', f'orchestration[{o_idx}]')
+                seen_seq, seen_pattern = {}, {}
+
+                for s_idx, stage in enumerate(orch.get('stages', [])):
+                    s_path = f"{o_path}.stages[{s_idx}]"
+                    pattern_name = stage.get('patternName')
+                    seq = stage.get('seq')
+
+                    if pattern_name not in pattern_names:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{s_path}.patternName",
+                            "issue": f"Orchestration '{o_name}' stage references unknown pattern '{pattern_name}'",
+                            "expected": "a Pattern declared in scope",
+                            "actual": pattern_name,
+                            "suggestion": f"Name one of: {sorted(pattern_names)}"
+                        })
+                        has_errors = True
+                    elif pattern_name in seen_pattern:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{s_path}.patternName",
+                            "issue": f"Pattern '{pattern_name}' appears twice in orchestration '{o_name}'",
+                            "expected": "each pattern appears at most once per orchestration",
+                            "actual": f"also at stages[{seen_pattern[pattern_name]}]",
+                            "suggestion": "Merge the two stages, or model the repetition with loopsBackTo on the pattern"
+                        })
+                        has_errors = True
+                    else:
+                        seen_pattern[pattern_name] = s_idx
+
+                    if seq in seen_seq:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{s_path}.seq",
+                            "issue": f"Duplicate seq {seq} in orchestration '{o_name}'",
+                            "expected": "seq unique within an orchestration",
+                            "actual": f"also at stages[{seen_seq[seq]}]",
+                            "suggestion": "Renumber so the order is unambiguous"
+                        })
+                        has_errors = True
+                    else:
+                        seen_seq[seq] = s_idx
+
+                    has_errors |= self._check_narrative_contexts(
+                        stage.get('narrativeContexts'),
+                        orch.get('narrativeTypeName'),
+                        f"stage {s_idx} of '{o_name}'",
+                        f"{s_path}.narrativeContexts")
+
+            if practice.get('patternGroups'):
+                self.warnings.append({
+                    "category": "deprecation",
+                    "severity": "warning",
+                    "path": f"{prefix}patternGroups",
+                    "issue": "patternGroups is deprecated as of schema 2.21.0",
+                    "expected": "patternOrchestrations, or grouping on the merge-stamped sourcePracticeName",
+                    "actual": f"{len(practice['patternGroups'])} group(s) declared",
+                    "suggestion": "Where the order means 'then', declare an orchestration; where it only showed which practice contributed a pattern, group on sourcePracticeName at display time. Still valid until the next major version."
+                })
+
+        return not has_errors
+
     def validate_semantic_alignment(self) -> bool:
         """
         Validate semantic appropriateness of contributesTo relationships.
@@ -3689,6 +3858,9 @@ def main():
 
     progress("Validating loop declarations...")
     loops_valid = validator.validate_loops()
+
+    progress("Validating pattern orchestrations...")
+    orchestrations_valid = validator.validate_orchestrations()
 
     progress("Validating semantic alignment...")
     semantic_valid = validator.validate_semantic_alignment()
