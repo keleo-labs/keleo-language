@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/language.schema.json",
-  "$comment": "schemaVersion:2.22.0",
+  "$comment": "schemaVersion:3.0.0",
   "title": "Practice language (from language.mmd)",
   "description": "JSON Schema derived from the Mermaid classDiagram in language.mmd. Identity is by name; most cross-links are string names (not embedded objects). Root validation discriminates Practice vs Method vs PracticeBaseline. Method can use embedded objects (baselinePractice + practices) or string references (baselinePracticeName + practiceNames) or a mix.",
   "$defs": {
@@ -1151,7 +1151,7 @@
     "OrchestrationStage": {
       "type": "object",
       "description": "One constituent pattern within an orchestration, and how it is placed against the rest of the endeavour. Placement is not only sequential: a pattern may run alongside another, repeat inside the phases of another, or be entered on recognition of need rather than at a fixed point.",
-      "required": ["patternName", "seq"],
+      "required": ["patternName", "seq", "relationship"],
       "additionalProperties": false,
       "properties": {
         "patternName": {
@@ -1165,8 +1165,7 @@
         "relationship": {
           "type": "string",
           "enum": ["sequential", "concurrent", "nested", "onDemand"],
-          "default": "sequential",
-          "description": "How this stage is placed. Absent means sequential, which is what every stage meant before this property existed. 'sequential' follows the preceding sequential stage, gated by criteria. 'concurrent' runs alongside the pattern named in relativeTo, as a parallel track at the same level. 'nested' runs inside that pattern, bounded by it, and is the shape for a sprint repeating within each phase of a milestone plan. 'onDemand' has no fixed position and is entered when its trigger is recognised."
+          "description": "How this stage is placed. Always declared explicitly — there is no default, because how a pattern is layered into an endeavour is a modelling decision and a reader should never have to infer it from silence. 'sequential' follows the preceding sequential stage, gated by criteria. 'concurrent' runs alongside the pattern named in relativeTo, as a parallel track at the same level. 'nested' runs inside that pattern, bounded by it, and is the shape for a sprint repeating within each phase of a milestone plan. 'onDemand' has no fixed position and is entered when its trigger is recognised."
         },
         "relativeTo": {
           "type": "object",
@@ -1219,7 +1218,7 @@
           "then": { "required": ["trigger"] }
         },
         {
-          "if": { "properties": { "relationship": { "enum": ["sequential", "onDemand"] } } },
+          "if": { "properties": { "relationship": { "enum": ["sequential", "onDemand"] } }, "required": ["relationship"] },
           "then": { "not": { "required": ["relativeTo"] } }
         }
       ]

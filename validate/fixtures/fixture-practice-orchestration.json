@@ -4,7 +4,7 @@
   "description": "Exercises pattern orchestration as a layered model: sequenced phases, a parallel track, a sprint repeating inside each phase of a milestone plan, and a pattern reached for on demand.",
   "baselinePracticeName": "Fixture Essentials",
   "version": "1.0.0",
-  "schemaVersion": "2.22.0",
+  "schemaVersion": "3.0.0",
   "authors": [
     "keleo-language fixtures"
   ],

@@ -4,7 +4,7 @@
   "description": "Exercises cyclical state models and looping patterns: a concern whose states recur after a one-time setup prefix, driven by a pattern whose phases repeat.",
   "baselinePracticeName": "Fixture Essentials",
   "version": "1.0.0",
-  "schemaVersion": "2.20.0",
+  "schemaVersion": "3.0.0",
   "authors": [
     "keleo-language fixtures"
   ],

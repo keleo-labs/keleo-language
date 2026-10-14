@@ -4,7 +4,7 @@
   "description": "Makes the internal developer platform specific to a container orchestration foundation.",
   "baselinePracticeName": "Fixture Essentials",
   "version": "1.0.0",
-  "schemaVersion": "2.18.0",
+  "schemaVersion": "3.0.0",
   "authors": [
     "keleo-language fixtures"
   ],
