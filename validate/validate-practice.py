@@ -1367,6 +1367,128 @@ class PracticeValidator:
 
         return not has_errors
 
+    # Practice element collections that carry PracticeElement properties. Used by the
+    # specificity and suppression checks, which apply to every element kind rather than
+    # to one type, because `specificityName` and `suppressed` are declared on
+    # PracticeElement and so reach all 31 types that extend it.
+    ELEMENT_COLLECTIONS = [
+        'focuses', 'alphas', 'alphaInstances', 'workProductInstances', 'activitySpaces',
+        'competencies', 'activities', 'workProducts', 'personas', 'personaGroups',
+        'narrativeTypes', 'patterns', 'patternGroups', 'outcomes',
+    ]
+
+    def _inherited_element_names(self) -> Dict[str, set]:
+        """Names available through the baseline chain and dependency practices, by collection.
+
+        An element whose name appears here is a redeclaration; one that does not is
+        net-new. Parts (states, levels of detail, checklists) are collected under
+        synthetic keys so the same lookup serves them.
+        """
+        if getattr(self, '_inherited_cache', None) is not None:
+            return self._inherited_cache
+
+        inherited = defaultdict(set)
+        for doc in self._resolve_baseline_chain() + self.dependencies:
+            for collection in self.ELEMENT_COLLECTIONS:
+                for element in doc.get(collection, []):
+                    if not isinstance(element, dict) or 'name' not in element:
+                        continue
+                    inherited[collection].add(element['name'])
+                    for state in element.get('states', []):
+                        if isinstance(state, dict) and 'name' in state:
+                            inherited['states'].add(f"{element['name']}::{state['name']}")
+                    for lod in element.get('levelsOfDetail', []):
+                        if isinstance(lod, dict) and 'name' in lod:
+                            inherited['levelsOfDetail'].add(f"{element['name']}::{lod['name']}")
+
+        self._inherited_cache = inherited
+        return inherited
+
+    def _walk_elements(self):
+        """Yield (practice, path, collection, element) for every practice element.
+
+        Covers methods (which nest practices) and single practices alike, so a check
+        written against this walker applies to both without special-casing.
+        """
+        is_method = 'practices' in self.practice or 'baselinePractice' in self.practice
+        practices = self.practice.get('practices', []) if is_method else [self.practice]
+        for practice_idx, practice in enumerate(practices):
+            prefix = f"practices[{practice_idx}]." if is_method else ""
+            for collection in self.ELEMENT_COLLECTIONS:
+                for idx, element in enumerate(practice.get(collection, [])):
+                    if isinstance(element, dict):
+                        yield practice, f"{prefix}{collection}[{idx}]", collection, element
+
+    def validate_specificity(self) -> bool:
+        """Validate specificityName placement and reject author-declared specificity.
+
+        See semantics/composition.md section 4.5.1. `specificityName` names the dimension
+        of specificity a redeclaration adds; `specificity` is the chain the merge
+        accumulates across the practices actually loaded, so an authored value cannot
+        know what it should contain.
+        """
+        has_errors = False
+        inherited = self._inherited_element_names()
+
+        for root_property in ('specificityName', 'specificity'):
+            if root_property in self.practice:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": root_property,
+                    "issue": f"'{root_property}' declared on the document root",
+                    "expected": "specificity applies to practice elements, not to the document",
+                    "actual": f"root.{root_property} is present",
+                    "suggestion": f"Remove '{root_property}' from the document root"
+                })
+                has_errors = True
+
+        for practice, path, collection, element in self._walk_elements():
+            name = element.get('name', '<unnamed>')
+
+            if 'specificity' in element:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{path}.specificity",
+                    "issue": f"'{name}' declares 'specificity', which is populated by the merge",
+                    "expected": "specificity is merge output; authors declare specificityName",
+                    "actual": f"specificity: {element.get('specificity')}",
+                    "suggestion": "Remove 'specificity' and declare 'specificityName' with this practice's own contribution"
+                })
+                has_errors = True
+
+            specificity_name = element.get('specificityName')
+            if specificity_name is None:
+                continue
+
+            if not str(specificity_name).strip():
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{path}.specificityName",
+                    "issue": f"'{name}' declares an empty specificityName",
+                    "expected": "a non-empty dimension of specificity, or the property omitted",
+                    "actual": repr(specificity_name),
+                    "suggestion": "Name the specificity this redeclaration adds, or remove the property"
+                })
+                has_errors = True
+                continue
+
+            if name not in inherited.get(collection, set()):
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{path}.specificityName",
+                    "issue": f"'{name}' is not a redeclaration, so it cannot add specificity",
+                    "expected": "specificityName only on an element inherited through the baseline or a dependency",
+                    "actual": f"'{name}' is declared new in this practice",
+                    "suggestion": f"Remove specificityName from '{name}', or name it after the inherited element it makes more specific"
+                })
+                has_errors = True
+
+        return not has_errors
+
     def validate_semantic_alignment(self) -> bool:
         """
         Validate semantic appropriateness of contributesTo relationships.
@@ -3310,6 +3432,9 @@ def main():
 
     progress("Validating work product purpose hub...")
     wp_purpose_valid = validator.validate_work_product_purpose()
+
+    progress("Validating specificity declarations...")
+    specificity_valid = validator.validate_specificity()
 
     progress("Validating semantic alignment...")
     semantic_valid = validator.validate_semantic_alignment()

@@ -486,6 +486,39 @@ When extending existing elements:
 
 **Alpha Redeclaration:** Alphas have States. These Alpha States **MUST NOT** be changed. However, the State checklists **CAN** be added to.
 
+#### 4.5.1 Declaring the Specificity a Redeclaration Adds
+
+Redeclaration does not narrow an element's scope — that is what the rule above forbids — but it does make the element **more specific**. A general Platform concern becomes a platform of a particular kind, which in turn becomes one built on a particular technology. Each practice in a dependency chain can contribute a further dimension of specificity to the same element while leaving its scope, states and objectives intact.
+
+`specificityName` on a redeclared element names the dimension that practice contributes. It is a single string, authored by hand:
+
+```json
+{
+  "kind": "alpha",
+  "name": "Platform",
+  "description": "The platform on which the organisation's services run.",
+  "specificityName": "OpenShift"
+}
+```
+
+**Narrowing scope versus adding specificity.** These are easy to confuse and the distinction decides whether you are allowed to do it at all. Narrowing scope removes something: the redeclared element covers less ground than the original, excludes cases the original included, or answers a smaller question. That is forbidden here and belongs in a specialization (see [Section 4.4](#44-redeclaration-vs-specialization-vs-variant-mapping-decision-framework)) or, where the intent is to switch inherited content off, in a suppression (see [Section 4.9](#49-restricting-inherited-content)). Adding specificity removes nothing: the element still answers the same question about the same concern, and the practice has simply said which kind of thing it is dealing with. The test is whether anything that was in scope before has fallen out of it. If nothing has, it is specificity.
+
+**`specificity` is merge output, not authoring.** The accumulated chain across the loaded practices is written by the merge algorithm into a separate array property, most specific first:
+
+```json
+{
+  "kind": "alpha",
+  "name": "Platform",
+  "specificity": ["OpenShift", "IDP"]
+}
+```
+
+The two properties are deliberately separate. An author declares only what their own practice contributes and cannot hand-write a chain, because the chain depends on which practices are actually loaded and the same practice composes into different methods with different results. Declaring `specificity` in a source document is a validation error.
+
+**Ordering when several practices contribute.** The chain is ordered most specific first, which means reverse dependency order: a practice's own contribution precedes the contributions of the practices it depends on. Where two practices at the same dependency depth both add specificity to one element, they are ordered by topological dependency order and then by practice name, so the result does not depend on the order documents happened to be loaded in. See [merge.md Section 7.2e](../merge.md#72e-specificity-chain-accumulation).
+
+**When not to use it.** Specificity is for the case where the chain is genuinely informative to a consumer reading the merged method — it answers "how specific has this element become, and which practice made it so?". A single practice extending a baseline with no intention of being extended further gains nothing by declaring it.
+
 ### 4.6 Practice Partitioning and Value-Driven Scoping
 
 When composing extension practices, authors must avoid "functional decomposition" (e.g., creating a generic "Testing Practice" or "Coding Practice" consisting only of flat task lists). Instead, a Practice must be scoped as a Value-Additive Unit addressing a discrete, cohesive area of concern (e.g., "Product Discovery" or "Zero-Trust Networking"). Authors should evaluate their methodology across four distinct perspectives: Business (commercial logic), Technology (system design), People (team RACI), and Process (operational workflows). If source material blends multiple distinct value-streams, it must be partitioned into separate, cohesive Practice documents, resolving cross-dependencies via the practiceDependencyNames array.

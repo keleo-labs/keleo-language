@@ -1,0 +1,221 @@
+{
+  "kind": "practiceBaseline",
+  "name": "Fixture Essentials",
+  "description": "Minimal baseline for the keleo-language validator fixtures. Deliberately generic and not a real methodology \u2014 it exists so new schema properties can be exercised before any authored document uses them.",
+  "version": "1.0.0",
+  "schemaVersion": "2.18.0",
+  "authors": [
+    "keleo-language fixtures"
+  ],
+  "createdAt": "2026-10-14",
+  "updatedAt": "2026-10-14",
+  "keywords": [
+    "fixture",
+    "validator",
+    "test"
+  ],
+  "focuses": [
+    {
+      "name": "Delivery",
+      "description": "The work of producing and running something of value."
+    },
+    {
+      "name": "Direction",
+      "description": "The work of deciding what is worth producing."
+    }
+  ],
+  "narrativeTypes": [
+    {
+      "kind": "narrativeType",
+      "name": "STAR",
+      "description": "Situation, Task, Action, Result \u2014 a four-part narrative spine.",
+      "narrativeElements": [
+        {
+          "name": "Situation",
+          "description": "The context the work begins in.",
+          "howToUse": "Set the scene before describing intent."
+        },
+        {
+          "name": "Task",
+          "description": "The objective being pursued.",
+          "howToUse": "State what success would look like."
+        },
+        {
+          "name": "Action",
+          "description": "The work actually undertaken.",
+          "howToUse": "Describe what was done, not what was planned."
+        },
+        {
+          "name": "Result",
+          "description": "What changed as a consequence.",
+          "howToUse": "State the observable outcome."
+        }
+      ]
+    }
+  ],
+  "alphas": [
+    {
+      "kind": "alpha",
+      "name": "Platform",
+      "description": "The shared technical foundation on which the organisation's services run.",
+      "focusName": "Delivery",
+      "relatesTo": [
+        {
+          "relationship": "serves",
+          "alphaName": "Service",
+          "direction": "outgoing"
+        }
+      ],
+      "states": [
+        {
+          "name": "Identified",
+          "seq": 1,
+          "description": "The need for a shared foundation is understood and agreed.",
+          "checklist": [
+            {
+              "name": "Need recorded",
+              "seq": 1,
+              "description": "The platform need is written down and agreed by those who will fund it."
+            }
+          ]
+        },
+        {
+          "name": "Available",
+          "seq": 2,
+          "description": "The foundation exists and teams can use it.",
+          "checklist": [
+            {
+              "name": "Access granted",
+              "seq": 1,
+              "description": "At least one team can reach the platform and deploy to it."
+            }
+          ]
+        },
+        {
+          "name": "Operating",
+          "seq": 3,
+          "description": "The foundation runs production workloads and is observed.",
+          "checklist": [
+            {
+              "name": "Health observed",
+              "seq": 1,
+              "description": "Platform health is monitored and someone is accountable for it."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "alpha",
+      "name": "Service",
+      "description": "Something the organisation offers that someone depends on.",
+      "focusName": "Direction",
+      "states": [
+        {
+          "name": "Proposed",
+          "seq": 1,
+          "description": "Someone has argued the service is worth offering.",
+          "checklist": [
+            {
+              "name": "Need articulated",
+              "seq": 1,
+              "description": "The need the service meets is stated in terms of who has it."
+            }
+          ]
+        },
+        {
+          "name": "Live",
+          "seq": 2,
+          "description": "The service is available to the people it was built for.",
+          "checklist": [
+            {
+              "name": "Reachable",
+              "seq": 1,
+              "description": "Intended users can reach the service unaided."
+            }
+          ]
+        },
+        {
+          "name": "Depended On",
+          "seq": 3,
+          "description": "Others have built on the service and would notice its absence.",
+          "checklist": [
+            {
+              "name": "Dependants known",
+              "seq": 1,
+              "description": "Who depends on the service is recorded and they can be contacted."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "activitySpaces": [
+    {
+      "kind": "activitySpace",
+      "name": "Build the Platform",
+      "description": "The work that brings the shared foundation into existence and keeps it running.",
+      "focusName": "Delivery",
+      "contributesTo": [
+        {
+          "alphaName": "Platform",
+          "stateName": "Available"
+        },
+        {
+          "alphaName": "Platform",
+          "stateName": "Operating"
+        }
+      ],
+      "requiredCompetencies": [
+        "Engineering"
+      ]
+    }
+  ],
+  "competencies": [
+    {
+      "name": "Engineering",
+      "description": "Building and running technical systems that other people depend on.",
+      "levels": [
+        {
+          "name": "Assisting",
+          "level": 1,
+          "competencyName": "Engineering",
+          "description": "Contributes under direction and checks the result with someone else."
+        },
+        {
+          "name": "Practitioner",
+          "level": 2,
+          "competencyName": "Engineering",
+          "description": "Does the work unaided and is trusted with production change."
+        },
+        {
+          "name": "Proficient",
+          "level": 3,
+          "competencyName": "Engineering",
+          "description": "Handles unfamiliar problems in the domain without escalating."
+        },
+        {
+          "name": "Expert",
+          "level": 4,
+          "competencyName": "Engineering",
+          "description": "Sets the approach others follow and is consulted on hard cases."
+        },
+        {
+          "name": "Authority",
+          "level": 5,
+          "competencyName": "Engineering",
+          "description": "Shapes how the organisation as a whole does this work."
+        }
+      ]
+    }
+  ],
+  "patternGroups": [
+    {
+      "kind": "patternGroup",
+      "name": "Core Lifecycles",
+      "description": "The primary journey each practice contributes.",
+      "entries": [],
+      "seq": 1
+    }
+  ]
+}

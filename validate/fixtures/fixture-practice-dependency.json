@@ -1,0 +1,65 @@
+{
+  "kind": "practice",
+  "name": "Fixture Internal Platform",
+  "description": "Makes the baseline Platform concern specific to an internal developer platform, without narrowing what it covers.",
+  "baselinePracticeName": "Fixture Essentials",
+  "version": "1.0.0",
+  "schemaVersion": "2.18.0",
+  "authors": [
+    "keleo-language fixtures"
+  ],
+  "createdAt": "2026-10-14",
+  "updatedAt": "2026-10-14",
+  "keywords": [
+    "fixture",
+    "validator",
+    "test"
+  ],
+  "alphas": [
+    {
+      "kind": "alpha",
+      "name": "Platform",
+      "description": "The shared technical foundation on which the organisation's services run.",
+      "focusName": "Delivery",
+      "specificityName": "IDP",
+      "states": [
+        {
+          "name": "Identified",
+          "seq": 1,
+          "description": "The need for a shared foundation is understood and agreed.",
+          "checklist": [
+            {
+              "name": "Self-service need recorded",
+              "seq": 1,
+              "description": "The developer-facing capabilities the platform must offer are written down."
+            }
+          ]
+        },
+        {
+          "name": "Available",
+          "seq": 2,
+          "description": "The foundation exists and teams can use it.",
+          "checklist": [
+            {
+              "name": "Golden path exists",
+              "seq": 1,
+              "description": "At least one documented path takes a team from empty repository to running service."
+            }
+          ]
+        },
+        {
+          "name": "Operating",
+          "seq": 3,
+          "description": "The foundation runs production workloads and is observed.",
+          "checklist": [
+            {
+              "name": "Adoption measured",
+              "seq": 1,
+              "description": "How many teams use the golden path is measured rather than assumed."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
