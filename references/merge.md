@@ -46,6 +46,7 @@
    - 7.2 [Supporting Alpha Aggregation](#72-supporting-alpha-aggregation)
    - 7.2d [Work Product `partOf` Inheritance from `mapsTo`](#72d-work-product-partof-inheritance-from-mapsto)
    - 7.2c [Work Product Component Aggregation](#72c-work-product-component-aggregation)
+   - 7.2e [Specificity Chain Accumulation](#72e-specificity-chain-accumulation)
    - 7.3 [Focus Name Propagation](#73-focus-name-propagation)
    - 7.4 [Baseline Description Re-stamping](#74-baseline-description-re-stamping)
    - 7.5 [Synthesized Element Stub Generation](#75-synthesized-element-stub-generation)
@@ -441,9 +442,10 @@ After all extension layers have been merged into the accumulator, several finali
 5. Work product variant aggregation (Section 7.2b)
 6. Work product `partOf` inheritance from `mapsTo` (Section 7.2d)
 7. Work product component aggregation (Section 7.2c)
-8. Focus name propagation (Section 7.3, Phase 1)
-9. Implicit focus placeholder finalization (Section 7.3, Phase 2)
-10. Baseline description re-stamping (Section 7.4)
+8. Specificity chain accumulation (Section 7.2e)
+9. Focus name propagation (Section 7.3, Phase 1)
+10. Implicit focus placeholder finalization (Section 7.3, Phase 2)
+11. Baseline description re-stamping (Section 7.4)
 
 This ordering is load-bearing: binding resolution must precede aggregation so that injected `contributesTo`/`mapsTo`/`partOf` relationships are picked up by the supporting-alpha, variant, and component passes. `partOf` inheritance from `mapsTo` must run after variant aggregation and before component aggregation so that inherited `partOf` values are picked up by the component pass. Focus propagation must follow aggregation so that all structural relationships are in place before inferring swimlane assignments. Description re-stamping runs last to guarantee no intermediate operation can leave extension-layer prose on baseline-defined elements.
 
@@ -574,6 +576,18 @@ Every work product that declares a `partOf` relationship is automatically added 
 The aggregation walks all work products, collects `partOf → component work product` mappings, and appends the full component WorkProduct objects into each parent's `components` array (deduplicating by name).
 
 Work product `components` models structural containment — the child is a trackable artifact physically contained within the parent (e.g., "Done Criteria" partOf "Definition of Done Specification"). This is distinct from `variants` (which models type equivalence) and does not participate in LOD rollup. UIs use the `components` array to render containment hierarchies and nested artifact structures.
+
+### 7.2e Specificity Chain Accumulation
+
+Redeclaration makes an element more specific rather than narrowing its scope (see [Section 4.5.1](semantics/composition.md#451-declaring-the-specificity-a-redeclaration-adds)). Each contributing layer may declare a single `specificityName` on a redeclared element; this pass accumulates those contributions into the element's `specificity` array.
+
+For each merged element, collect the `specificityName` of every layer that contributed to it, discard empty values, deduplicate, and write the result to `specificity` **most specific first**. An element to which no layer contributed a `specificityName` has no `specificity` property — the pass does not write an empty array.
+
+**Ordering.** Most specific first means reverse dependency order: a layer's own contribution precedes those of the layers it depends on. Where two layers at the same dependency depth both contribute to one element, order them by topological dependency order and then, for layers that remain incomparable, by practice name. The tie-break by name exists so that composition is deterministic — without it the chain would depend on the order documents happened to be loaded in, and the same method would merge differently on different runs.
+
+**`specificityName` is authored; `specificity` is not.** A `specificityName` present in a source document is input to this pass. A `specificity` array present in a source document is a validation error and is discarded here rather than merged, because the chain depends on which practices are loaded and an authored value cannot know that.
+
+**Ordering dependency:** This pass must run after all layers have merged, so every contribution is visible. It is independent of the aggregation passes above and may run in any order relative to them.
 
 ### 7.3 Focus Name Propagation
 
