@@ -1812,6 +1812,58 @@ class PracticeValidator:
                 })
         return has_errors
 
+    def _check_stage_host(self, stage, host_name, view_names, practice,
+                          orchestration_name, s_path, pattern_name, relationship) -> bool:
+        """Resolve the host a concurrent or nested stage is placed against.
+
+        See semantics/execution-and-patterns.md 9.5.1. The host must exist, must not be
+        the stage's own pattern, and any named views must belong to it.
+        """
+        has_errors = False
+        patterns = {p['name']: p for p in practice.get('patterns', [])
+                    if isinstance(p, dict) and 'name' in p}
+        host = patterns.get(host_name)
+
+        if host is None:
+            self.errors.append({
+                "category": "integrity",
+                "severity": "error",
+                "path": f"{s_path}.relativeTo.patternName",
+                "issue": f"Stage for '{pattern_name}' is {relationship} to unknown pattern '{host_name}'",
+                "expected": "a Pattern declared in scope to run alongside or inside",
+                "actual": host_name,
+                "suggestion": f"Name one of: {sorted(patterns)}"
+            })
+            return True
+
+        if host_name == pattern_name:
+            self.errors.append({
+                "category": "integrity",
+                "severity": "error",
+                "path": f"{s_path}.relativeTo.patternName",
+                "issue": f"Stage for '{pattern_name}' in '{orchestration_name}' is placed relative to itself",
+                "expected": "a different pattern as the host",
+                "actual": host_name,
+                "suggestion": "For a pattern whose own phases repeat, use loopsBackTo on the pattern rather than nesting it in itself"
+            })
+            return True
+
+        known_views = {v['name'] for v in host.get('patternViews', [])
+                       if isinstance(v, dict) and 'name' in v}
+        for view_name in (view_names or []):
+            if view_name not in known_views:
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"{s_path}.relativeTo.viewNames",
+                    "issue": f"'{view_name}' is not a view of host pattern '{host_name}'",
+                    "expected": f"one of: {sorted(known_views)}",
+                    "actual": view_name,
+                    "suggestion": f"Name a view of '{host_name}', or widen the scope by omitting viewNames"
+                })
+                has_errors = True
+        return has_errors
+
     def validate_orchestrations(self) -> bool:
         """Validate pattern orchestrations, and narrative binding on patterns too.
 
@@ -1841,12 +1893,15 @@ class PracticeValidator:
             for o_idx, orch in enumerate(practice.get('patternOrchestrations', [])):
                 o_path = f"{prefix}patternOrchestrations[{o_idx}]"
                 o_name = orch.get('name', f'orchestration[{o_idx}]')
-                seen_seq, seen_pattern = {}, {}
+                sequential_seq, placements = {}, {}
 
                 for s_idx, stage in enumerate(orch.get('stages', [])):
                     s_path = f"{o_path}.stages[{s_idx}]"
                     pattern_name = stage.get('patternName')
                     seq = stage.get('seq')
+                    relationship = stage.get('relationship', 'sequential')
+                    relative_to = stage.get('relativeTo') or {}
+                    host_name = relative_to.get('patternName')
 
                     if pattern_name not in pattern_names:
                         self.errors.append({
@@ -1859,33 +1914,68 @@ class PracticeValidator:
                             "suggestion": f"Name one of: {sorted(pattern_names)}"
                         })
                         has_errors = True
-                    elif pattern_name in seen_pattern:
+
+                    # A pattern may be placed more than once, but not the same way twice.
+                    placement = (pattern_name, relationship, host_name)
+                    if placement in placements:
                         self.errors.append({
                             "category": "integrity",
                             "severity": "error",
                             "path": f"{s_path}.patternName",
-                            "issue": f"Pattern '{pattern_name}' appears twice in orchestration '{o_name}'",
-                            "expected": "each pattern appears at most once per orchestration",
-                            "actual": f"also at stages[{seen_pattern[pattern_name]}]",
-                            "suggestion": "Merge the two stages, or model the repetition with loopsBackTo on the pattern"
+                            "issue": f"Pattern '{pattern_name}' is placed the same way twice in orchestration '{o_name}'",
+                            "expected": "a pattern may be layered more than once, but each placement must differ",
+                            "actual": f"{relationship}" + (f" relative to '{host_name}'" if host_name else "") +
+                                      f", also at stages[{placements[placement]}]",
+                            "suggestion": "Merge the two stages, or give them different relationships or hosts"
                         })
                         has_errors = True
                     else:
-                        seen_pattern[pattern_name] = s_idx
+                        placements[placement] = s_idx
 
-                    if seq in seen_seq:
-                        self.errors.append({
+                    # seq is a strict order only among sequential stages. Concurrent,
+                    # nested and on-demand stages may share a seq because they begin
+                    # alongside one another -- concurrency has no total order.
+                    if relationship == 'sequential':
+                        if seq in sequential_seq:
+                            self.errors.append({
+                                "category": "integrity",
+                                "severity": "error",
+                                "path": f"{s_path}.seq",
+                                "issue": f"Duplicate seq {seq} among sequential stages of '{o_name}'",
+                                "expected": "seq unique among sequential stages",
+                                "actual": f"also at stages[{sequential_seq[seq]}]",
+                                "suggestion": "Renumber, or mark one stage concurrent if they genuinely run alongside"
+                            })
+                            has_errors = True
+                        else:
+                            sequential_seq[seq] = s_idx
+
+                    if relationship in ('concurrent', 'nested'):
+                        has_errors |= self._check_stage_host(
+                            stage, host_name, relative_to.get('viewNames'),
+                            practice, o_name, s_path, pattern_name, relationship)
+
+                    if relationship != 'onDemand' and stage.get('trigger'):
+                        self.warnings.append({
                             "category": "integrity",
-                            "severity": "error",
-                            "path": f"{s_path}.seq",
-                            "issue": f"Duplicate seq {seq} in orchestration '{o_name}'",
-                            "expected": "seq unique within an orchestration",
-                            "actual": f"also at stages[{seen_seq[seq]}]",
-                            "suggestion": "Renumber so the order is unambiguous"
+                            "severity": "warning",
+                            "path": f"{s_path}.trigger",
+                            "issue": f"Stage for '{pattern_name}' declares a trigger but is {relationship}, not onDemand",
+                            "expected": "a trigger is what causes an onDemand stage to be entered",
+                            "actual": f"relationship: {relationship}",
+                            "suggestion": "Mark the stage onDemand, or move the condition to entryCriteria"
                         })
-                        has_errors = True
-                    else:
-                        seen_seq[seq] = s_idx
+
+                    if relationship not in ('concurrent', 'nested') and stage.get('recurrence') == 'perView':
+                        self.warnings.append({
+                            "category": "integrity",
+                            "severity": "warning",
+                            "path": f"{s_path}.recurrence",
+                            "issue": f"Stage for '{pattern_name}' declares recurrence perView but is {relationship}",
+                            "expected": "perView repeats a stage across the views of a host pattern",
+                            "actual": f"relationship: {relationship}, no host pattern",
+                            "suggestion": "Make the stage nested or concurrent against a host, or drop the recurrence"
+                        })
 
                     has_errors |= self._check_narrative_contexts(
                         stage.get('narrativeContexts'),
