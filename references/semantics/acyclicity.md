@@ -96,6 +96,10 @@ Both `partOf` and `mapsTo` reference parent work products, and a work product ma
 
 Background prerequisites create cross-element dependency graphs that are harder to detect than single-property hierarchies because cycles span multiple element types and properties.
 
+**Temporal edges are out of scope for this section.** `PatternView.loopsBackTo` and `State.loopsBackTo` declare that work repeats — a pattern returning to an earlier phase, or a state model that cycles rather than climbing (see [Section 9.2a](execution-and-patterns.md#92a-cyclical-patterns-declaring-that-phases-repeat) and [Section 6.8](alphas.md#68-cyclical-state-models)). They are not part of any graph in this section and must not be reported as cycles.
+
+The distinction is between *repeating* and *depending*. A loop says the same work happens again; a prerequisite says one thing cannot begin until another is true. A cycle in the second is unsatisfiable however many times the work goes round, so **declaring a loop does not license a prerequisite cycle**: an alpha whose states loop still may not have circular `Background.alphaStates`, and a pattern whose views loop still may not have circular `Background` prerequisites between them. Both remain errors, and the checks below apply unchanged to looping documents.
+
 #### 14.2.1 Alpha State Background Prerequisites (`Background.alphaStates`)
 
 **Property:** `Background.alphaStates` on State — declares that achieving this state requires another alpha to have reached a specific state.

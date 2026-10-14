@@ -124,6 +124,34 @@ Where:
 
 4. **State advancement.** Progress can also be expressed as the ordinal position of the current state within the alpha's state sequence. If an alpha has 5 states and the instance is in state 3, ordinal progress is 3/5 (0.6).
 
+### Cyclical Alphas and Patterns
+
+An alpha may declare a cyclical state model, and a pattern may declare that its phases repeat, using `loopsBackTo` (see semantics [Section 6.8](../references/semantics/alphas.md#68-cyclical-state-models) and [Section 9.2a](../references/semantics/execution-and-patterns.md#92a-cyclical-patterns-declaring-that-phases-repeat)). Two of the three scores above are unaffected, and the third needs a rule.
+
+**Unaffected.** The Alpha Coverage Score counts states carrying a non-empty checklist, normalised by total state count — order-independent, so a cyclical state set scores exactly as a progressive one does. Alpha Instance Progress as the completion ratio `completedCount / requiredCount` is likewise computed over the current state's checklist items, with no reference to position.
+
+**Ordinal progress does not apply to a cyclical alpha.** Point 4 above assumes a ladder: position within the sequence means progress only when the last state is the destination. On a cyclical alpha it is not, so the ordinal expression is undefined and must be omitted rather than computed. Consumers rendering a progress bar should fall back to the completion ratio. Where an alpha has one-time prefix states before the recurring part, ordinal progress remains meaningful **across the prefix only**, up to the state the cycle re-enters.
+
+**Forecast weights take the highest value achieved.** On re-entering an earlier state or pattern view, the achieved contribution is the greatest weight reached on any pass, not the weight attached to the state or view currently being worked. Without this, reported progress would fall each time a team iterated — the recognised point stays recognised once reached.
+
+#### Feature: Cyclical Alpha Progress
+
+```gherkin
+Scenario: Ordinal progress is omitted for a cyclical alpha
+  Given an alpha "Service Health" with states Provisioned, Healthy, Degraded, Recovering
+  And the state "Recovering" declares loopsBackTo stateName "Healthy"
+  And an instance is currently in state "Degraded"
+  When alpha instance progress is computed
+  Then the completion ratio is computed from the "Degraded" checklist items
+  And no ordinal progress value is produced
+
+Scenario: Forecast weight does not fall back on a later lap
+  Given an outcome whose metricContribution recognises at state "Recovering" with weight 1.0
+  And the instance reached "Recovering" on the first lap
+  When the instance returns to "Healthy" on the second lap
+  Then the achieved forecast weight remains 1.0
+```
+
 ### Work Product Instance Progress
 
 Same logic as Alpha Instance Progress, but applied to `WorkProductInstance` and its `levelOfDetailName` / checklist items.

@@ -1658,6 +1658,85 @@ class PracticeValidator:
 
         return found
 
+    def validate_loops(self) -> bool:
+        """Validate loopsBackTo edges on pattern views and alpha states.
+
+        Deliberately thin. This is a semantics change, not a validation one, so the
+        only job here is that the edge points somewhere real and backwards. No check
+        may treat a loop as a defect -- see semantics/execution-and-patterns.md 9.2a
+        and semantics/alphas.md 6.8.
+        """
+        has_errors = False
+
+        def check(container_kind, container_name, siblings, link_key, path):
+            """Resolve one loopsBackTo edge against its sibling set."""
+            nonlocal has_errors
+            by_name = {}
+            for sibling in siblings:
+                if isinstance(sibling, dict) and 'name' in sibling:
+                    by_name[sibling['name']] = sibling
+
+            for idx, sibling in enumerate(siblings):
+                if not isinstance(sibling, dict):
+                    continue
+                loop = sibling.get('loopsBackTo')
+                if not isinstance(loop, dict):
+                    continue
+                here = sibling.get('name', f'[{idx}]')
+                target_name = loop.get(link_key)
+                loop_path = f"{path}[{idx}].loopsBackTo"
+
+                target = by_name.get(target_name)
+                if target is None:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{loop_path}.{link_key}",
+                        "issue": f"'{here}' loops back to '{target_name}', which is not in {container_kind} '{container_name}'",
+                        "expected": f"a {link_key} naming a sibling of '{here}'",
+                        "actual": target_name,
+                        "suggestion": f"Name one of: {sorted(by_name)}"
+                    })
+                    has_errors = True
+                    continue
+
+                if target_name == here:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{loop_path}.{link_key}",
+                        "issue": f"'{here}' loops back to itself",
+                        "expected": "a loop spans at least two entries",
+                        "actual": target_name,
+                        "suggestion": "Point the loop at the entry the cycle restarts from"
+                    })
+                    has_errors = True
+                    continue
+
+                here_seq = sibling.get('seq')
+                target_seq = target.get('seq')
+                if isinstance(here_seq, int) and isinstance(target_seq, int) and target_seq >= here_seq:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{loop_path}.{link_key}",
+                        "issue": f"'{here}' loops back to '{target_name}', which does not come earlier",
+                        "expected": f"target seq lower than {here_seq}",
+                        "actual": f"'{target_name}' has seq {target_seq}",
+                        "suggestion": "A loop returns to an earlier entry; check the seq values"
+                    })
+                    has_errors = True
+
+        for practice, path, collection, element in self._walk_elements():
+            name = element.get('name', '<unnamed>')
+            if collection == 'alphas':
+                check('alpha', name, element.get('states', []), 'stateName', f"{path}.states")
+            elif collection == 'patterns':
+                check('pattern', name, element.get('patternViews', []),
+                      'patternViewName', f"{path}.patternViews")
+
+        return not has_errors
+
     def validate_semantic_alignment(self) -> bool:
         """
         Validate semantic appropriateness of contributesTo relationships.
@@ -3607,6 +3686,9 @@ def main():
 
     progress("Validating suppression of inherited content...")
     suppression_valid = validator.validate_suppression()
+
+    progress("Validating loop declarations...")
+    loops_valid = validator.validate_loops()
 
     progress("Validating semantic alignment...")
     semantic_valid = validator.validate_semantic_alignment()
