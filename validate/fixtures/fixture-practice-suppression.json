@@ -1,0 +1,162 @@
+{
+  "kind": "practice",
+  "name": "Fixture Restricted Platform",
+  "description": "A deliberately restricted variant: it inherits the container platform concern but switches off the parts that a single-node deployment model cannot support.",
+  "baselinePracticeName": "Fixture Essentials",
+  "version": "1.0.0",
+  "schemaVersion": "2.18.0",
+  "authors": [
+    "keleo-language fixtures"
+  ],
+  "createdAt": "2026-10-14",
+  "updatedAt": "2026-10-14",
+  "keywords": [
+    "fixture",
+    "validator",
+    "test"
+  ],
+  "practiceDependencyNames": [
+    "Fixture Internal Platform"
+  ],
+  "alphas": [
+    {
+      "kind": "alpha",
+      "name": "Platform",
+      "description": "The shared technical foundation on which the organisation's services run.",
+      "focusName": "Delivery",
+      "specificityName": "Single Node",
+      "states": [
+        {
+          "name": "Identified",
+          "seq": 1,
+          "description": "The need for a shared foundation is understood and agreed.",
+          "checklist": [
+            {
+              "name": "Workload shape known",
+              "seq": 1,
+              "description": "The kinds of workload the cluster must carry are described."
+            }
+          ]
+        },
+        {
+          "name": "Available",
+          "seq": 2,
+          "description": "The foundation exists and teams can use it.",
+          "checklist": [
+            {
+              "name": "Cluster reachable",
+              "seq": 1,
+              "description": "A team can schedule a workload on the cluster without raising a ticket."
+            }
+          ]
+        },
+        {
+          "name": "Operating",
+          "seq": 3,
+          "description": "The foundation runs production workloads and is observed.",
+          "checklist": [
+            {
+              "name": "Capacity observed",
+              "seq": 1,
+              "description": "Cluster capacity headroom is monitored and acted on before exhaustion."
+            }
+          ],
+          "suppressed": true
+        }
+      ]
+    },
+    {
+      "kind": "alpha",
+      "name": "Service",
+      "description": "Something the organisation offers that someone depends on.",
+      "focusName": "Direction",
+      "suppressed": true,
+      "states": [
+        {
+          "name": "Proposed",
+          "seq": 1,
+          "description": "Someone has argued the service is worth offering.",
+          "checklist": [
+            {
+              "name": "Need articulated",
+              "seq": 1,
+              "description": "The need the service meets is stated in terms of who has it."
+            }
+          ]
+        },
+        {
+          "name": "Live",
+          "seq": 2,
+          "description": "The service is available to the people it was built for.",
+          "checklist": [
+            {
+              "name": "Reachable",
+              "seq": 1,
+              "description": "Intended users can reach the service unaided."
+            }
+          ]
+        },
+        {
+          "name": "Depended On",
+          "seq": 3,
+          "description": "Others have built on the service and would notice its absence.",
+          "checklist": [
+            {
+              "name": "Dependants known",
+              "seq": 1,
+              "description": "Who depends on the service is recorded and they can be contacted."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "workProducts": [
+    {
+      "kind": "workProduct",
+      "name": "Platform Design",
+      "description": "The record of how the shared foundation is put together and why.",
+      "contributesToAlphaNames": [
+        "Platform"
+      ],
+      "levelsOfDetail": [
+        {
+          "name": "Outline",
+          "seq": 1,
+          "description": "A first sketch, enough to argue about.",
+          "contributesTo": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Identified"
+            }
+          ],
+          "checklist": [
+            {
+              "name": "Sketch exists",
+              "seq": 1,
+              "description": "An outline design exists and names its major components."
+            }
+          ]
+        },
+        {
+          "name": "Detailed",
+          "seq": 2,
+          "description": "Enough detail to build from.",
+          "contributesTo": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Available"
+            }
+          ],
+          "checklist": [
+            {
+              "name": "Buildable",
+              "seq": 1,
+              "description": "An engineer unfamiliar with the design could build the cluster from it."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

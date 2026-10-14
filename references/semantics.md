@@ -18,6 +18,9 @@
    - 4.6 [Practice Partitioning and Value-Driven Scoping](semantics/composition.md#46-practice-partitioning-and-value-driven-scoping)
    - 4.7 [Alpha vs Work Product Decision Framework](semantics/composition.md#47-alpha-vs-work-product-decision-framework)
    - 4.8 [Method-Level Bindings](semantics/composition.md#48-method-level-bindings)
+   - 4.9 [Restricting Inherited Content](semantics/composition.md#49-restricting-inherited-content)
+     - 4.9.1 [Conflict Resolution by Declaration Precedence](semantics/composition.md#491-conflict-resolution-by-declaration-precedence)
+     - 4.9.2 [What a Suppression Leaves Behind](semantics/composition.md#492-what-a-suppression-leaves-behind)
 5. [PracticeElement Foundations](semantics/practice-elements.md)
    - 5.1 [PracticeElement, Tagging Taxonomy, and Narrative Anchors](semantics/practice-elements.md#51-practiceelement-tagging-taxonomy-and-narrative-anchors)
    - 5.2 [Checklists and Dynamic State-Gating](semantics/practice-elements.md#52-checklists-and-dynamic-state-gating)
@@ -157,7 +160,7 @@ The `version` field on Practice, PracticeBaseline, Method, and Project represent
 
 ## 4 Adapting and Composing Practices
 
-Covers all mechanisms for combining and tailoring practices: dependency declarations and version constraints (4.1), merge composition (4.2), aliasing and strict isolation (4.3), the Redeclaration vs Specialization vs Variant Mapping decision framework (4.4), element adaptation and extension (4.5), practice partitioning and value-driven scoping (4.6), the Alpha vs Work Product decision framework (4.7), and Method-level bindings for cross-baseline composition (4.8). Read when designing multi-practice methods, deciding how new concerns relate to baseline elements, or partitioning methodology content into practices.
+Covers all mechanisms for combining and tailoring practices: dependency declarations and version constraints (4.1), merge composition (4.2), aliasing and strict isolation (4.3), the Redeclaration vs Specialization vs Variant Mapping decision framework (4.4), element adaptation and extension (4.5), practice partitioning and value-driven scoping (4.6), the Alpha vs Work Product decision framework (4.7), Method-level bindings for cross-baseline composition (4.8), and restricting inherited content so a variant can diminish what it inherits rather than only adding to it (4.9). Read when designing multi-practice methods, deciding how new concerns relate to baseline elements, or partitioning methodology content into practices.
 
 **Full guidance:** [semantics/composition.md](semantics/composition.md)
 

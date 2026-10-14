@@ -988,3 +988,46 @@ Bindings are consumed **after** the merge algorithm produces the unified documen
 8. The same source element (same baselineName + alphaName/workProductName) should not appear in multiple bindings targeting the same target element.
 9. Unmapped target states/LODs in contribution bindings produce a warning — confirm the gap is intentional.
 10. Unmapped target states/LODs in variant bindings produce an informational notice — interpolation will apply.
+
+### 4.9 Restricting Inherited Content
+
+Most practices extend what they inherit. Some need to diminish it. A restricted variant — the same technology family with a smaller footprint and a narrower deployment model — inherits the whole of what it depends on, and before this mechanism existed its only options were to inherit all of it and overstate what applies, or to drop the dependency and lose the shared content entirely.
+
+`suppressed: true` on an inherited element switches it off in the composed result.
+
+```json
+{
+  "kind": "alpha",
+  "name": "Multi-Cluster Federation",
+  "description": "Coordination of workloads across independently operated clusters.",
+  "suppressed": true
+}
+```
+
+**Two granularities, one property.** Every element type and every part type extends `PracticeElement`, so the same property suppresses a whole element — an alpha, a work product, an activity, a pattern — and a part of one: an individual state, level of detail, or checklist item. There is no separate mechanism for parts, and none is needed.
+
+**This is not narrowing scope by the back door.** [Section 4.5](#45-adapting-and-extending-practice-elements) forbids a redeclaration from narrowing the scope of the element it redeclares, and that rule stands. Suppression is the honest alternative: rather than quietly redefining an element to cover less, the practice states that the element does not apply to it at all. The element's own definition is untouched for everyone else.
+
+**Suppression is not removal.** [`RemoveOperation`](change-requests.md) in the change-request schema looks like the same thing and is not. A change request edits a document at authoring time, permanently and for every consumer. A suppression restricts one composition at merge time, and the suppressed element remains intact in the practice that declared it and in any other method that loads it without the suppressing practice.
+
+#### 4.9.1 Conflict Resolution by Declaration Precedence
+
+A method may load one practice that suppresses an element and another that still requires it. Both contributions are carried into the merge and **declaration precedence** decides, rather than the merge refusing to compose or picking a winner arbitrarily.
+
+The precedence order is built once per composition:
+
+1. **Baselines outrank practices.** A baseline's suppression, or its requirement, beats any practice's. Baselines are the shared contract; a practice should not be able to switch off something the domain's baseline establishes without the baseline agreeing.
+2. **Within baselines**, order by position in `baselinePracticeNames`.
+3. **Within practices**, order by position in `practiceDependencyNames`.
+4. **Across baseline families**, a practice takes the position of its own baseline: resolve its `baselinePracticeName` to that baseline's position in the ordering and place the practice there. Without this step two practices from different families are not comparable at all.
+5. **Earlier in the order wins**, which is what makes baselines, sitting first, take precedence.
+
+**The outcome is recorded, not silent.** Where precedence overrode a suppression or a requirement, the merged element carries a note naming the document that won. A deterministic order is only better than refusing to compose if an author who sees unexpected content can find out why it is there.
+
+#### 4.9.2 What a Suppression Leaves Behind
+
+**Sequence numbers are not renumbered.** Suppressing a state or a level of detail leaves a gap in `seq`. Consumers order by `seq` and must not assume the values are contiguous or that they start at any particular number.
+
+**References to a suppressed element are dangling.** A pattern view naming a suppressed state in its `alphaStates`, a `forecastWeights` entry naming one, an activity whose `worksOn` names a suppressed work product level — each is an error in the composed result, not a silently dropped reference. Suppressing an element means checking what pointed at it.
+
+**Suppression requires something to suppress.** Declaring `suppressed` on an element the practice defines itself is an error: a practice that does not want an element should not declare it. The property is only valid where the element is inherited through the baseline chain or a dependency.
