@@ -94,7 +94,16 @@
     - 15.9 [Conflict Resolution](semantics/integration-mappings.md#159-conflict-resolution)
     - 15.10 [Project-Level Integration Instances](semantics/integration-mappings.md#1510-project-level-integration-instances)
     - 15.11 [Bundle Distribution](semantics/integration-mappings.md#1511-bundle-distribution)
-16. [Conclusion](#16-conclusion)
+16. [Constraints and Inference Guarantees](semantics/constraints-and-inference.md)
+    - 16.1 [How to Read This Section](semantics/constraints-and-inference.md#161-how-to-read-this-section)
+    - 16.2 [Reference Guarantees](semantics/constraints-and-inference.md#162-reference-guarantees)
+    - 16.3 [Structural Guarantees](semantics/constraints-and-inference.md#163-structural-guarantees)
+    - 16.4 [Acyclicity Guarantees](semantics/constraints-and-inference.md#164-acyclicity-guarantees)
+    - 16.5 [Progression and Measurement Guarantees](semantics/constraints-and-inference.md#165-progression-and-measurement-guarantees)
+    - 16.6 [Composition Guarantees](semantics/constraints-and-inference.md#166-composition-guarantees)
+    - 16.7 [What the Language Does Not Guarantee](semantics/constraints-and-inference.md#167-what-the-language-does-not-guarantee)
+    - 16.8 [Conformance](semantics/constraints-and-inference.md#168-conformance)
+17. [Conclusion](#17-conclusion)
 
 ---
 
@@ -242,6 +251,14 @@ Defines the IntegrationMapping system for bridging external services (CRM, proje
 
 ---
 
-## 16 Conclusion
+## 16 Constraints and Inference Guarantees
+
+States what the language guarantees about a document, in one place, for someone building validation into a program rather than authoring by hand. Covers how to read a guarantee and which layer expresses it (16.1), reference guarantees including exact case-sensitive symbolic links, name uniqueness and resolution scope (16.2), structural guarantees including no floating elements and relationship exclusivity (16.3), the acyclicity set and the temporal edges excluded from it (16.4), progression and measurement guarantees around recognised points and forecast weights (16.5), composition guarantees covering the merge specification, merge-populated properties and suppression precedence (16.6), an explicit list of what the language does *not* guarantee (16.7), and what conformance means (16.8). Each guarantee names the validator enforcing it, or records that nothing does. Read when implementing a validator, wiring the language into an agent loop, or deciding whether a document can be trusted.
+
+**Full guidance:** [semantics/constraints-and-inference.md](semantics/constraints-and-inference.md)
+
+---
+
+## 17 Conclusion
 
 The transformation of organizational endeavors from static, document-driven processes to dynamic, state-driven ecosystems requires a highly rigorous operational architecture. The Practice Language JSON Schema provides the structural capacity to model extreme complexity across any domain. Maximizing its efficacy, however, demands profound semantic guidance. By enforcing strict ontological tagging taxonomies, embedding blocking failure logic and quantitative thresholds into validation checklists, and defining automated mathematical triggers for Alpha state transitions, enterprise architects eliminate process ambiguity. Furthermore, operationalizing the schema through strict physical Work Product URI linking, explicitly linked organizational Persona Groups, and programmatic root-level methodology discrimination ensures that the methodology aligns precisely with operational reality. By orchestrating these elements through conditional Pattern Views tethered to specific cognitive narrative frameworks, this semantic guidance framework transforms the JSON Schema from a mere structural validator into a prescriptive, highly actionable operational engine capable of driving modern hyperscale transformations.
