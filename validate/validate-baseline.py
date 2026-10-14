@@ -23,12 +23,13 @@ from typing import Dict, List, Any, Tuple, Optional, Set
 from collections import defaultdict
 import re
 
-try:
-    import jsonschema
-    from jsonschema import Draft202012Validator, RefResolver
-except ImportError:
-    print("ERROR: jsonschema library not installed. Run: pip install jsonschema", file=sys.stderr)
-    sys.exit(2)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _venv_bootstrap import ensure_dependencies  # noqa: E402
+
+ensure_dependencies()
+
+import jsonschema  # noqa: E402
+from jsonschema import Draft202012Validator, RefResolver  # noqa: E402
 
 
 class BaselineValidator:
