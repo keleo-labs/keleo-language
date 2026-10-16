@@ -58,6 +58,9 @@
      - 9.5.1 [How a Stage Is Placed](semantics/execution-and-patterns.md#951-how-a-stage-is-placed)
      - 9.5.2 [Narrative Binding](semantics/execution-and-patterns.md#952-narrative-binding)
      - 9.5.3 [Reuse and Cycles](semantics/execution-and-patterns.md#953-reuse-and-cycles)
+     - 9.5.4 [Embedding an Orchestration](semantics/execution-and-patterns.md#954-embedding-an-orchestration)
+     - 9.5.5 [Baseline-Published Shells](semantics/execution-and-patterns.md#955-baseline-published-shells)
+     - 9.5.6 [Choosing the Level](semantics/execution-and-patterns.md#956-choosing-the-level)
 10. [Narrative Management](semantics/narrative-and-assets.md#10-narrative-management)
     - 10.1 [Narrative Tooling Synchronization and Execution Guidelines](semantics/narrative-and-assets.md#101-narrative-tooling-synchronization-and-execution-guidelines)
     - 10.2 [Cognitive Storytelling Frameworks](semantics/narrative-and-assets.md#102-cognitive-storytelling-frameworks)
@@ -207,7 +210,7 @@ Defines the execution model: Activity Spaces as generalized effort boundaries, A
 
 ## 9 Lifecycle Orchestration: Patterns and Phase Models
 
-Defines how methodologies are orchestrated into temporal models using Patterns. Covers pattern orchestration and narrative hooks (9.1), the PatternView structure and semantics including alpha state expectations, instance tracking, deliverables, and active work (9.2), pattern groups for navigation organisation (9.3), and outcome definitions with value measurement and metric/objective contributions (9.4). Read when designing lifecycle patterns, defining phase milestones, organising pattern groups, or establishing outcome measurement.
+Defines how methodologies are orchestrated into temporal models using Patterns. Covers pattern orchestration and narrative hooks (9.1), the PatternView structure and semantics including alpha state expectations, instance tracking, deliverables, and active work (9.2), pattern groups for navigation organisation (9.3, deprecated), outcome definitions with value measurement and metric/objective contributions (9.4), and PatternOrchestration (9.5) — how stages are placed (9.5.1), narrative binding (9.5.2), reuse and cycles (9.5.3), embedding a whole sub-endeavour such as a project inside a programme (9.5.4), baseline-published shells and the additive rule for extending them (9.5.5), and choosing between extending, embedding and authoring new (9.5.6). Read when designing lifecycle patterns, defining phase milestones, sequencing patterns across an endeavour, or establishing outcome measurement.
 
 **Full guidance:** [semantics/execution-and-patterns.md](semantics/execution-and-patterns.md) — Sections 8-9
 

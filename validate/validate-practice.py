@@ -1812,54 +1812,325 @@ class PracticeValidator:
                 })
         return has_errors
 
-    def _check_stage_host(self, stage, host_name, view_names, practice,
-                          orchestration_name, s_path, pattern_name, relationship) -> bool:
+    def _practice_documents_in_scope(self, own):
+        """Documents whose patterns and orchestrations a stage may name.
+
+        Same scope every other symbolic link resolves against -- the baseline chain,
+        declared dependencies, and this document. Mirrors _narrative_elements_in_scope.
+        A method's constituent practices are unwrapped so their elements resolve too.
+        """
+        docs = []
+        for doc in self._resolve_baseline_chain() + self.dependencies + list(own):
+            if not isinstance(doc, dict):
+                continue
+            docs.append(doc)
+            for inner in doc.get('practices', []):
+                if isinstance(inner, dict):
+                    docs.append(inner)
+        return docs
+
+    def _patterns_in_scope(self, own) -> Dict[str, tuple]:
+        """Pattern.name -> (pattern object, owning document name)."""
+        found = {}
+        for doc in self._practice_documents_in_scope(own):
+            owner = doc.get('name', '<unnamed>')
+            for pattern in doc.get('patterns', []):
+                if isinstance(pattern, dict) and 'name' in pattern:
+                    found.setdefault(pattern['name'], (pattern, owner))
+        return found
+
+    def _orchestrations_in_scope(self, own) -> Dict[str, tuple]:
+        """PatternOrchestration.name -> (orchestration object, owning document name).
+
+        First writer wins, matching the merge rule in merge.md 6.15a: where a practice
+        extends an orchestration it inherits, the inherited declaration is the owner.
+        """
+        found = {}
+        for doc in self._practice_documents_in_scope(own):
+            owner = doc.get('name', '<unnamed>')
+            for orch in doc.get('patternOrchestrations', []):
+                if isinstance(orch, dict) and 'name' in orch:
+                    found.setdefault(orch['name'], (orch, owner))
+        return found
+
+    @staticmethod
+    def _stage_target(stage):
+        """(kind, name) for what a stage places -- 'pattern' or 'orchestration'."""
+        if stage.get('orchestrationName'):
+            return 'orchestration', stage['orchestrationName']
+        return 'pattern', stage.get('patternName')
+
+    @staticmethod
+    def _stage_host(stage):
+        """(kind, name) for what a stage is placed against, or (None, None)."""
+        rel = stage.get('relativeTo') or {}
+        if rel.get('orchestrationName'):
+            return 'orchestration', rel['orchestrationName']
+        if rel.get('patternName'):
+            return 'pattern', rel['patternName']
+        return None, None
+
+    def _check_stage_host(self, stage, patterns, orchestrations,
+                          orchestration_name, s_path, target_kind, target_name,
+                          relationship) -> bool:
         """Resolve the host a concurrent or nested stage is placed against.
 
-        See semantics/execution-and-patterns.md 9.5.1. The host must exist, must not be
-        the stage's own pattern, and any named views must belong to it.
+        See semantics/execution-and-patterns.md 9.5.1 and 9.5.4. The host must exist in
+        scope, must not be the stage's own target, and any named views must belong to it.
+        A host may be a pattern or an embedded orchestration.
         """
         has_errors = False
-        patterns = {p['name']: p for p in practice.get('patterns', [])
-                    if isinstance(p, dict) and 'name' in p}
-        host = patterns.get(host_name)
+        host_kind, host_name = self._stage_host(stage)
+        view_names = (stage.get('relativeTo') or {}).get('viewNames')
+        prop = f"relativeTo.{'orchestrationName' if host_kind == 'orchestration' else 'patternName'}"
+        known = orchestrations if host_kind == 'orchestration' else patterns
 
-        if host is None:
+        if host_name not in known:
             self.errors.append({
                 "category": "integrity",
                 "severity": "error",
-                "path": f"{s_path}.relativeTo.patternName",
-                "issue": f"Stage for '{pattern_name}' is {relationship} to unknown pattern '{host_name}'",
-                "expected": "a Pattern declared in scope to run alongside or inside",
+                "path": f"{s_path}.{prop}",
+                "issue": f"Stage for '{target_name}' is {relationship} to unknown {host_kind} '{host_name}'",
+                "expected": f"a {'PatternOrchestration' if host_kind == 'orchestration' else 'Pattern'} in scope to run alongside or inside",
                 "actual": host_name,
-                "suggestion": f"Name one of: {sorted(patterns)}"
+                "suggestion": f"Name one of: {sorted(known)}"
             })
             return True
 
-        if host_name == pattern_name:
+        if host_kind == target_kind and host_name == target_name:
             self.errors.append({
                 "category": "integrity",
                 "severity": "error",
-                "path": f"{s_path}.relativeTo.patternName",
-                "issue": f"Stage for '{pattern_name}' in '{orchestration_name}' is placed relative to itself",
-                "expected": "a different pattern as the host",
+                "path": f"{s_path}.{prop}",
+                "issue": f"Stage for '{target_name}' in '{orchestration_name}' is placed relative to itself",
+                "expected": f"a different {host_kind} as the host",
                 "actual": host_name,
                 "suggestion": "For a pattern whose own phases repeat, use loopsBackTo on the pattern rather than nesting it in itself"
             })
             return True
 
-        known_views = {v['name'] for v in host.get('patternViews', [])
-                       if isinstance(v, dict) and 'name' in v}
-        for view_name in (view_names or []):
-            if view_name not in known_views:
+        if view_names and host_kind == 'orchestration':
+            # shortcut: no stageNames property for scoping against part of a sub-endeavour,
+            # upgrade when a document needs to run alongside some stages of a host
+            # orchestration rather than all of it (semantics 9.5.4).
+            self.errors.append({
+                "category": "integrity",
+                "severity": "error",
+                "path": f"{s_path}.relativeTo.viewNames",
+                "issue": f"viewNames is scoped to pattern views, but host '{host_name}' is an orchestration",
+                "expected": "viewNames only where the host is a Pattern",
+                "actual": f"{len(view_names)} view name(s) against an orchestration host",
+                "suggestion": "Drop viewNames to place the stage against the whole sub-endeavour, or name a pattern as the host"
+            })
+            return True
+
+        if host_kind == 'pattern':
+            host = known[host_name][0]
+            host_views = {v['name'] for v in host.get('patternViews', [])
+                          if isinstance(v, dict) and 'name' in v}
+            for view_name in (view_names or []):
+                if view_name not in host_views:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": f"{s_path}.relativeTo.viewNames",
+                        "issue": f"'{view_name}' is not a view of host pattern '{host_name}'",
+                        "expected": f"one of: {sorted(host_views)}",
+                        "actual": view_name,
+                        "suggestion": f"Name a view of '{host_name}', or widen the scope by omitting viewNames"
+                    })
+                    has_errors = True
+        return has_errors
+
+    def _check_embedding_acyclic(self, orchestrations, prefix) -> bool:
+        """No orchestration may embed itself, directly or through a chain.
+
+        See semantics/acyclicity.md 14.1.8. Only OrchestrationStage.orchestrationName
+        forms an edge -- relativeTo names a host within a shared orchestration, not a
+        containment relationship, so it is not part of this graph.
+        """
+        has_errors = False
+        reported = set()
+
+        def walk(name, path, seen):
+            nonlocal has_errors
+            entry = orchestrations.get(name)
+            if entry is None:
+                return
+            for stage in entry[0].get('stages', []):
+                if not isinstance(stage, dict):
+                    continue
+                child = stage.get('orchestrationName')
+                if not child:
+                    continue
+                if child in seen:
+                    # Report each cycle once however it was entered: take the looping
+                    # portion and rotate it to start at its smallest member.
+                    loop = path[path.index(child):] if child in path else path
+                    start = loop.index(min(loop))
+                    rotated = loop[start:] + loop[:start]
+                    cycle = " -> ".join(rotated + [rotated[0]])
+                    if cycle not in reported:
+                        reported.add(cycle)
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{prefix}patternOrchestrations",
+                            "issue": f"Orchestration embedding forms a cycle: {cycle}",
+                            "expected": "the embedding graph is acyclic (acyclicity.md 14.1.8)",
+                            "actual": cycle,
+                            "suggestion": "Break the cycle. A pattern whose own phases repeat uses loopsBackTo, which is not an embedding"
+                        })
+                        has_errors = True
+                    continue
+                walk(child, path + [child], seen | {child})
+
+        for name in sorted(orchestrations):
+            walk(name, [name], {name})
+        return has_errors
+
+    def _inherited_orchestration(self, name, own_practice):
+        """What this document inherits under `name`, as one merged declaration.
+
+        Every in-scope declaration counts, not whichever is found first. A baseline
+        commonly publishes an orchestration as an empty shell for extensions to fill
+        (semantics 9.5.5), so the first match is routinely the one carrying no stages
+        -- and returning it hid every stage a dependency had already contributed
+        through the same name. The overlay checks then had nothing to measure an
+        addition against, and an insertion into a sequence someone else owned
+        validated clean.
+
+        Stages merge by the composite key of merge.md 6.15a with the first writer
+        winning, so documents are visited in merge order: the most foundational
+        baseline first, then down the chain, then declared dependencies. The
+        document's own declaration is the thing being checked, not the thing it
+        extends, so it is skipped.
+        """
+        merged_stages = {}
+        narrative_type = None
+        found = False
+        in_merge_order = list(reversed(self._resolve_baseline_chain())) + self.dependencies
+        for doc in in_merge_order:
+            if not isinstance(doc, dict):
+                continue
+            candidates = [doc] + [p for p in doc.get('practices', []) if isinstance(p, dict)]
+            for candidate in candidates:
+                if candidate is own_practice:
+                    continue
+                for orch in candidate.get('patternOrchestrations', []):
+                    if not isinstance(orch, dict) or orch.get('name') != name:
+                        continue
+                    found = True
+                    if narrative_type is None:
+                        narrative_type = orch.get('narrativeTypeName')
+                    for stage in orch.get('stages', []):
+                        if not isinstance(stage, dict):
+                            continue
+                        key = (self._stage_target(stage), self._stage_host(stage))
+                        merged_stages.setdefault(key, stage)
+        if not found:
+            return None
+        merged = {"name": name, "stages": list(merged_stages.values())}
+        if narrative_type:
+            merged["narrativeTypeName"] = narrative_type
+        return merged
+
+    def _warn_foreign_pattern(self, pattern_name, patterns, orchestrations,
+                              o_name, path) -> bool:
+        """Advise embedding where a foreign pattern is already placed by its owner.
+
+        See semantics/execution-and-patterns.md 9.5.4. Placing another document's
+        pattern is permitted; where the owner has already placed it in an orchestration,
+        embedding that orchestration keeps the ordering with its author and stays correct
+        when the author changes it. Advice about which construct fits, so never an error.
+        """
+        owner = patterns.get(pattern_name, (None, None))[1]
+        for other_name, (other, other_owner) in orchestrations.items():
+            if other_name == o_name or other_owner != owner:
+                continue
+            for stage in other.get('stages', []):
+                if isinstance(stage, dict) and stage.get('patternName') == pattern_name:
+                    self.warnings.append({
+                        "category": "integrity",
+                        "severity": "warning",
+                        "path": path,
+                        "issue": f"'{pattern_name}' is owned by '{owner}' and already placed in orchestration '{other_name}'",
+                        "expected": "embedding the orchestration that owns the ordering",
+                        "actual": f"the pattern is placed directly in '{o_name}'",
+                        "suggestion": f"Name orchestrationName '{other_name}' instead, so the ordering stays with its author and follows any change to it"
+                    })
+                    return False
+        return False
+
+    def _check_orchestration_overlay(self, orch, inherited, o_path, o_name) -> bool:
+        """Extension by name is additive.
+
+        See semantics/execution-and-patterns.md 9.5.5 and merge.md 6.15a. A practice
+        redeclaring an orchestration it inherits contributes stages; it does not re-place
+        the stages already there, and a sequential stage it adds appends rather than
+        inserting into an order it does not own.
+        """
+        has_errors = False
+        placement = ('seq', 'relationship', 'recurrence', 'relativeTo', 'trigger')
+
+        inherited_stages = {}
+        max_inherited_seq = None
+        for stage in inherited.get('stages', []):
+            if not isinstance(stage, dict):
+                continue
+            key = (self._stage_target(stage), self._stage_host(stage))
+            inherited_stages[key] = stage
+            if stage.get('relationship') == 'sequential':
+                seq = stage.get('seq')
+                if isinstance(seq, int):
+                    max_inherited_seq = seq if max_inherited_seq is None else max(max_inherited_seq, seq)
+
+        if orch.get('narrativeTypeName') and inherited.get('narrativeTypeName') \
+                and orch['narrativeTypeName'] != inherited['narrativeTypeName']:
+            self.errors.append({
+                "category": "integrity",
+                "severity": "error",
+                "path": f"{o_path}.narrativeTypeName",
+                "issue": f"'{o_name}' changes the narrative type of the orchestration it extends",
+                "expected": f"'{inherited['narrativeTypeName']}', declared by the owner",
+                "actual": orch['narrativeTypeName'],
+                "suggestion": "Extension adds stages. For a different narrative spine, author a new orchestration"
+            })
+            has_errors = True
+
+        for s_idx, stage in enumerate(orch.get('stages', [])):
+            if not isinstance(stage, dict):
+                continue
+            s_path = f"{o_path}.stages[{s_idx}]"
+            (_, target_name) = self._stage_target(stage)
+            key = (self._stage_target(stage), self._stage_host(stage))
+            prior = inherited_stages.get(key)
+
+            if prior is not None:
+                changed = [p for p in placement if p in stage and stage.get(p) != prior.get(p)]
+                if changed:
+                    self.errors.append({
+                        "category": "integrity",
+                        "severity": "error",
+                        "path": s_path,
+                        "issue": f"'{target_name}' is already placed in '{o_name}' and this restates its {', '.join(changed)}",
+                        "expected": "extension adds stages; the placement of an inherited stage belongs to its author",
+                        "actual": ", ".join(f"{p}={stage.get(p)!r} (was {prior.get(p)!r})" for p in changed),
+                        "suggestion": "Add your own stages instead, or author a new orchestration if the shape itself differs"
+                    })
+                    has_errors = True
+                continue
+
+            if stage.get('relationship') == 'sequential' and max_inherited_seq is not None \
+                    and isinstance(stage.get('seq'), int) and stage['seq'] <= max_inherited_seq:
                 self.errors.append({
                     "category": "integrity",
                     "severity": "error",
-                    "path": f"{s_path}.relativeTo.viewNames",
-                    "issue": f"'{view_name}' is not a view of host pattern '{host_name}'",
-                    "expected": f"one of: {sorted(known_views)}",
-                    "actual": view_name,
-                    "suggestion": f"Name a view of '{host_name}', or widen the scope by omitting viewNames"
+                    "path": f"{s_path}.seq",
+                    "issue": f"Sequential stage for '{target_name}' inserts into the inherited order of '{o_name}'",
+                    "expected": f"seq greater than {max_inherited_seq}, the last inherited sequential stage",
+                    "actual": f"seq {stage['seq']}",
+                    "suggestion": "Append after the inherited sequence, place the stage concurrent/nested/onDemand against it, or author a new orchestration"
                 })
                 has_errors = True
         return has_errors
@@ -1875,10 +2146,27 @@ class PracticeValidator:
         is_method = 'practices' in self.practice or 'baselinePractice' in self.practice
         practices = self.practice.get('practices', []) if is_method else [self.practice]
 
+        # Both kinds of stage target resolve across the baseline chain and declared
+        # dependencies, as every other symbolic link does (semantics 9.5.4).
+        own = practices if is_method else [self.practice]
+        patterns_in_scope = self._patterns_in_scope(own)
+        orchestrations_in_scope = self._orchestrations_in_scope(own)
+
+        # Once over the whole in-scope graph, not once per practice -- the graph spans
+        # documents, so repeating it per practice would report each cycle many times.
+        has_errors |= self._check_embedding_acyclic(orchestrations_in_scope, "")
+
+        # seq is unique among the sequential stages of the merged orchestration, so
+        # the pool spans every practice contributing to a name rather than resetting
+        # per practice. Sibling practices of a method are not in one another's
+        # dependencies, so nothing else sees two of them taking the same position.
+        # Keyed by orchestration name: {name: {seq: path of the first stage there}}.
+        method_sequential_seq = defaultdict(dict)
+
         for practice_idx, practice in enumerate(practices):
             prefix = f"practices[{practice_idx}]." if is_method else ""
-            pattern_names = {p['name'] for p in practice.get('patterns', [])
-                             if isinstance(p, dict) and 'name' in p}
+            local_patterns = {p['name'] for p in practice.get('patterns', [])
+                              if isinstance(p, dict) and 'name' in p}
 
             # Shared rule, applied to patterns: section 9.2 required this already.
             for p_idx, pattern in enumerate(practice.get('patterns', [])):
@@ -1893,37 +2181,63 @@ class PracticeValidator:
             for o_idx, orch in enumerate(practice.get('patternOrchestrations', [])):
                 o_path = f"{prefix}patternOrchestrations[{o_idx}]"
                 o_name = orch.get('name', f'orchestration[{o_idx}]')
-                sequential_seq, placements = {}, {}
+                # Placement collisions stay per document: two practices declaring the
+                # same target the same way is a legitimate merge under 6.15a, first
+                # writer winning, not a clash. A shared seq is a clash.
+                placements = {}
+                sequential_seq = method_sequential_seq[o_name]
+
+                # Extension by name is additive (semantics 9.5.5, merge.md 6.15a).
+                inherited = self._inherited_orchestration(o_name, practice)
+                if inherited is not None:
+                    has_errors |= self._check_orchestration_overlay(
+                        orch, inherited, o_path, o_name)
 
                 for s_idx, stage in enumerate(orch.get('stages', [])):
                     s_path = f"{o_path}.stages[{s_idx}]"
-                    pattern_name = stage.get('patternName')
+                    target_kind, target_name = self._stage_target(stage)
                     seq = stage.get('seq')
                     relationship = stage.get('relationship', 'sequential')
-                    relative_to = stage.get('relativeTo') or {}
-                    host_name = relative_to.get('patternName')
+                    host_kind, host_name = self._stage_host(stage)
+                    target_prop = 'orchestrationName' if target_kind == 'orchestration' else 'patternName'
+                    known = orchestrations_in_scope if target_kind == 'orchestration' else patterns_in_scope
 
-                    if pattern_name not in pattern_names:
+                    if target_name not in known:
                         self.errors.append({
                             "category": "integrity",
                             "severity": "error",
-                            "path": f"{s_path}.patternName",
-                            "issue": f"Orchestration '{o_name}' stage references unknown pattern '{pattern_name}'",
-                            "expected": "a Pattern declared in scope",
-                            "actual": pattern_name,
-                            "suggestion": f"Name one of: {sorted(pattern_names)}"
+                            "path": f"{s_path}.{target_prop}",
+                            "issue": f"Orchestration '{o_name}' stage references unknown {target_kind} '{target_name}'",
+                            "expected": f"a {'PatternOrchestration' if target_kind == 'orchestration' else 'Pattern'} in scope",
+                            "actual": target_name,
+                            "suggestion": f"Name one of: {sorted(known)}"
                         })
                         has_errors = True
+                    elif target_kind == 'orchestration' and target_name == o_name:
+                        self.errors.append({
+                            "category": "integrity",
+                            "severity": "error",
+                            "path": f"{s_path}.orchestrationName",
+                            "issue": f"Orchestration '{o_name}' embeds itself",
+                            "expected": "a different orchestration, or a pattern (acyclicity.md 14.1.8)",
+                            "actual": target_name,
+                            "suggestion": "Name the patterns directly, or embed an orchestration that does not lead back here"
+                        })
+                        has_errors = True
+                    elif target_kind == 'pattern' and target_name not in local_patterns:
+                        has_errors |= self._warn_foreign_pattern(
+                            target_name, patterns_in_scope, orchestrations_in_scope,
+                            o_name, f"{s_path}.patternName")
 
-                    # A pattern may be placed more than once, but not the same way twice.
-                    placement = (pattern_name, relationship, host_name)
+                    # A target may be placed more than once, but not the same way twice.
+                    placement = (target_kind, target_name, relationship, host_kind, host_name)
                     if placement in placements:
                         self.errors.append({
                             "category": "integrity",
                             "severity": "error",
-                            "path": f"{s_path}.patternName",
-                            "issue": f"Pattern '{pattern_name}' is placed the same way twice in orchestration '{o_name}'",
-                            "expected": "a pattern may be layered more than once, but each placement must differ",
+                            "path": f"{s_path}.{target_prop}",
+                            "issue": f"{target_kind.capitalize()} '{target_name}' is placed the same way twice in orchestration '{o_name}'",
+                            "expected": "a pattern or orchestration may be layered more than once, but each placement must differ",
                             "actual": f"{relationship}" + (f" relative to '{host_name}'" if host_name else "") +
                                       f", also at stages[{placements[placement]}]",
                             "suggestion": "Merge the two stages, or give them different relationships or hosts"
@@ -1943,39 +2257,53 @@ class PracticeValidator:
                                 "path": f"{s_path}.seq",
                                 "issue": f"Duplicate seq {seq} among sequential stages of '{o_name}'",
                                 "expected": "seq unique among sequential stages",
-                                "actual": f"also at stages[{sequential_seq[seq]}]",
+                                "actual": f"also at {sequential_seq[seq]}",
                                 "suggestion": "Renumber, or mark one stage concurrent if they genuinely run alongside"
                             })
                             has_errors = True
                         else:
-                            sequential_seq[seq] = s_idx
+                            sequential_seq[seq] = s_path
 
                     if relationship in ('concurrent', 'nested'):
                         has_errors |= self._check_stage_host(
-                            stage, host_name, relative_to.get('viewNames'),
-                            practice, o_name, s_path, pattern_name, relationship)
+                            stage, patterns_in_scope, orchestrations_in_scope,
+                            o_name, s_path, target_kind, target_name, relationship)
 
                     if relationship != 'onDemand' and stage.get('trigger'):
                         self.warnings.append({
                             "category": "integrity",
                             "severity": "warning",
                             "path": f"{s_path}.trigger",
-                            "issue": f"Stage for '{pattern_name}' declares a trigger but is {relationship}, not onDemand",
+                            "issue": f"Stage for '{target_name}' declares a trigger but is {relationship}, not onDemand",
                             "expected": "a trigger is what causes an onDemand stage to be entered",
                             "actual": f"relationship: {relationship}",
                             "suggestion": "Mark the stage onDemand, or move the condition to entryCriteria"
                         })
 
-                    if relationship not in ('concurrent', 'nested') and stage.get('recurrence') == 'perView':
-                        self.warnings.append({
-                            "category": "integrity",
-                            "severity": "warning",
-                            "path": f"{s_path}.recurrence",
-                            "issue": f"Stage for '{pattern_name}' declares recurrence perView but is {relationship}",
-                            "expected": "perView repeats a stage across the views of a host pattern",
-                            "actual": f"relationship: {relationship}, no host pattern",
-                            "suggestion": "Make the stage nested or concurrent against a host, or drop the recurrence"
-                        })
+                    if stage.get('recurrence') == 'perView':
+                        if relationship not in ('concurrent', 'nested'):
+                            self.warnings.append({
+                                "category": "integrity",
+                                "severity": "warning",
+                                "path": f"{s_path}.recurrence",
+                                "issue": f"Stage for '{target_name}' declares recurrence perView but is {relationship}",
+                                "expected": "perView repeats a stage across the views of a host pattern",
+                                "actual": f"relationship: {relationship}, no host pattern",
+                                "suggestion": "Make the stage nested or concurrent against a host, or drop the recurrence"
+                            })
+                        elif host_kind == 'orchestration':
+                            # shortcut: no perStage recurrence value, upgrade when a document
+                            # needs a stage repeating per sub-stage of an orchestration host
+                            # (semantics 9.5.4).
+                            self.warnings.append({
+                                "category": "integrity",
+                                "severity": "warning",
+                                "path": f"{s_path}.recurrence",
+                                "issue": f"Stage for '{target_name}' declares perView against orchestration host '{host_name}'",
+                                "expected": "perView restarts a stage for each view of a pattern host",
+                                "actual": "the host is an orchestration, which has stages rather than views",
+                                "suggestion": "Place the stage against a pattern of the host, or drop the recurrence"
+                            })
 
                     has_errors |= self._check_narrative_contexts(
                         stage.get('narrativeContexts'),

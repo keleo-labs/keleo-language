@@ -1057,6 +1057,31 @@ class BaselineValidator:
                     "suggestion": "Set entries to [] — baselines define group identity, extensions add patterns"
                 })
 
+    def validate_orchestration_shells(self) -> None:
+        """A baseline orchestration is a shell, not a populated sequence.
+
+        See semantics/execution-and-patterns.md 9.5.5. A baseline defines no patterns,
+        so a stage naming one cannot resolve here; a shell publishes the name and the
+        shape, and extension practices contribute the stages. A stage embedding another
+        orchestration is legitimate, since that resolves against the baseline chain.
+        """
+        for idx, orch in enumerate(self.baseline.get('patternOrchestrations', [])):
+            if not isinstance(orch, dict):
+                continue
+            o_name = orch.get('name', f'patternOrchestrations[{idx}]')
+            for s_idx, stage in enumerate(orch.get('stages', [])):
+                if not isinstance(stage, dict) or not stage.get('patternName'):
+                    continue
+                self.errors.append({
+                    "category": "integrity",
+                    "severity": "error",
+                    "path": f"patternOrchestrations[{idx}].stages[{s_idx}].patternName",
+                    "issue": f"Baseline orchestration '{o_name}' names pattern '{stage['patternName']}', but baselines define no patterns",
+                    "expected": "an empty stages array, or stages embedding other orchestrations",
+                    "actual": f"a stage naming pattern '{stage['patternName']}'",
+                    "suggestion": "Publish the shell with stages: [] and let extension practices contribute the stages"
+                })
+
     def validate_checklist_quality(self) -> None:
         """
         Flag checklist items that are meta-statements referencing other checklist
@@ -1201,8 +1226,14 @@ class BaselineValidator:
         self.validate_universality()
         self.validate_checklist_quality()
 
+        # Orchestration shells report errors, so this one gates validity
+        errors_before = len(self.errors)
+        self.validate_orchestration_shells()
+        orchestration_shells_valid = len(self.errors) == errors_before
+
         # Overall validity
         is_valid = (
+            orchestration_shells_valid and
             schema_valid and
             redeclaration_valid and
             structure_valid and

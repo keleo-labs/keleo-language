@@ -1,0 +1,45 @@
+{
+  "kind": "practice",
+  "name": "Fixture Overlay Replace",
+  "description": "Negative fixture: an extension that restates an inherited stage to move it. Must fail the additive rule (semantics 9.5.5).",
+  "baselinePracticeName": "Fixture Essentials",
+  "practiceDependencyNames": ["Fixture Platform Endeavour"],
+  "version": "1.0.0",
+  "schemaVersion": "3.1.0",
+  "authors": ["keleo-language fixtures"],
+  "createdAt": "2026-10-15",
+  "updatedAt": "2026-10-15",
+  "keywords": ["fixture", "orchestration", "negative"],
+  "patterns": [
+    {
+      "kind": "pattern",
+      "name": "Late Addition",
+      "description": "A pattern this practice legitimately contributes.",
+      "patternViews": [
+        {
+          "name": "Open",
+          "seq": 1,
+          "description": "Begin.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Identified" }]
+        },
+        {
+          "name": "Close",
+          "seq": 2,
+          "description": "End.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Available" }]
+        }
+      ]
+    }
+  ],
+  "patternOrchestrations": [
+    {
+      "kind": "patternOrchestration",
+      "name": "Platform Endeavour",
+      "description": "The whole life of a platform: sequenced phases, with assurance alongside, sprints inside each phase, and incident response always available.",
+      "stages": [
+        { "patternName": "Bootstrap the Platform", "seq": 9, "relationship": "sequential" },
+        { "patternName": "Late Addition", "seq": 10, "relationship": "sequential" }
+      ]
+    }
+  ]
+}

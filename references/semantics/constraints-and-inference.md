@@ -106,8 +106,13 @@ errors in all of the following:
 - `State.contributesToState`
 - `PracticeBaseline.baselinePracticeNames` and `Practice.practiceDependencyNames`
 - `ChangeRequest.supersedes`
+- `OrchestrationStage.orchestrationName` — the orchestration embedding graph
+  ([§14.1.8](acyclicity.md#1418-patternorchestration-embedding-hierarchy-orchestrationstageorchestrationname))
 
-*Enforced by* `validate_acyclicity` in the practice and baseline validators.
+*Enforced by* `validate_acyclicity` in the practice and baseline validators, except the
+embedding graph, which is enforced by `_check_embedding_acyclic` within
+`validate_orchestrations` because it resolves against the same in-scope orchestration set
+the rest of that check already builds.
 
 **Temporal edges are not part of this guarantee and are not cycles for this purpose.**
 `PatternView.loopsBackTo` and `State.loopsBackTo` declare that work repeats. They say
@@ -165,6 +170,15 @@ taking its own baseline's position. See [§4.9](composition.md).
 
 *Enforced by* `validate_suppression`.
 
+**Extending an orchestration is additive.** A practice redeclaring a `PatternOrchestration`
+it inherits contributes stages. It may not restate an inherited stage to move it, nor
+insert a `sequential` stage below the inherited sequence, and the merge gives the first
+writer the placement properties so a restatement has no effect even where one is written.
+See [§9.5.5](execution-and-patterns.md#955-baseline-published-shells) and
+[`merge.md` §6.15a](../merge.md).
+
+*Enforced by* `_check_orchestration_overlay` within `validate_orchestrations`.
+
 ### 16.7 What the language does not guarantee
 
 Worth stating plainly, because each of these is something a reader may assume.
@@ -177,6 +191,10 @@ Worth stating plainly, because each of these is something a reader may assume.
   requires a pattern view's `narrativeContexts` to reference elements within the
   NarrativeType named on the parent pattern. Nothing enforced this before
   `validate_orchestrations` was added, and documents predating that check may violate it.
+- **That an orchestration extension fits what it extends.** The additive mechanics are
+  checked; whether a contributed stage serves the endeavour the host's description states
+  is a judgement no validator can make. A practice can add stages that leave the host's
+  name describing something it no longer is.
 - **That a document is complete.** Minimum counts for alphas, activities, patterns and
   citations are applied by the corpus tooling in keleo-pgen-llm, not by these validators.
 - **That two documents in a bundle agree.** Cross-document consistency within a `.keleo`
@@ -196,6 +214,16 @@ The schema follows semantic versioning, and a MAJOR bump means some document tha
 **How to migrate.** Add `"relationship": "sequential"` to any stage that does not declare one. That is exactly what the omission meant, so the change is mechanical and cannot alter behaviour.
 
 **Why it was worth a major bump.** How a pattern is layered into an endeavour — following, alongside, inside, or on recognition of need — is a modelling decision that changes what the orchestration means. A default let the most consequential property on the stage be set by silence, and a reader could not tell a deliberate choice from an unconsidered one.
+
+#### 3.1.0 — orchestration stage placement became first-writer-wins
+
+Recorded here although the release is MINOR, because it changed merge behaviour rather than only adding to it.
+
+**What changed.** `seq`, `relationship`, `recurrence`, `relativeTo` and `trigger` on an orchestration stage were overlay-wins scalars. They are now first-writer-wins, so an overlay restating a stage already present no longer moves it, and `validate-practice.py` rejects the restatement outright.
+
+**Who is affected.** Nobody, which is why it did not take a MAJOR bump. No document in the corpus declared `patternOrchestrations` when the change was made, so no existing composition result changed. The rule was settled before the first real orchestration was authored, which is the only point at which it could be settled cheaply.
+
+**Why.** Extension by name became a sanctioned route at the same time — a baseline publishes a shell, several practices contribute stages. Under overlay-wins, the last practice merged could silently re-place work it did not own, which is the ownership failure that retired `patternGroups`. See [§9.5.5](execution-and-patterns.md#955-baseline-published-shells).
 
 ### 16.9 Conformance
 

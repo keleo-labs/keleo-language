@@ -1,0 +1,72 @@
+{
+  "kind": "practice",
+  "name": "Fixture Embedding Cycle",
+  "description": "Negative fixture: two orchestrations that embed each other. Must fail acyclicity (acyclicity.md 14.1.8).",
+  "baselinePracticeName": "Fixture Essentials",
+  "version": "1.0.0",
+  "schemaVersion": "3.1.0",
+  "authors": ["keleo-language fixtures"],
+  "createdAt": "2026-10-15",
+  "updatedAt": "2026-10-15",
+  "keywords": ["fixture", "orchestration", "negative"],
+  "patterns": [
+    {
+      "kind": "pattern",
+      "name": "Upper Work",
+      "description": "A pattern belonging to the outer shape.",
+      "patternViews": [
+        {
+          "name": "Open",
+          "seq": 1,
+          "description": "Begin the outer work.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Identified" }]
+        },
+        {
+          "name": "Close",
+          "seq": 2,
+          "description": "End the outer work.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Available" }]
+        }
+      ]
+    },
+    {
+      "kind": "pattern",
+      "name": "Lower Work",
+      "description": "A pattern belonging to the inner shape.",
+      "patternViews": [
+        {
+          "name": "Open",
+          "seq": 1,
+          "description": "Begin the inner work.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Identified" }]
+        },
+        {
+          "name": "Close",
+          "seq": 2,
+          "description": "End the inner work.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Available" }]
+        }
+      ]
+    }
+  ],
+  "patternOrchestrations": [
+    {
+      "kind": "patternOrchestration",
+      "name": "Outer Endeavour",
+      "description": "Embeds the inner endeavour, which embeds this one back.",
+      "stages": [
+        { "patternName": "Upper Work", "seq": 1, "relationship": "sequential" },
+        { "orchestrationName": "Inner Endeavour", "seq": 2, "relationship": "sequential" }
+      ]
+    },
+    {
+      "kind": "patternOrchestration",
+      "name": "Inner Endeavour",
+      "description": "Embeds the outer endeavour, closing the loop.",
+      "stages": [
+        { "patternName": "Lower Work", "seq": 1, "relationship": "sequential" },
+        { "orchestrationName": "Outer Endeavour", "seq": 2, "relationship": "sequential" }
+      ]
+    }
+  ]
+}

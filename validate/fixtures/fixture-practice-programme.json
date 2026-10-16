@@ -1,0 +1,126 @@
+{
+  "kind": "practice",
+  "name": "Fixture Programme Endeavour",
+  "description": "Exercises orchestration embedding: a programme shape that places a whole project endeavour owned by another practice, rather than restating that endeavour's stages.",
+  "baselinePracticeName": "Fixture Essentials",
+  "practiceDependencyNames": [
+    "Fixture Platform Endeavour"
+  ],
+  "version": "1.0.0",
+  "schemaVersion": "3.1.0",
+  "authors": [
+    "keleo-language fixtures"
+  ],
+  "createdAt": "2026-10-15",
+  "updatedAt": "2026-10-15",
+  "keywords": [
+    "programme",
+    "orchestration",
+    "embedding"
+  ],
+  "patterns": [
+    {
+      "kind": "pattern",
+      "name": "Tranche Plan",
+      "description": "A programme delivered in successive tranches, each closing on a benefit the programme promised.",
+      "patternViews": [
+        {
+          "name": "Shape the Tranche",
+          "seq": 1,
+          "description": "Agree what benefit this tranche is for and what will show it was realised.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Identified"
+            }
+          ]
+        },
+        {
+          "name": "Realise the Benefit",
+          "seq": 2,
+          "description": "Run the tranche to the point where the promised benefit is observable.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Available"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "pattern",
+      "name": "Benefits Review",
+      "description": "A standing review of whether the benefits claimed are the benefits being realised.",
+      "patternViews": [
+        {
+          "name": "Measure",
+          "seq": 1,
+          "description": "Take the measures the tranche said would show the benefit.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Identified"
+            }
+          ]
+        },
+        {
+          "name": "Decide",
+          "seq": 2,
+          "description": "Decide whether to continue, reshape or stop on the evidence.",
+          "alphaStates": [
+            {
+              "alphaName": "Platform",
+              "stateName": "Available"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "patternOrchestrations": [
+    {
+      "kind": "patternOrchestration",
+      "name": "Programme Endeavour",
+      "description": "A programme delivering benefits through successive tranches, with a platform endeavour running inside each tranche and benefits review alongside the whole.",
+      "stages": [
+        {
+          "patternName": "Tranche Plan",
+          "seq": 1,
+          "relationship": "sequential"
+        },
+        {
+          "orchestrationName": "Platform Endeavour",
+          "seq": 1,
+          "relationship": "nested",
+          "relativeTo": {
+            "patternName": "Tranche Plan"
+          },
+          "recurrence": "perView",
+          "exitCriteria": {
+            "name": "Tranche platform is in service",
+            "description": "Whether the platform endeavour run inside this tranche reached service.",
+            "given": [
+              "a tranche has been shaped"
+            ],
+            "when": [
+              "the platform endeavour run inside it completes"
+            ],
+            "then": [
+              "the tranche has a platform carrying the workloads it promised"
+            ]
+          }
+        },
+        {
+          "patternName": "Benefits Review",
+          "seq": 1,
+          "relationship": "concurrent",
+          "relativeTo": {
+            "patternName": "Tranche Plan"
+          },
+          "recurrence": "once"
+        }
+      ]
+    }
+  ]
+}
