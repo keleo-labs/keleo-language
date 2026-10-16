@@ -573,7 +573,7 @@ Most patterns address one aspect of an endeavour — initial bootstrap, steady-s
 }
 ```
 
-**Why a distinct construct and not an extension of PatternGroup.** A group's name is a merge contract — [Section 9.3.1](#931-baseline-defined-canonical-groups) has baselines define canonical groups and extension practices merge into them by name — whereas an orchestration is authored by one owner. Putting sequencing and criteria on groups would produce an ordering no single author owns, with each practice's `seq` values competing. Reusing `Pattern` recursively is also wrong: a `PatternView` requires `alphaStates`, and a view that orchestrates sub-patterns has none of its own.
+**Why a distinct construct and not an extension of PatternGroup.** Putting sequencing and criteria on groups would have produced an ordering no single author owns, with each practice's `seq` values competing and nothing on an entry to say what the order meant. An orchestration avoids that because every stage declares its own placement and its owner keeps it: an orchestration's name may be extended by several practices ([Section 9.5.5](#955-baseline-published-shells)), but each stage within it belongs to whoever wrote that stage, and an overlay adds rather than re-places. Reusing `Pattern` recursively is also wrong: a `PatternView` requires `alphaStates`, and a view that orchestrates sub-patterns has none of its own.
 
 **Entry criteria reuse `Background`.** It already expresses alpha-state and work-product-level prerequisites, and it is already covered by the acyclicity constraints in [Section 14.2](acyclicity.md#142-cross-element-prerequisite-cycles), so the stage prerequisite graph is protected against cycles without a new rule. Exit criteria reuse `Test`, matching how Gherkin is already carried on activities and checklists.
 
@@ -591,6 +591,8 @@ Real endeavours are layered, not a queue. Some patterns follow one another, some
 **`relationship` is always declared.** There is no default and omitting it is an error. How a pattern is layered into an endeavour is a modelling decision — whether assurance runs alongside delivery or waits its turn changes what the orchestration means — and a reader should not have to infer that from silence. A stage that genuinely follows the one before says `"relationship": "sequential"` and says it out loud.
 
 **`seq` means different things by relationship.** For a sequential stage it is position in the order and must be unique among the sequential stages. For every other relationship it is the anchor point for presentation, and stages that begin alongside one another may share it. This is the one place the property is not a strict total order, and it is deliberate: concurrency has no total order to express.
+
+**Uniqueness is across the merged orchestration, not within one document.** An orchestration's name may be extended by several practices ([Section 9.5.5](#955-baseline-published-shells)), so two of them taking the same sequential position produce one merged orchestration with two stages claiming to be third. Each document is internally consistent, which is why the position has to be read against every contribution in scope rather than against the document in hand.
 
 **Concurrent against nested.** Both run during another pattern, and the distinction is subordination. A concurrent stage is a peer: it has its own lifetime, the host does not bound it, and it renders as a track beside the host. A nested stage is contained: the host's phase boundary ends it, and it renders inside the host. If the question "what happens to this pattern when the host's phase ends?" answers *it stops*, it is nested; if it answers *it carries on*, it is concurrent.
 
@@ -654,6 +656,79 @@ Each stage's `narrativeContexts` entry carries a `seq`, a `narrativeElementName`
 
 #### 9.5.3 Reuse and Cycles
 
-**A pattern may appear in several orchestrations**, and more than once within one. Reuse is the point: a release pattern belongs to more than one programme shape, and a sprint pattern may be nested in the phases of a milestone plan *and* run on demand when an unplanned increment is needed. What must not repeat is the same pattern placed the same way twice — two stages naming the same pattern with the same `relativeTo` are a duplicate, not a layer. This is the counterpart of [Section 9.3.7](#937-ungrouped-patterns), which limits a pattern to one group.
+**A pattern may appear in several orchestrations**, and more than once within one. Reuse is the point: a release pattern belongs to more than one programme shape, and a sprint pattern may be nested in the phases of a milestone plan *and* run on demand when an unplanned increment is needed. The same holds for an embedded orchestration, which is reusable by more than one host by definition ([Section 9.5.4](#954-embedding-an-orchestration)). What must not repeat is the same target placed the same way twice — two stages naming the same pattern or orchestration with the same `relativeTo` are a duplicate, not a layer. This is the counterpart of [Section 9.3.7](#937-ungrouped-patterns), which limits a pattern to one group.
 
 **A recurring phase is a stage whose pattern loops.** There is no separate "this stage repeats" property, because [Section 9.2a](#92a-cyclical-patterns-declaring-that-phases-repeat) already provides one: a stage naming a pattern that declares `loopsBackTo` is a recurring phase. Steady-state operation and cyclical change are exactly the phases that need it.
+
+#### 9.5.4 Embedding an Orchestration
+
+A stage names either a pattern or another orchestration. Naming an orchestration places that whole sub-endeavour at this point, under the same `relationship` vocabulary [Section 9.5.1](#951-how-a-stage-is-placed) already defines: a project's endeavour nested inside each tranche of a programme, an assurance endeavour running concurrent with delivery, a recovery endeavour entered on demand.
+
+```json
+{
+  "name": "Programme Endeavour",
+  "description": "A programme delivering benefits through successive tranches, each tranche running projects.",
+  "stages": [
+    { "patternName": "Tranche Plan", "seq": 1, "relationship": "sequential" },
+    {
+      "orchestrationName": "Project Endeavour",
+      "seq": 1,
+      "relationship": "nested",
+      "relativeTo": { "patternName": "Tranche Plan" },
+      "recurrence": "perView"
+    }
+  ]
+}
+```
+
+The project endeavour belongs to the practice that authored it. The programme places it; it does not restate it, and a later change to the project's internal ordering reaches the programme without the programme being edited. Flattening the project's stages into the programme would copy an ordering the programme does not own, and the copy would go stale the first time the original moved.
+
+**Both kinds of name resolve across scope** — the baseline chain, a declared dependency, or this document — in common with every other symbolic link in the language. A stage may therefore name a pattern another document owns. That is permitted, and the validator warns where the owning document has already placed that pattern in an orchestration of its own, because embedding that orchestration keeps the ordering with its author and stays correct when the author changes it. The warning is advice about which construct expresses the intent, not a restriction on what may be written.
+
+**Embedding must not form a cycle.** An orchestration cannot embed itself, directly or through a chain, and the constraint is stated with the other acyclicity rules at [Section 14.1.8](acyclicity.md#1418-patternorchestration-embedding-hierarchy-orchestrationstageorchestrationname).
+
+Two limits are worth naming because they are deliberate rather than overlooked. `relativeTo.viewNames` scopes a stage to named views of a host **pattern**; an orchestration host has stages rather than views, so the property does not apply to it, and a stage placed against part of a sub-endeavour is not currently expressible. `recurrence: perView` likewise restarts a stage for each view of a pattern host and means nothing against an orchestration.
+
+#### 9.5.5 Baseline-Published Shells
+
+A baseline may declare an orchestration with no stages. The shell publishes a name and the shape of an endeavour the domain recognises, and extension practices merge their stages into it — the mechanism canonical pattern groups used in [Section 9.3.1](#931-baseline-defined-canonical-groups), applied to a construct that carries sequencing rather than classification alone.
+
+```json
+{ "name": "Adoption Endeavour", "description": "The shape every adoption follows, from first contact to steady-state operation.", "stages": [] }
+```
+
+This does not reinstate the problem that retired grouping. A group's entries carried only order, so practices filling one competed over `seq` and the result was an ordering no author had written. A stage states its `relationship`, its host and its criteria, so a practice contributing to a shell says where its work sits and against what. The merged orchestration means something each contributor could have read before writing.
+
+**Extension is additive.** A practice redeclaring an orchestration it inherits contributes stages that serve the shape the owner published. It does not renumber, re-place or redefine a stage it inherited: that stage's placement belongs to whoever wrote it, and the merge gives the original precedence over any overlay restating it. A sequential stage a practice adds appends after the inherited sequence rather than inserting into it, since an insertion renumbers the rest in everything but name.
+
+**What a practice inherits is every declaration in scope, merged.** A shell carries no stages, so reading the shell alone says the sequence is empty and anything may be appended at position one. What the author actually inherits is the shell together with whatever the baseline chain and the declared dependencies have already contributed under that name, merged by the rule in `merge.md` §6.15a. An empty shell is the start of a name, not the start of an order.
+
+The natural shapes for a contribution are the ones that disturb nothing — `concurrent` for a track running alongside inherited work, `nested` for one bounded by an inherited phase, `onDemand` for one entered on recognition. A practice reaching past these for a mid-sequence insertion usually wants a different endeavour rather than a quarrel about this one.
+
+**Wanting to reorder is diagnostic.** An author who needs the inherited stages in a different order does not have an extension of the published shape; they have another shape, and the honest expression is a new orchestration whose description says what makes it different. Two orchestrations that each mean what their author wrote cost less than one shared name that no longer means what either intended. [Section 9.5.6](#956-choosing-the-level) covers the choice; `merge.md` §6.15a covers what the merge does with it.
+
+#### 9.5.6 Choosing the Level
+
+The construct offers four placements and two kinds of target, and most authoring mistakes are a choice between levels rather than a mistake within one. The question is always the same: is this thing part of the endeavour being described, or an endeavour of its own that this one reaches for?
+
+**Levels are distinguished by who owns the decision and what completes, not by size.** Every hierarchy that has settled this question settles it the same way. The PMI *Standard for Program Management* and MSP separate a programme from a project by what each delivers — benefits against outputs — not by duration or headcount. SAFe separates portfolio, large solution, ART and team by the cadence each owns. BPMN separates a sub-process, drawn inside its parent, from a call activity that invokes a process defined and owned elsewhere. APQC's process classification separates its levels by the scope of the result. A large project is still a project; a two-week endeavour with its own owner and its own completion is still an endeavour.
+
+**Embed or nest** is that question applied to a stage. Three checks, and embedding wants all three:
+
+- Does the sub-endeavour have an owner other than this document?
+- Does it complete on its own terms, rather than ending because the host's phase ended?
+- Is it reused, or plausibly reusable, by a host other than this one?
+
+Any no means a `nested` pattern stage. This is [Section 9.5.1](#951-how-a-stage-is-placed)'s concurrent-against-nested test one level up — *what happens to this when the host's phase ends?* — with ownership added, and it is BPMN's sub-process against its call activity.
+
+**Extend, embed, or author new** is the question applied to the orchestration itself, when one already exists in scope. Take the first that fits:
+
+| When | Route | Cost of getting it wrong |
+|---|---|---|
+| An orchestration in scope already describes this shape, and what you are adding serves the purpose its description states | Extend it by name, adding only your own stages | Low. The shape accumulates the tracks it always implied |
+| Your patterns form a self-contained sub-endeavour of a shape in scope | Author your own and let it be embedded | Low. Both owners keep their ordering |
+| Neither — nothing in scope describes this shape | Author a new one, and say in its description what makes it distinct | This is the right answer when it is the right answer, and the wrong one by default |
+
+The failure that matters is the last row chosen without checking the first two: an orchestration per practice, each describing a shape two others already described, and no reader able to tell which is authoritative. The check costs a read of what is in scope. The alternative accumulates.
+
+The opposite failure is quieter and worse. Extending a shared orchestration with stages that do not serve its stated purpose leaves a name whose description no longer describes it, and every later author inherits the confusion. Read the host's description before extending. If what you are adding would make it untrue, you are in the third row.

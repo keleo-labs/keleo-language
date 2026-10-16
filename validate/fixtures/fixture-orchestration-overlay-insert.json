@@ -1,0 +1,44 @@
+{
+  "kind": "practice",
+  "name": "Fixture Overlay Insert",
+  "description": "Negative fixture: an extension that inserts a sequential stage into the middle of an order it does not own. Must fail the additive rule (semantics 9.5.5).",
+  "baselinePracticeName": "Fixture Essentials",
+  "practiceDependencyNames": ["Fixture Platform Endeavour"],
+  "version": "1.0.0",
+  "schemaVersion": "3.1.0",
+  "authors": ["keleo-language fixtures"],
+  "createdAt": "2026-10-15",
+  "updatedAt": "2026-10-15",
+  "keywords": ["fixture", "orchestration", "negative"],
+  "patterns": [
+    {
+      "kind": "pattern",
+      "name": "Interposed Phase",
+      "description": "A pattern the extension wants to run between two phases the owner sequenced.",
+      "patternViews": [
+        {
+          "name": "Open",
+          "seq": 1,
+          "description": "Begin.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Identified" }]
+        },
+        {
+          "name": "Close",
+          "seq": 2,
+          "description": "End.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Available" }]
+        }
+      ]
+    }
+  ],
+  "patternOrchestrations": [
+    {
+      "kind": "patternOrchestration",
+      "name": "Platform Endeavour",
+      "description": "The whole life of a platform: sequenced phases, with assurance alongside, sprints inside each phase, and incident response always available.",
+      "stages": [
+        { "patternName": "Interposed Phase", "seq": 2, "relationship": "sequential" }
+      ]
+    }
+  ]
+}

@@ -217,5 +217,13 @@
       "entries": [],
       "seq": 1
     }
+  ],
+  "patternOrchestrations": [
+    {
+      "kind": "patternOrchestration",
+      "name": "Adoption Endeavour",
+      "description": "The shape every adoption in this domain follows, from first contact through to steady-state operation. Published as a shell: extension practices contribute the stages.",
+      "stages": []
+    }
   ]
 }

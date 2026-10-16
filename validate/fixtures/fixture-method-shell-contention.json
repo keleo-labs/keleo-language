@@ -1,0 +1,129 @@
+{
+  "kind": "method",
+  "name": "Fixture Shell Contention",
+  "description": "Two practices of one method contribute sequential stages to the same baseline-published shell and both take the same position. Neither is a dependency of the other, so nothing but the method sees the clash.",
+  "baselinePracticeName": "Fixture Essentials",
+  "version": "1.0.0",
+  "schemaVersion": "3.0.0",
+  "authors": [
+    "keleo-language fixtures"
+  ],
+  "createdAt": "2026-10-16",
+  "updatedAt": "2026-10-16",
+  "keywords": [
+    "fixture",
+    "orchestration",
+    "shell",
+    "validator"
+  ],
+  "practices": [
+    {
+      "kind": "practice",
+      "name": "Fixture Shell Contributor A",
+      "description": "Contributes the first phase of the adoption endeavour the baseline published as a shell.",
+      "baselinePracticeName": "Fixture Essentials",
+      "version": "1.0.0",
+      "patterns": [
+        {
+          "kind": "pattern",
+          "name": "Stand Up the Platform",
+          "description": "Bringing the shared foundation into existence.",
+          "patternViews": [
+            {
+              "kind": "patternView",
+              "name": "Agree the Need",
+              "seq": 1,
+              "description": "Establish that a shared foundation is worth building.",
+              "alphaStates": [
+                {
+                  "alphaName": "Platform",
+                  "stateName": "Identified"
+                }
+              ]
+            },
+            {
+              "kind": "patternView",
+              "name": "Make It Usable",
+              "seq": 2,
+              "description": "The foundation is available to the teams that need it.",
+              "alphaStates": [
+                {
+                  "alphaName": "Platform",
+                  "stateName": "Available"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "patternOrchestrations": [
+        {
+          "kind": "patternOrchestration",
+          "name": "Adoption Endeavour",
+          "description": "The shape every adoption follows, from first contact to steady-state operation.",
+          "stages": [
+            {
+              "patternName": "Stand Up the Platform",
+              "seq": 3,
+              "relationship": "sequential"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "practice",
+      "name": "Fixture Shell Contributor B",
+      "description": "Contributes a later phase of the same shell, unaware that a sibling has already taken the position.",
+      "baselinePracticeName": "Fixture Essentials",
+      "version": "1.0.0",
+      "patterns": [
+        {
+          "kind": "pattern",
+          "name": "Operate the Platform",
+          "description": "Keeping the shared foundation running once teams depend on it.",
+          "patternViews": [
+            {
+              "kind": "patternView",
+              "name": "Take It On",
+              "seq": 1,
+              "description": "Operational ownership of the foundation is accepted.",
+              "alphaStates": [
+                {
+                  "alphaName": "Platform",
+                  "stateName": "Available"
+                }
+              ]
+            },
+            {
+              "kind": "patternView",
+              "name": "Run It",
+              "seq": 2,
+              "description": "The foundation runs to the service levels its consumers rely on.",
+              "alphaStates": [
+                {
+                  "alphaName": "Platform",
+                  "stateName": "Operating"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "patternOrchestrations": [
+        {
+          "kind": "patternOrchestration",
+          "name": "Adoption Endeavour",
+          "description": "The shape every adoption follows, from first contact to steady-state operation.",
+          "stages": [
+            {
+              "patternName": "Operate the Platform",
+              "seq": 3,
+              "relationship": "sequential"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

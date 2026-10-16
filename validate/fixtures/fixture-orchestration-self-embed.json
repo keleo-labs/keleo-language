@@ -1,0 +1,44 @@
+{
+  "kind": "practice",
+  "name": "Fixture Self Embedding",
+  "description": "Negative fixture: an orchestration that embeds itself. Must fail acyclicity (acyclicity.md 14.1.8).",
+  "baselinePracticeName": "Fixture Essentials",
+  "version": "1.0.0",
+  "schemaVersion": "3.1.0",
+  "authors": ["keleo-language fixtures"],
+  "createdAt": "2026-10-15",
+  "updatedAt": "2026-10-15",
+  "keywords": ["fixture", "orchestration", "negative"],
+  "patterns": [
+    {
+      "kind": "pattern",
+      "name": "Do the Work",
+      "description": "A single pattern, present so the orchestration has something legitimate to place.",
+      "patternViews": [
+        {
+          "name": "Start",
+          "seq": 1,
+          "description": "Begin.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Identified" }]
+        },
+        {
+          "name": "Finish",
+          "seq": 2,
+          "description": "End.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Available" }]
+        }
+      ]
+    }
+  ],
+  "patternOrchestrations": [
+    {
+      "kind": "patternOrchestration",
+      "name": "Recursive Endeavour",
+      "description": "Places itself as one of its own stages, which has no meaning and no end.",
+      "stages": [
+        { "patternName": "Do the Work", "seq": 1, "relationship": "sequential" },
+        { "orchestrationName": "Recursive Endeavour", "seq": 2, "relationship": "sequential" }
+      ]
+    }
+  ]
+}

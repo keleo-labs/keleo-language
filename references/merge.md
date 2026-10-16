@@ -422,16 +422,20 @@ PatternGroups with unique names from either the base or overlay are preserved as
 
 ### 6.15a PatternOrchestration Merging
 
-Orchestrations merge by canonical name. Within an orchestration, `stages` merge by the composite key `patternName::relationship::relativeTo.patternName` — not by `patternName` alone, because one pattern may legitimately be placed more than once in an orchestration, nested inside a plan and also available on demand. Merging those two together would silently collapse a layer:
+Orchestrations merge by canonical name. Within an orchestration, `stages` merge by the composite key `target::relationship::host`, where `target` is the stage's `patternName` or `orchestrationName` and `host` is `relativeTo.patternName` or `relativeTo.orchestrationName`. The key is not the target alone, because one pattern may legitimately be placed more than once in an orchestration, nested inside a plan and also available on demand. Merging those two together would silently collapse a layer:
 
-- `seq` from the overlay takes precedence.
+- `seq`, `relationship`, `recurrence`, `relativeTo` and `trigger`: the **first writer wins**. Each describes placement, and placement belongs to the author who wrote the stage. An overlay restating a stage already present does not move it.
 - `entryCriteria` and `exitCriteria`: the first non-empty value wins.
 - `narrativeContexts` merge by the composite key `narrativeElementName::seq`, under the general rule in Section 6.17.
-- `relationship`, `recurrence`, `relativeTo` and `trigger`: the overlay wins as scalars, since each describes placement rather than content, and a layer that merged halfway would describe a shape neither author intended.
 - `narrativeTypeName` on the orchestration: the first non-empty value wins.
+- Stages unique to either side are preserved. Added sequential stages sort after the sequential stages already present.
 - Stages are sorted by `seq` after merging. `seq` is unique only among sequential stages, so the sort is not a total order; stages sharing a `seq` begin alongside one another and may be presented in any stable order.
 
-**This is not the PatternGroup contract.** Groups merge across practices by canonical name as a deliberate mechanism for collecting patterns from many authors into shared categories. Orchestrations merge by name only so that a practice can refine an orchestration it inherits; the ordering belongs to one author, and two unrelated practices independently declaring an orchestration with the same name is a naming collision rather than a contribution.
+**Merging by name is an extension route, not only inheritance refinement.** A baseline may publish an orchestration with no stages as a canonical endeavour shape, and several practices may contribute stages to it ([semantics §9.5.5](semantics/execution-and-patterns.md#955-baseline-published-shells)). What they contribute is stages; what they do not do is re-place the stages already there, which is why the placement properties above are first-writer-wins and why `validate-practice.py` rejects an overlay that restates an inherited stage or inserts a sequential one below the inherited maximum `seq`. An author who needs a different ordering has a different endeavour and should name it.
+
+**This is still not the PatternGroup contract.** A group's entries carried order and nothing else, so practices filling a group competed over `seq` and produced an ordering no author had written. A stage declares its relationship, its host and its criteria, so a contribution says where it sits and against what, and the merged result means something every contributor could have read in advance.
+
+**On the precedence reversal.** Before schema 3.1.0 the overlay won these properties as scalars. Reversing that changes merge behaviour, which would ordinarily be a MAJOR change. No document in the corpus declared `patternOrchestrations` when the reversal was made, so no existing composition result changes — the same reasoning recorded for the 2.21.0 migration at [constraints-and-inference.md §16](semantics/constraints-and-inference.md).
 
 ### 6.16 Outcome Merging
 

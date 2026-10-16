@@ -92,6 +92,21 @@ Both `partOf` and `mapsTo` reference parent work products, and a work product ma
 
 **Constraint:** For any PersonaGroup X, walking the `personaGroupNames` references transitively must never revisit a previously visited group.
 
+#### 14.1.8 PatternOrchestration Embedding Hierarchy (`OrchestrationStage.orchestrationName`)
+
+**Property:** `OrchestrationStage.orchestrationName` — the PatternOrchestration a stage places as a whole sub-endeavour, rather than naming a single pattern (see [Section 9.5.4](execution-and-patterns.md#954-embedding-an-orchestration)).
+
+**Graph:** Each stage declaring `orchestrationName` forms an edge from the enclosing orchestration to the named one. The resulting graph across all orchestrations in scope (baseline + practice + dependencies) must be acyclic. `relativeTo.orchestrationName` does not form an edge in this graph: it names a host the stage is placed against within an orchestration both already belong to, not a containment relationship.
+
+**Invalid Examples:**
+- **Self-reference:** Orchestration "Programme Endeavour" with a stage naming `orchestrationName: "Programme Endeavour"`
+- **Mutual:** "Programme Endeavour" embeds "Project Endeavour", which embeds "Programme Endeavour"
+- **Transitive:** "A" embeds "B", "B" embeds "C", "C" embeds "A"
+
+**Constraint:** For any PatternOrchestration X, walking the `orchestrationName` references on its stages transitively must never revisit a previously visited orchestration.
+
+A pattern that repeats its own phases is not a cycle here and must not be reported as one — that is `loopsBackTo`, excluded from these graphs by the note at the head of [Section 14.2](#142-cross-element-prerequisite-cycles).
+
 ### 14.2 Cross-Element Prerequisite Cycles
 
 Background prerequisites create cross-element dependency graphs that are harder to detect than single-property hierarchies because cycles span multiple element types and properties.
@@ -187,6 +202,7 @@ Practices also reference baselines via `baselinePracticeName`. While a practice 
 | `practiceDependencyNames` | Practice | Document dependencies | All practices in registry |
 | `supersedes` | ChangeRequest | Revision chain | All change requests for target document |
 | `personaGroupNames` | PersonaGroup | Membership hierarchy | All persona groups in baseline + practice + dependencies |
+| `orchestrationName` | OrchestrationStage | Embedding hierarchy | All orchestrations in baseline + practice + dependencies |
 
 **Validation Order:** Validate acyclicity constraints in this order, as earlier checks enable meaningful later checks:
 
@@ -194,9 +210,10 @@ Practices also reference baselines via `baselinePracticeName`. While a practice 
 2. Alpha hierarchy (`contributesTo` + `mapsTo` combined)
 3. Work product hierarchy (`partOf` + `mapsTo` combined)
 4. PersonaGroup membership hierarchy (`personaGroupNames`)
-5. Cross-element prerequisites (backgrounds)
-6. State-level contributions (`contributesToState`)
-7. Revision chains (`supersedes`)
+5. PatternOrchestration embedding hierarchy (`orchestrationName`)
+6. Cross-element prerequisites (backgrounds)
+7. State-level contributions (`contributesToState`)
+8. Revision chains (`supersedes`)
 
 ### 14.6 Implementation Requirements
 

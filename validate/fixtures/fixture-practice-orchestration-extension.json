@@ -1,0 +1,77 @@
+{
+  "kind": "practice",
+  "name": "Fixture Platform Endeavour Extension",
+  "description": "Exercises the sanctioned extension route: redeclares an orchestration it inherits and contributes its own stages, without re-placing any stage the owner wrote.",
+  "baselinePracticeName": "Fixture Essentials",
+  "practiceDependencyNames": ["Fixture Platform Endeavour"],
+  "version": "1.0.0",
+  "schemaVersion": "3.1.0",
+  "authors": ["keleo-language fixtures"],
+  "createdAt": "2026-10-15",
+  "updatedAt": "2026-10-15",
+  "keywords": ["fixture", "orchestration", "extension"],
+  "patterns": [
+    {
+      "kind": "pattern",
+      "name": "Capability Uplift",
+      "description": "Raising the capability of the teams depending on the platform, alongside the platform's own life.",
+      "patternViews": [
+        {
+          "name": "Assess the Gap",
+          "seq": 1,
+          "description": "Establish what teams cannot yet do unaided.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Identified" }]
+        },
+        {
+          "name": "Close the Gap",
+          "seq": 2,
+          "description": "Run the uplift to the point where teams work unaided.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Available" }]
+        }
+      ]
+    },
+    {
+      "kind": "pattern",
+      "name": "Decommission the Platform",
+      "description": "Retiring the platform once its workloads have somewhere else to live.",
+      "patternViews": [
+        {
+          "name": "Drain",
+          "seq": 1,
+          "description": "Move the workloads off.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Available" }]
+        },
+        {
+          "name": "Retire",
+          "seq": 2,
+          "description": "Take the platform out of service.",
+          "alphaStates": [{ "alphaName": "Platform", "stateName": "Operating" }]
+        }
+      ]
+    }
+  ],
+  "patternOrchestrations": [
+    {
+      "kind": "patternOrchestration",
+      "name": "Platform Endeavour",
+      "description": "The whole life of a platform: sequenced phases, with assurance alongside, sprints inside each phase, and incident response always available.",
+      "stages": [
+        {
+          "patternName": "Capability Uplift",
+          "seq": 1,
+          "relationship": "concurrent",
+          "relativeTo": { "patternName": "Run the Platform" },
+          "recurrence": "once"
+        },
+        {
+          "patternName": "Decommission the Platform",
+          "seq": 3,
+          "relationship": "sequential",
+          "entryCriteria": {
+            "alphaStates": [{ "alphaName": "Platform", "stateName": "Operating" }]
+          }
+        }
+      ]
+    }
+  ]
+}
