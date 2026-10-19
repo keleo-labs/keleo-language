@@ -1813,11 +1813,14 @@ class PracticeValidator:
         return has_errors
 
     def _practice_documents_in_scope(self, own):
-        """Documents whose patterns and orchestrations a stage may name.
+        """Documents whose patterns and orchestrations a symbolic link may name.
 
         Same scope every other symbolic link resolves against -- the baseline chain,
         declared dependencies, and this document. Mirrors _narrative_elements_in_scope.
         A method's constituent practices are unwrapped so their elements resolve too.
+
+        Used by orchestration stage targets and by outcome contributions, which the
+        semantics give the same scope.
         """
         docs = []
         for doc in self._resolve_baseline_chain() + self.dependencies + list(own):
@@ -3357,6 +3360,24 @@ class PracticeValidator:
         wp_expected_metrics = defaultdict(set)
         all_work_products = set()
 
+        # Patterns resolve across the baseline chain and declared dependencies, as
+        # semantics 9.4 says they do and as the alphas and work products below
+        # already did. Indexing only the declaring practice meant a practice could
+        # not bind an outcome to a pattern a dependency owned, and -- because the
+        # index was built inside the per-practice loop and read in the same
+        # iteration -- an outcome in a method's first member practice naming a
+        # pattern of a later member failed on document order alone.
+        for pattern, _owner in self._patterns_in_scope(practices).values():
+            pat_name = pattern.get('name', '')
+            if pat_name:
+                all_pattern_names.add(pat_name)
+            for view in pattern.get('patternViews', []):
+                vname = view.get('name')
+                if vname:
+                    all_pattern_views.add(vname)
+                    if pat_name:
+                        pattern_views_by_pattern[pat_name].add(vname)
+
         for alpha in self.baseline.get('alphas', []):
             all_alphas.add(alpha['name'])
             for state in alpha.get('states', []):
@@ -3389,17 +3410,6 @@ class PracticeValidator:
                     for em in wp.get('expectedMetrics', []):
                         if em.get('name'):
                             wp_expected_metrics[wpname].add(em['name'])
-
-            for pattern in practice.get('patterns', []):
-                pat_name = pattern.get('name', '')
-                if pat_name:
-                    all_pattern_names.add(pat_name)
-                for view in pattern.get('patternViews', []):
-                    vname = view.get('name')
-                    if vname:
-                        all_pattern_views.add(vname)
-                        if pat_name:
-                            pattern_views_by_pattern[pat_name].add(vname)
 
             outcomes = practice.get('outcomes', [])
             path_prefix = f"{prefix}.outcomes" if prefix else "outcomes"
@@ -3556,7 +3566,7 @@ class PracticeValidator:
                             "issue": f"Outcome '{oname}' references unknown pattern '{oc_pattern}'",
                             "expected": f"One of: {sorted(all_pattern_names)}",
                             "actual": oc_pattern,
-                            "suggestion": "Use a Pattern.name defined in this practice"
+                            "suggestion": "Use a Pattern.name defined in this practice, its baseline chain, or a declared dependency"
                         })
                         has_errors = True
                         scoped_views = all_pattern_views
@@ -3588,7 +3598,12 @@ class PracticeValidator:
                             })
                             has_errors = True
 
-            if all_pattern_names and outcomes:
+            # Deliberately the practice's own patterns, not the in-scope index above.
+            # The advice is that a practice owning a lifecycle should track maturity
+            # against it; a practice that merely depends on one owns no such claim,
+            # and reading the wider index here would fire on every extension practice
+            # in the corpus.
+            if practice.get('patterns') and outcomes:
                 has_objective = any(
                     outcome.get('objectiveContributions')
                     for outcome in outcomes

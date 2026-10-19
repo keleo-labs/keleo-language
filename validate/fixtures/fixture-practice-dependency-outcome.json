@@ -1,0 +1,45 @@
+{
+  "kind": "practice",
+  "name": "Fixture Dependency Outcome",
+  "description": "Exercises outcome contribution scope: a practice holding no patterns of its own that measures an outcome against a pattern owned by a declared dependency (semantics 9.4).",
+  "baselinePracticeName": "Fixture Essentials",
+  "practiceDependencyNames": [
+    "Fixture Platform Endeavour"
+  ],
+  "version": "1.0.0",
+  "schemaVersion": "3.1.0",
+  "authors": [
+    "keleo-language fixtures"
+  ],
+  "createdAt": "2026-10-19",
+  "updatedAt": "2026-10-19",
+  "keywords": [
+    "fixture",
+    "outcome",
+    "scope"
+  ],
+  "outcomes": [
+    {
+      "kind": "outcome",
+      "name": "Platform In Service",
+      "description": "Whether the platform this practice depends on reached service.",
+      "measureDescription": "Percentage of the bootstrap lifecycle completed.",
+      "objectiveContributions": [
+        {
+          "patternName": "Bootstrap the Platform",
+          "recognizedAtPatternViewName": "Stand It Up",
+          "forecastWeights": [
+            {
+              "patternViewName": "Agree the Need",
+              "weight": 0.4
+            },
+            {
+              "patternViewName": "Stand It Up",
+              "weight": 1.0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
