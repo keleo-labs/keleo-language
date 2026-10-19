@@ -1856,6 +1856,60 @@ class PracticeValidator:
                     found.setdefault(orch['name'], (orch, owner))
         return found
 
+    def _merged_orchestration_stages(self, name, own):
+        """Every stage declared under `name` anywhere in scope, keyed by identity.
+
+        An orchestration merges by name across the baseline chain, declared
+        dependencies and this document (merge.md 6.15a), so anything referencing a
+        stage resolves against the merge rather than against whichever declaration
+        happened to be found first. A baseline shell carries no stages at all, and
+        reading only that would hide every stage a dependency contributed.
+
+        Keyed by (target, host) with the first writer winning, as the merge does.
+        Differs from _inherited_orchestration, which deliberately excludes this
+        document's own declaration because that is the thing being checked.
+        """
+        merged = {}
+        for doc in self._practice_documents_in_scope(own):
+            for orch in doc.get('patternOrchestrations', []):
+                if not isinstance(orch, dict) or orch.get('name') != name:
+                    continue
+                for stage in orch.get('stages', []):
+                    if isinstance(stage, dict):
+                        key = (self._stage_target(stage), self._stage_host(stage))
+                        merged.setdefault(key, stage)
+        return merged
+
+    def _resolve_stage_ref(self, ref, merged_stages):
+        """The stage a StageRef names, or None.
+
+        A StageRef is the identity of a stage rather than a search for one: target
+        plus host, the same key the merge uses, so resolution is a lookup and the
+        reference means the same stage to every consumer. A target-only reference
+        would have to carry a rule for what happens when one pattern is placed
+        twice -- nested in a plan and also available on demand, which semantics
+        9.5.3 permits -- and two implementations of that rule can disagree. The
+        on-demand placement also has no host, so under a target-only reference with
+        a disambiguator it could not be named at all.
+
+        A StageRef has the same shape as the identifying half of a stage, so the
+        stage accessors read it directly.
+        """
+        if not isinstance(ref, dict):
+            return None
+        key = (self._stage_target(ref), self._stage_host(ref))
+        return merged_stages.get(key)
+
+    @staticmethod
+    def _describe_stage_ref(ref):
+        """A StageRef as it reads in a message."""
+        kind, name = PracticeValidator._stage_target(ref)
+        host_kind, host_name = PracticeValidator._stage_host(ref)
+        text = f"{kind} '{name}'"
+        if host_name:
+            text += f" against {host_kind} '{host_name}'"
+        return text
+
     @staticmethod
     def _stage_target(stage):
         """(kind, name) for what a stage places -- 'pattern' or 'orchestration'."""
@@ -3346,6 +3400,100 @@ class PracticeValidator:
 
         return None
 
+    def _check_stage_contribution(self, oc, oc_path, oname, orchestrations, own) -> bool:
+        """The orchestration arm of an objective contribution.
+
+        See semantics/execution-and-patterns.md 9.4. A practice may declare the shape
+        of an endeavour while holding none of its patterns, and is then the document
+        with the best claim to the outcome; the pattern arm cannot express that,
+        because the practice has no pattern to name.
+        """
+        has_errors = False
+        o_name = oc.get('orchestrationName', '')
+        if o_name not in orchestrations:
+            self.errors.append({
+                "category": "outcomes",
+                "path": f"{oc_path}.orchestrationName",
+                "issue": f"Outcome '{oname}' references unknown orchestration '{o_name}'",
+                "expected": f"One of: {sorted(orchestrations)}" if orchestrations else "An orchestration name",
+                "actual": o_name,
+                "suggestion": "Use a PatternOrchestration.name declared in this practice, its baseline chain, or a declared dependency"
+            })
+            return True
+
+        merged = self._merged_orchestration_stages(o_name, own)
+
+        def resolve(ref, path):
+            stage = self._resolve_stage_ref(ref, merged)
+            if stage is not None:
+                return stage
+            described = self._describe_stage_ref(ref) if isinstance(ref, dict) else repr(ref)
+            self.errors.append({
+                "category": "outcomes",
+                "path": path,
+                "issue": (f"Outcome '{oname}' stage reference to {described} matches no stage of "
+                          f"orchestration '{o_name}'"),
+                "expected": f"One of: {sorted(self._describe_stage_ref(s) for s in merged.values())}" if merged else "A stage of the named orchestration",
+                "actual": described,
+                "suggestion": "Name the stage exactly as the orchestration places it, including relativeTo where the stage declares a host"
+            })
+            return None
+
+        recognized_stage = None
+        if oc.get('recognizedAtStage') is not None:
+            recognized_stage = resolve(oc['recognizedAtStage'], f"{oc_path}.recognizedAtStage")
+            if recognized_stage is None:
+                has_errors = True
+            elif recognized_stage.get('relationship') == 'onDemand':
+                # Advice, not a rule. An outcome reaching full weight only when an
+                # exception fires is almost always a modelling mistake, but an
+                # endeavour whose whole point is the exception is conceivable.
+                self.warnings.append({
+                    "category": "outcomes",
+                    "severity": "warning",
+                    "path": f"{oc_path}.recognizedAtStage",
+                    "issue": f"Outcome '{oname}' is recognised at an onDemand stage of '{o_name}'",
+                    "expected": "Recognition at a stage the endeavour reaches by design",
+                    "actual": "An onDemand stage, entered only when its trigger is recognised",
+                    "suggestion": "Recognise the outcome at the stage that completes the endeavour, and weight the onDemand stage below it"
+                })
+
+        weights = oc.get('stageForecastWeights', []) or []
+        recognized_weight = None
+        for fw_idx, fw in enumerate(weights):
+            if not isinstance(fw, dict):
+                continue
+            stage = resolve(fw.get('stage'), f"{oc_path}.stageForecastWeights[{fw_idx}].stage")
+            if stage is None:
+                has_errors = True
+            elif recognized_stage is not None and stage is recognized_stage:
+                recognized_weight = fw.get('weight')
+
+        if recognized_stage is not None and weights:
+            described = self._describe_stage_ref(oc['recognizedAtStage'])
+            if recognized_weight is None:
+                self.warnings.append({
+                    "category": "outcomes",
+                    "severity": "warning",
+                    "path": f"{oc_path}.stageForecastWeights",
+                    "issue": f"Outcome '{oname}' recognizedAtStage ({described}) is not listed in stageForecastWeights",
+                    "expected": f"Entry for {described} with weight 1.0",
+                    "actual": "Not present in stageForecastWeights",
+                    "suggestion": "Add a stageForecastWeight entry for the recognised stage with weight 1.0"
+                })
+            elif recognized_weight != 1.0:
+                self.warnings.append({
+                    "category": "outcomes",
+                    "severity": "warning",
+                    "path": f"{oc_path}.stageForecastWeights",
+                    "issue": f"Outcome '{oname}' recognizedAtStage ({described}) does not have weight 1.0 in stageForecastWeights",
+                    "expected": f"Weight 1.0 for {described}",
+                    "actual": recognized_weight,
+                    "suggestion": "The recognised stage should have weight 1.0 (full recognition)"
+                })
+
+        return has_errors
+
     def validate_outcomes(self) -> bool:
         """Validate outcomes array: cross-references, count, and measureDescription."""
         has_errors = False
@@ -3367,16 +3515,29 @@ class PracticeValidator:
         # index was built inside the per-practice loop and read in the same
         # iteration -- an outcome in a method's first member practice naming a
         # pattern of a later member failed on document order alone.
-        for pattern, _owner in self._patterns_in_scope(practices).values():
-            pat_name = pattern.get('name', '')
-            if pat_name:
-                all_pattern_names.add(pat_name)
-            for view in pattern.get('patternViews', []):
-                vname = view.get('name')
-                if vname:
-                    all_pattern_views.add(vname)
-                    if pat_name:
-                        pattern_views_by_pattern[pat_name].add(vname)
+        #
+        # Views are unioned across every declaration of a name rather than taken
+        # from the first. Patterns merge by name and their views merge additively,
+        # so the merged pattern is what an outcome measures against.
+        # _patterns_in_scope answers "who owns this name", which is the wrong
+        # question here: where a practice extends an inherited pattern,
+        # first-writer-wins hands back the inherited views and drops the ones the
+        # practice declared itself, so its own outcome stops resolving against its
+        # own phases.
+        orchestrations_in_scope = self._orchestrations_in_scope(practices)
+        for doc in self._practice_documents_in_scope(practices):
+            for pattern in doc.get('patterns', []):
+                if not isinstance(pattern, dict):
+                    continue
+                pat_name = pattern.get('name', '')
+                if pat_name:
+                    all_pattern_names.add(pat_name)
+                for view in pattern.get('patternViews', []):
+                    vname = view.get('name')
+                    if vname:
+                        all_pattern_views.add(vname)
+                        if pat_name:
+                            pattern_views_by_pattern[pat_name].add(vname)
 
         for alpha in self.baseline.get('alphas', []):
             all_alphas.add(alpha['name'])
@@ -3548,14 +3709,37 @@ class PracticeValidator:
                 for oc_idx, oc in enumerate(outcome.get('objectiveContributions', [])):
                     oc_path = f"{opath}.objectiveContributions[{oc_idx}]"
                     oc_pattern = oc.get('patternName', '')
+                    oc_orch = oc.get('orchestrationName', '')
+
+                    # Exactly one arm, as the schema's oneOf says and as an
+                    # OrchestrationStage declares its own target. Checked here too
+                    # because this validator is run against documents whose schema
+                    # conformance has not always been established first.
+                    if oc_pattern and oc_orch:
+                        self.errors.append({
+                            "category": "outcomes",
+                            "path": oc_path,
+                            "issue": f"Outcome '{oname}' objectiveContribution names both a pattern and an orchestration",
+                            "expected": "Exactly one of patternName and orchestrationName",
+                            "actual": f"patternName '{oc_pattern}' and orchestrationName '{oc_orch}'",
+                            "suggestion": "Measure against the pattern's views or the orchestration's stages, not both; split them into two contributions if both are meant"
+                        })
+                        has_errors = True
+                        continue
+
+                    if oc_orch:
+                        has_errors |= self._check_stage_contribution(
+                            oc, oc_path, oname, orchestrations_in_scope, practices)
+                        continue
+
                     if not oc_pattern:
                         self.errors.append({
                             "category": "outcomes",
-                            "path": f"{oc_path}.patternName",
-                            "issue": f"Outcome '{oname}' objectiveContribution missing required patternName",
-                            "expected": f"One of: {sorted(all_pattern_names)}" if all_pattern_names else "A pattern name",
-                            "actual": "(missing)",
-                            "suggestion": "Add patternName to scope pattern view references (analogous to alphaName on MetricContribution)"
+                            "path": oc_path,
+                            "issue": f"Outcome '{oname}' objectiveContribution names neither a pattern nor an orchestration",
+                            "expected": f"patternName (one of: {sorted(all_pattern_names)}) or orchestrationName" if all_pattern_names else "A patternName or an orchestrationName",
+                            "actual": "(neither present)",
+                            "suggestion": "Add patternName to measure against a pattern's views, or orchestrationName to measure against an orchestration's stages"
                         })
                         has_errors = True
                         scoped_views = all_pattern_views
@@ -3598,12 +3782,12 @@ class PracticeValidator:
                             })
                             has_errors = True
 
-            # Deliberately the practice's own patterns, not the in-scope index above.
-            # The advice is that a practice owning a lifecycle should track maturity
-            # against it; a practice that merely depends on one owns no such claim,
-            # and reading the wider index here would fire on every extension practice
-            # in the corpus.
-            if practice.get('patterns') and outcomes:
+            # Deliberately the practice's own patterns and orchestrations, not the
+            # in-scope indexes above. The advice is that a practice owning a lifecycle
+            # or the shape of an endeavour should track maturity against it; a practice
+            # that merely depends on one owns no such claim, and reading the wider
+            # index here would fire on every extension practice in the corpus.
+            if (practice.get('patterns') or practice.get('patternOrchestrations')) and outcomes:
                 has_objective = any(
                     outcome.get('objectiveContributions')
                     for outcome in outcomes
@@ -3612,8 +3796,8 @@ class PracticeValidator:
                     self.warnings.append({
                         "category": "outcomes",
                         "path": path_prefix,
-                        "issue": f"Practice '{pname}' has lifecycle patterns but no outcome with objectiveContributions — at least one outcome should track adoption maturity via the main lifecycle pattern",
-                        "suggestion": "Add objectiveContributions to one outcome with patternName set to the main lifecycle pattern, recognizedAtPatternViewName to its final view, and monotonically increasing forecastWeights across views"
+                        "issue": f"Practice '{pname}' declares lifecycle patterns or an orchestration but has no outcome with objectiveContributions — at least one outcome should track adoption maturity against the shape it owns",
+                        "suggestion": "Add objectiveContributions to one outcome: patternName with recognizedAtPatternViewName and forecastWeights for a lifecycle pattern, or orchestrationName with recognizedAtStage and stageForecastWeights for an endeavour shape, increasing monotonically"
                     })
 
         return has_errors

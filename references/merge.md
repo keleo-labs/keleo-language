@@ -448,7 +448,7 @@ Orchestrations merge by canonical name. Within an orchestration, `stages` merge 
 - **Narratives**: merge additively by name (Section 6.8).
 - **measureDescription**: scalar, first-writer-wins (Section 4.3).
 - **metricContributions**: unioned by composite key (`alphaName` + `metricName` + `workProductName` or empty). When two contributions share the same key, the overlay takes precedence for `recognizedAtStateName` and `forecastWeights`.
-- **objectiveContributions**: unioned by composite key (`patternName` + `recognizedAtPatternViewName`). When two contributions share the same pattern and view, the overlay's `forecastWeights` take precedence.
+- **objectiveContributions**: unioned by composite key, which depends on the arm the contribution uses. A pattern-scoped contribution keys on `patternName` + `recognizedAtPatternViewName`, and the overlay's `forecastWeights` take precedence where two share it. An orchestration-scoped contribution keys on `orchestrationName` + the stage named by `recognizedAtStage` (its target and host, per Section 6.15a), and the overlay's `stageForecastWeights` take precedence where two share it. The two arms are mutually exclusive, so a contribution has one key and never both.
 
 Outcomes with unique names from either the base or overlay are preserved as-is.
 

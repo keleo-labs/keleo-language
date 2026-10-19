@@ -124,18 +124,20 @@ mean.
 ### 16.5 Progression and measurement guarantees
 
 **An outcome's recognised point carries full weight.** `MetricContribution.forecastWeights`
-maps alpha states to weights and `ObjectiveContribution.forecastWeights` maps pattern
-views to weights. In both, the state or view named by `recognizedAtStateName` or
-`recognizedAtPatternViewName` must be present in the weights and must carry `1.0`. A
-curve whose recognised point sits below full weight contradicts the schema's own
-definition of the property.
+maps alpha states to weights, `ObjectiveContribution.forecastWeights` maps pattern views to
+weights, and `ObjectiveContribution.stageForecastWeights` maps orchestration stages to
+weights. In all three, the state, view or stage named by `recognizedAtStateName`,
+`recognizedAtPatternViewName` or `recognizedAtStage` must be present in the weights and
+must carry `1.0`. A curve whose recognised point sits below full weight contradicts the
+schema's own definition of the property.
 
 *Enforced by* `validate_outcomes` in the practice validator.
 
 **Weights do not fall back.** Once a contribution reaches full weight it stays there for
-later states and views. Where a pattern or an alpha loops, the achieved forecast is the
-highest weight reached on any pass, not the weight of the view or state currently being
-worked — otherwise reported progress would drop each time a team iterated.
+later states, views and stages. Where a pattern or an alpha loops, the achieved forecast
+is the highest weight reached on any pass, not the weight of the view, state or stage
+currently being worked — otherwise reported progress would drop each time a team
+iterated.
 
 *Not enforced here.* The monotonicity check lives in keleo-pgen-llm's `assess-practice.py`
 rather than in these validators, so a document validated only with `validate-practice.py`
