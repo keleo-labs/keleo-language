@@ -658,6 +658,8 @@ Each stage's `narrativeContexts` entry carries a `seq`, a `narrativeElementName`
 
 **A pattern may appear in several orchestrations**, and more than once within one. Reuse is the point: a release pattern belongs to more than one programme shape, and a sprint pattern may be nested in the phases of a milestone plan *and* run on demand when an unplanned increment is needed. The same holds for an embedded orchestration, which is reusable by more than one host by definition ([Section 9.5.4](#954-embedding-an-orchestration)). What must not repeat is the same target placed the same way twice — two stages naming the same pattern or orchestration with the same `relativeTo` are a duplicate, not a layer. This is the counterpart of [Section 9.3.7](#937-ungrouped-patterns), which limits a pattern to one group.
 
+**Target and host are the identity of a stage.** A stage carries no `name` of its own, and `seq` is unique only among sequential stages, so what distinguishes one stage from another is the pair above and nothing else — including the `relationship`, which says how a stage is placed rather than which stage it is. The merge algorithm keys on the same pair, and [merge.md §6.15a](../merge.md#615a-patternorchestration-merging) states it normatively.
+
 **A recurring phase is a stage whose pattern loops.** There is no separate "this stage repeats" property, because [Section 9.2a](#92a-cyclical-patterns-declaring-that-phases-repeat) already provides one: a stage naming a pattern that declares `loopsBackTo` is a recurring phase. Steady-state operation and cyclical change are exactly the phases that need it.
 
 #### 9.5.4 Embedding an Orchestration
