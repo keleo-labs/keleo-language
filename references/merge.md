@@ -422,7 +422,9 @@ PatternGroups with unique names from either the base or overlay are preserved as
 
 ### 6.15a PatternOrchestration Merging
 
-Orchestrations merge by canonical name. Within an orchestration, `stages` merge by the composite key `target::relationship::host`, where `target` is the stage's `patternName` or `orchestrationName` and `host` is `relativeTo.patternName` or `relativeTo.orchestrationName`. The key is not the target alone, because one pattern may legitimately be placed more than once in an orchestration, nested inside a plan and also available on demand. Merging those two together would silently collapse a layer:
+Orchestrations merge by canonical name. Within an orchestration, `stages` merge by the composite key `target::host`, where `target` is the stage's `patternName` or `orchestrationName` and `host` is `relativeTo.patternName` or `relativeTo.orchestrationName`. The key is not the target alone, because one pattern may legitimately be placed more than once in an orchestration, nested inside a plan and also available on demand. Merging those two together would silently collapse a layer:
+
+**`relationship` is not part of the key.** It is one of the placement properties below, where the first writer wins, and a property cannot be both a discriminator and a thing an overlay is ignored for: were it in the key, an overlay restating an inherited stage with a different relationship would produce a second stage rather than being ignored, which is the opposite of what the next bullet says happens. Two stages are the same stage when they place the same target against the same host, which is also how [semantics §9.5.3](semantics/execution-and-patterns.md#953-reuse-and-cycles) defines a duplicate and how `validate_orchestrations` detects one. The three statements are deliberately the same key, because a stage carries no `name` and `seq` is unique only among sequential stages, so this composite is the only identity a stage has.
 
 - `seq`, `relationship`, `recurrence`, `relativeTo` and `trigger`: the **first writer wins**. Each describes placement, and placement belongs to the author who wrote the stage. An overlay restating a stage already present does not move it.
 - `entryCriteria` and `exitCriteria`: the first non-empty value wins.
@@ -446,7 +448,7 @@ Orchestrations merge by canonical name. Within an orchestration, `stages` merge 
 - **Narratives**: merge additively by name (Section 6.8).
 - **measureDescription**: scalar, first-writer-wins (Section 4.3).
 - **metricContributions**: unioned by composite key (`alphaName` + `metricName` + `workProductName` or empty). When two contributions share the same key, the overlay takes precedence for `recognizedAtStateName` and `forecastWeights`.
-- **objectiveContributions**: unioned by composite key (`patternName` + `recognizedAtPatternViewName`). When two contributions share the same pattern and view, the overlay's `forecastWeights` take precedence.
+- **objectiveContributions**: unioned by composite key, which depends on the arm the contribution uses. A pattern-scoped contribution keys on `patternName` + `recognizedAtPatternViewName`, and the overlay's `forecastWeights` take precedence where two share it. An orchestration-scoped contribution keys on `orchestrationName` + the stage named by `recognizedAtStage` (its target and host, per Section 6.15a), and the overlay's `stageForecastWeights` take precedence where two share it. The two arms are mutually exclusive, so a contribution has one key and never both.
 
 Outcomes with unique names from either the base or overlay are preserved as-is.
 

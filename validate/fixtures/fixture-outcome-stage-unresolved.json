@@ -1,0 +1,74 @@
+{
+  "kind": "practice",
+  "name": "Fixture Unresolved Stage Reference",
+  "description": "Negative fixture: a stage reference naming a target without the host the stage declares. Must fail, because a reference is the stage's identity -- target and host together (semantics 9.4).",
+  "baselinePracticeName": "Fixture Essentials",
+  "practiceDependencyNames": [
+    "Fixture Platform Endeavour"
+  ],
+  "version": "1.0.0",
+  "schemaVersion": "3.2.0",
+  "authors": [
+    "keleo-language fixtures"
+  ],
+  "createdAt": "2026-10-19",
+  "updatedAt": "2026-10-19",
+  "keywords": [
+    "fixture",
+    "outcome",
+    "negative"
+  ],
+  "patternOrchestrations": [
+    {
+      "kind": "patternOrchestration",
+      "name": "Hosted Stage Endeavour",
+      "description": "An endeavour running the sprint pattern inside its milestone plan, so that stage is identified by its host as well as its target.",
+      "stages": [
+        {
+          "patternName": "Milestone Plan",
+          "seq": 1,
+          "relationship": "sequential"
+        },
+        {
+          "patternName": "Sprint",
+          "seq": 1,
+          "relationship": "nested",
+          "relativeTo": {
+            "patternName": "Milestone Plan"
+          },
+          "recurrence": "perView"
+        }
+      ]
+    }
+  ],
+  "outcomes": [
+    {
+      "kind": "outcome",
+      "name": "Increments Delivered",
+      "description": "Whether the endeavour delivered its increments.",
+      "measureDescription": "Percentage of the endeavour completed, weighted by stage.",
+      "objectiveContributions": [
+        {
+          "orchestrationName": "Hosted Stage Endeavour",
+          "recognizedAtStage": {
+            "patternName": "Sprint"
+          },
+          "stageForecastWeights": [
+            {
+              "stage": {
+                "patternName": "Milestone Plan"
+              },
+              "weight": 0.5
+            },
+            {
+              "stage": {
+                "patternName": "Sprint"
+              },
+              "weight": 1.0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

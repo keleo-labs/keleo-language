@@ -1,0 +1,42 @@
+{
+  "kind": "practice",
+  "name": "Fixture Mixed Contribution",
+  "description": "Negative fixture: an objective contribution naming both a pattern and an orchestration. Must fail the schema, which admits exactly one arm (semantics 9.4).",
+  "baselinePracticeName": "Fixture Essentials",
+  "practiceDependencyNames": [
+    "Fixture Platform Endeavour"
+  ],
+  "version": "1.0.0",
+  "schemaVersion": "3.2.0",
+  "authors": [
+    "keleo-language fixtures"
+  ],
+  "createdAt": "2026-10-19",
+  "updatedAt": "2026-10-19",
+  "keywords": [
+    "fixture",
+    "outcome",
+    "negative"
+  ],
+  "outcomes": [
+    {
+      "kind": "outcome",
+      "name": "Both At Once",
+      "description": "An outcome that cannot decide what it measures against.",
+      "measureDescription": "Percentage of something completed.",
+      "objectiveContributions": [
+        {
+          "patternName": "Bootstrap the Platform",
+          "orchestrationName": "Platform Endeavour",
+          "recognizedAtPatternViewName": "Stand It Up",
+          "forecastWeights": [
+            {
+              "patternViewName": "Stand It Up",
+              "weight": 1.0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

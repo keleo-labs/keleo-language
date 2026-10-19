@@ -455,12 +455,35 @@ Outcomes support two distinct measurement mechanisms that operate on different u
 
 The evidentiary chain is specified in [Section 12.8](project-tracking.md#128-outcome-instances-and-value-tracking). Rates (percentages, ratios) should be stored as an already-computed value on one work product instance — do not ask the engine to average or otherwise reduce deal-level metrics into a rate.
 
-**Objective Contributions** — compute percentage progress from pattern view completion. An ObjectiveContribution declares:
+**Objective Contributions** — compute percentage progress from completion, measured either against one pattern's views or against one orchestration's stages. Which of the two a contribution uses is declared the same way an `OrchestrationStage` declares its target: `patternName` and `orchestrationName` are mutually exclusive, and exactly one is present.
+
+A pattern-scoped contribution declares:
 - Which pattern's views are used to measure progress (`patternName`)
 - At which pattern view the outcome is fully achieved (`recognizedAtPatternViewName`)
 - View-level weights for cumulative progress calculation (`forecastWeights`)
 
-A consuming system checks which pattern views have been completed (all alpha state and work product objectives met for that phase), then applies the weight for the highest completed view.
+An orchestration-scoped contribution declares:
+- Which orchestration's stages are used to measure progress (`orchestrationName`)
+- At which stage the outcome is fully achieved (`recognizedAtStage`)
+- Stage-level weights for cumulative progress calculation (`stageForecastWeights`)
+
+A consuming system checks which pattern views have been completed (all alpha state and work product objectives met for that phase), then applies the weight for the highest completed view — or, for an orchestration, the highest completed stage, resolved as below.
+
+#### Recognising an Outcome Against an Orchestration
+
+A practice may exist to declare an orchestration and nothing else — composing patterns its dependencies own, holding none of its own ([Section 9.5.6](#956-choosing-the-level)). That practice is usually the one with the best claim to the outcome, because it is the document describing the endeavour end to end while each constituent pattern sees only its own track. Pushing the outcome down into a constituent attributes it to a narrower scope than the one that earns it.
+
+**A stage is identified by what it places and what it is placed against.** A stage carries no name, so `recognizedAtStage` and each entry in `stageForecastWeights` reference one by its `patternName` or `orchestrationName` together with its `relativeTo` host — the same composite key the merge uses ([Section 9.5.3](#953-reuse-and-cycles)). The reference is that key rather than a search for it: name the host where the stage declares one, and omit it where the stage has none, as sequential and on-demand stages do. Resolution is then a lookup, and a reference means the same stage to every consumer.
+
+The alternative — naming only the target and disambiguating when it turns out to be placed twice — reads shorter and resolves worse. It needs a rule for the sprint that is nested in a milestone plan *and* available on demand, two implementations can disagree about that rule, and the on-demand placement has no host to disambiguate it with, so it could not be named at all.
+
+References resolve against the **merged** orchestration, so stages contributed by the baseline chain and by declared dependencies are available to name, not only the stages this document wrote.
+
+**A stage completes when the thing it places completes, and that resolves downwards.** A stage naming a pattern is complete when that pattern's views are complete, which is what view completion already means everywhere else and what a project records through `ProjectCycle.patternViewName` ([Section 12.7](project-tracking.md#127-cycles-and-operational-work-tracking)). A stage naming an orchestration is complete when that orchestration's own stages resolve the same way, one level down. The recursion terminates because an orchestration may not embed itself directly or through a chain ([Section 14.1.8](acyclicity.md#1418-patternorchestration-embedding-hierarchy-orchestrationstageorchestrationname)).
+
+The consequence is that an orchestration-scoped outcome needs nothing new at the project level. It is computed from the same pattern view completions a pattern-scoped one is, aggregated through the shape of the endeavour rather than read off a single pattern.
+
+**Sequence is what makes a curve mean anything.** `seq` is a strict order only among sequential stages; concurrent and nested stages are anchored to their host's position and on-demand stages have no position at all. Weights are therefore most legible across the sequential spine, with other stages weighted where they sit. An on-demand stage is a poor recognised point — an outcome that reaches full weight only when an exception is triggered is almost always a modelling mistake — so the validator warns where one is named.
 
 #### Forecast Weights
 
@@ -468,6 +491,7 @@ Both contribution types use an analogous forecast weight pattern:
 
 - **StateForecastWeight** maps alpha state names to probability weights (0–1). States not listed have implicit weight 0. The `recognizedAtStateName` should correspond to a weight of 1.0 in the forecast array.
 - **ViewForecastWeight** maps pattern view names to cumulative progress weights (0–1). Views not listed have implicit weight 0. The `recognizedAtPatternViewName` should correspond to a weight of 1.0.
+- **StageForecastWeight** maps orchestration stages to cumulative progress weights (0–1), by the same rule one level up. Stages not listed have implicit weight 0, and the stage named by `recognizedAtStage` should correspond to a weight of 1.0.
 
 Forecast weights enable systems to compute weighted projections before full recognition — e.g., a sales pipeline that counts Committed opportunities at 80% and Best Case at 40%.
 
@@ -476,6 +500,8 @@ Forecast weights enable systems to compute weighted projections before full reco
 - An outcome may have metric contributions, objective contributions, or both
 - Use metric contributions when the outcome's progress is a numerical aggregate from external data (revenue, user counts, capacity)
 - Use objective contributions when the outcome's progress maps to lifecycle phase completion (readiness, maturity, compliance)
+- Scope an objective contribution to an orchestration when the practice owns the shape of the endeavour rather than its phases; a practice declaring an orchestration and no patterns is the clear case
+- Scope it to a pattern when the practice owns that pattern, or depends on one whose phases are the right granularity for the outcome. Pattern names resolve across the baseline chain and declared dependencies, as every other symbolic link does
 - The `measureDescription` should explain the measurement framework clearly enough for project teams to set meaningful targets
 - Metric names in MetricContributions must match the `name` field on Metric objects in work product instances (see [Section 7.4](work-products.md#74-work-product-instance-metrics))
 - When `workProductName` is set, it must match a WorkProduct.name in the practice or its dependencies
@@ -527,15 +553,60 @@ Forecast weights enable systems to compute weighted projections before full reco
 }
 ```
 
+#### Example: An Outcome on a Composition Practice
+
+A practice that holds no patterns, declares one orchestration over patterns its dependencies own, and measures the endeavour it composes:
+
+```json
+{
+  "outcomes": [
+    {
+      "name": "Programme Benefits Realised",
+      "description": "The benefits the programme was chartered to deliver.",
+      "measureDescription": "Percentage of the programme shape completed, weighted by tranche.",
+      "objectiveContributions": [
+        {
+          "orchestrationName": "Programme Endeavour",
+          "recognizedAtStage": { "orchestrationName": "Project Endeavour" },
+          "stageForecastWeights": [
+            { "stage": { "patternName": "Tranche Plan" }, "weight": 0.3 },
+            { "stage": { "orchestrationName": "Project Endeavour" }, "weight": 1.0 }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+The second stage is an embedded sub-endeavour, and naming it as the recognised point says the programme is realised when the project endeavour run inside it is. Resolving that stage goes one level down into the project's own stages and then into pattern views, which is where the project data lives.
+
+Where the same orchestration places `Sprint` twice — nested in a milestone plan and again on demand — the two are different stages, and a weight entry names the host to say which it means. The nested placement:
+
+```json
+{ "stage": { "patternName": "Sprint", "relativeTo": { "patternName": "Milestone Plan" } }, "weight": 0.6 }
+```
+
+The on-demand one, which declares no host, carries no `relativeTo` either:
+
+```json
+{ "stage": { "patternName": "Sprint" }, "weight": 0.2 }
+```
+
 #### Validation Rules
 
 - `MetricContribution.alphaName` must match an Alpha.name in the practice or its dependencies
 - `MetricContribution.workProductName`, when present, must match a WorkProduct.name in the practice or its dependencies
 - `MetricContribution.recognizedAtStateName` must match a State.name within the named alpha
 - `MetricContribution.forecastWeights[].stateName` must match a State.name within the named alpha
-- `ObjectiveContribution.patternName` must match a Pattern.name in the practice or its dependencies
+- `ObjectiveContribution` carries exactly one of `patternName` and `orchestrationName`, with the recognition property and weight array of the other arm absent
+- `ObjectiveContribution.patternName` must match a Pattern.name in the practice, its baseline chain or its declared dependencies
 - `ObjectiveContribution.recognizedAtPatternViewName` must match a PatternView.name within the named pattern
 - `ObjectiveContribution.forecastWeights[].patternViewName` must match a PatternView.name within the named pattern
+- `ObjectiveContribution.orchestrationName` must match a PatternOrchestration.name in the same scope
+- `ObjectiveContribution.recognizedAtStage` and each `stageForecastWeights[].stage` must match a stage of the merged orchestration on target and host together. A reference matching none is an error, including one that omits the host of a stage that declares one
+- The stage named by `recognizedAtStage` must appear in `stageForecastWeights` carrying weight 1.0, as `recognizedAtPatternViewName` must in `forecastWeights`
+- Naming an `onDemand` stage as the recognised point is a warning, not an error
 
 ### 9.5 Pattern Orchestration: Layering Patterns Across an Endeavour
 
@@ -657,6 +728,8 @@ Each stage's `narrativeContexts` entry carries a `seq`, a `narrativeElementName`
 #### 9.5.3 Reuse and Cycles
 
 **A pattern may appear in several orchestrations**, and more than once within one. Reuse is the point: a release pattern belongs to more than one programme shape, and a sprint pattern may be nested in the phases of a milestone plan *and* run on demand when an unplanned increment is needed. The same holds for an embedded orchestration, which is reusable by more than one host by definition ([Section 9.5.4](#954-embedding-an-orchestration)). What must not repeat is the same target placed the same way twice — two stages naming the same pattern or orchestration with the same `relativeTo` are a duplicate, not a layer. This is the counterpart of [Section 9.3.7](#937-ungrouped-patterns), which limits a pattern to one group.
+
+**Target and host are the identity of a stage.** A stage carries no `name` of its own, and `seq` is unique only among sequential stages, so what distinguishes one stage from another is the pair above and nothing else — including the `relationship`, which says how a stage is placed rather than which stage it is. The merge algorithm keys on the same pair, and [merge.md §6.15a](../merge.md#615a-patternorchestration-merging) states it normatively.
 
 **A recurring phase is a stage whose pattern loops.** There is no separate "this stage repeats" property, because [Section 9.2a](#92a-cyclical-patterns-declaring-that-phases-repeat) already provides one: a stage naming a pattern that declares `loopsBackTo` is a recurring phase. Steady-state operation and cyclical change are exactly the phases that need it.
 

@@ -1,0 +1,70 @@
+{
+  "kind": "practice",
+  "name": "Fixture Composition Outcome",
+  "description": "Exercises an outcome recognised against an orchestration: a practice holding no patterns of its own, declaring the shape of an endeavour that places a pattern and embeds a whole sub-endeavour its dependency owns, and measuring that shape (semantics 9.4).",
+  "baselinePracticeName": "Fixture Essentials",
+  "practiceDependencyNames": [
+    "Fixture Platform Endeavour"
+  ],
+  "version": "1.0.0",
+  "schemaVersion": "3.2.0",
+  "authors": [
+    "keleo-language fixtures"
+  ],
+  "createdAt": "2026-10-19",
+  "updatedAt": "2026-10-19",
+  "keywords": [
+    "fixture",
+    "outcome",
+    "orchestration"
+  ],
+  "patternOrchestrations": [
+    {
+      "kind": "patternOrchestration",
+      "name": "Adoption Endeavour",
+      "description": "The shape of an adoption: plan the milestones, then run the platform endeavour the platform practice owns, embedded rather than restated.",
+      "stages": [
+        {
+          "patternName": "Milestone Plan",
+          "seq": 1,
+          "relationship": "sequential"
+        },
+        {
+          "orchestrationName": "Platform Endeavour",
+          "seq": 2,
+          "relationship": "sequential"
+        }
+      ]
+    }
+  ],
+  "outcomes": [
+    {
+      "kind": "outcome",
+      "name": "Adoption Realised",
+      "description": "Whether the adoption this practice shapes reached steady-state operation.",
+      "measureDescription": "Percentage of the adoption endeavour completed, weighted by stage.",
+      "objectiveContributions": [
+        {
+          "orchestrationName": "Adoption Endeavour",
+          "recognizedAtStage": {
+            "orchestrationName": "Platform Endeavour"
+          },
+          "stageForecastWeights": [
+            {
+              "stage": {
+                "patternName": "Milestone Plan"
+              },
+              "weight": 0.3
+            },
+            {
+              "stage": {
+                "orchestrationName": "Platform Endeavour"
+              },
+              "weight": 1.0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
