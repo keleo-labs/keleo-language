@@ -76,10 +76,21 @@ class PracticeValidator:
             sys.exit(1)
 
     def _resolve_baseline_chain(self) -> List[Dict]:
-        """Walk the baseline inheritance chain and return all baselines (child-first)."""
+        """Walk the baseline inheritance graph and return all baselines (child-first).
+
+        A Practice names one parent with the singular ``baselinePracticeName``; a
+        PracticeBaseline names its own parents with the **array**
+        ``baselinePracticeNames``. Reading only the singular form stopped the walk
+        at the first baseline that used the array, so none of the root baseline's
+        focuses, activity spaces or competencies were ever indexed and every
+        reference to one was reported invalid. ``_precedence_order`` already reads
+        the array form, so it was ranking a baseline this walk never loaded.
+
+        Breadth-first rather than linear, because the array admits more than one
+        parent. ``visited`` keyed on name makes a diamond or a cycle terminate.
+        """
         chain = [self.baseline]
         visited = {self.baseline.get('name')}
-        current = self.baseline
         resolved_parent = self.baseline_file.resolve().parent
         search_dirs = [resolved_parent]
         project_root = resolved_parent
@@ -89,17 +100,25 @@ class PracticeValidator:
                 break
             project_root = project_root.parent
 
-        while True:
-            parent_name = current.get('baselinePracticeName')
-            if not parent_name or parent_name in visited:
-                break
-            visited.add(parent_name)
-            parent = self._find_baseline_by_name(parent_name, search_dirs)
-            if not parent:
-                print(f"WARNING: Could not find parent baseline '{parent_name}' in search path", file=sys.stderr)
-                break
-            chain.append(parent)
-            current = parent
+        queue = [self.baseline]
+        while queue:
+            current = queue.pop(0)
+            parent_names = []
+            singular = current.get('baselinePracticeName')
+            if singular:
+                parent_names.append(singular)
+            parent_names.extend(current.get('baselinePracticeNames', []) or [])
+
+            for parent_name in parent_names:
+                if not parent_name or parent_name in visited:
+                    continue
+                visited.add(parent_name)
+                parent = self._find_baseline_by_name(parent_name, search_dirs)
+                if not parent:
+                    print(f"WARNING: Could not find parent baseline '{parent_name}' in search path", file=sys.stderr)
+                    continue
+                chain.append(parent)
+                queue.append(parent)
         return chain
 
     def _find_baseline_by_name(self, name: str, search_dirs: List[Path]) -> Optional[Dict]:
@@ -3819,6 +3838,21 @@ class PracticeValidator:
             declared_deps.add(baseline_name)
         for dep_name in self.practice.get('practiceDependencyNames', []):
             declared_deps.add(dep_name)
+        # A method declares its members with `practiceNames`, and CLAUDE.md
+        # lists that property alongside the other two as something a
+        # dependencyVersions entry may name. Omitting it here meant a method
+        # that correctly constrained its members was warned once per member
+        # that the constraint was orphaned — 15 such warnings on one shipped
+        # method. apply-versioning.py's get_dependency_names() already reads
+        # it, so the two tools were contradicting each other and the one that
+        # writes the constraints was the one that was right.
+        for member_name in self.practice.get('practiceNames', []) or []:
+            if isinstance(member_name, str):
+                declared_deps.add(member_name)
+        # A PracticeBaseline names its parents with the array form.
+        for parent_name in self.practice.get('baselinePracticeNames', []) or []:
+            if isinstance(parent_name, str):
+                declared_deps.add(parent_name)
 
         dep_docs_by_name = {}
         if baseline_name and self.baseline:
@@ -3905,7 +3939,21 @@ class PracticeValidator:
 
     def validate_bindings(self) -> bool:
         """Validate method-level bindings (cross-baseline alpha and work product relationships)."""
-        is_method = 'practices' in self.practice or 'baselinePractice' in self.practice
+        # An *externalized* method — the shape `.keleo` requires — declares
+        # `practiceNames` and `baselinePracticeName`, and neither of the two
+        # keys this used to test. So every target alpha, source alpha and state
+        # correspondence in `bindings` went unchecked on precisely the documents
+        # that get packaged. One method's three bindings were caught only
+        # because they had been written at the root, where JSON Schema rejected
+        # them; nested correctly, nothing in the pipeline would have looked.
+        # Same `practiceNames` blind spot as the orphaned-constraint bug, in a
+        # second function of this file.
+        is_method = (
+            'practices' in self.practice
+            or 'baselinePractice' in self.practice
+            or 'practiceNames' in self.practice
+            or self.practice.get('kind') == 'method'
+        )
         if not is_method:
             return True
 
