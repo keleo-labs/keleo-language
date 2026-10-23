@@ -383,6 +383,8 @@ Extension practices then adopt baseline groups by defining patternGroups with th
 
 Without baseline-defined groups, each extension practice independently invents group names. In a three-practice method, this produces three disjoint sets of categories with no cross-practice merging — defeating the purpose of groups. Baseline-defined groups act as a shared vocabulary, ensuring that patterns from different practices land in coherent, merged categories.
 
+Both practice and baseline validators report a `deprecation` warning for a non-empty `patternGroups` array, including groups whose `entries` are empty. The declaration remains valid; an absent or empty array produces no warning.
+
 #### 9.3.2 When to Use PatternGroups
 
 - When a practice contributes three or more patterns.
@@ -666,6 +668,8 @@ Real endeavours are layered, not a queue. Some patterns follow one another, some
 **Uniqueness is across the merged orchestration, not within one document.** An orchestration's name may be extended by several practices ([Section 9.5.5](#955-baseline-published-shells)), so two of them taking the same sequential position produce one merged orchestration with two stages claiming to be third. Each document is internally consistent, which is why the position has to be read against every contribution in scope rather than against the document in hand.
 
 **Concurrent against nested.** Both run during another pattern, and the distinction is subordination. A concurrent stage is a peer: it has its own lifetime, the host does not bound it, and it renders as a track beside the host. A nested stage is contained: the host's phase boundary ends it, and it renders inside the host. If the question "what happens to this pattern when the host's phase ends?" answers *it stops*, it is nested; if it answers *it carries on*, it is concurrent.
+
+Validation warns once per merged orchestration when it has stages but none declares `relationship: "sequential"`. The check includes the baseline chain, dependencies and all practices in a method. An empty shell stays silent. An `onDemand` host with nested or concurrent stages still triggers the warning: hosting other stages does not declare progression.
 
 ##### Scoping to particular phases
 

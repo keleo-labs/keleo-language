@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/language.schema.json",
-  "$comment": "schemaVersion:3.2.0",
+  "$comment": "schemaVersion:3.2.1",
   "title": "Practice language (from language.mmd)",
   "description": "JSON Schema derived from the Mermaid classDiagram in language.mmd. Identity is by name; most cross-links are string names (not embedded objects). Root validation discriminates Practice vs Method vs PracticeBaseline. Method can use embedded objects (baselinePractice + practices) or string references (baselinePracticeName + practiceNames) or a mix.",
   "$defs": {
@@ -1137,7 +1137,7 @@
               "type": "array",
               "minItems": 0,
               "items": { "$ref": "#/$defs/OrchestrationStage" },
-              "description": "The constituent patterns and sub-orchestrations in the order they apply. Empty in a baseline-published shell, which establishes the name and the shape without committing to stages the baseline has no patterns to fill."
+              "description": "The constituent patterns and sub-orchestrations in the order they apply. Empty in a baseline-published shell, which establishes the name and the shape without committing to stages the baseline has no patterns to fill. Validation warns when the merged stage set is non-empty and has no sequential stage; an empty shell is silent."
             },
             "narrativeTypeName": {
               "type": "string",

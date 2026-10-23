@@ -1,6 +1,7 @@
 {
   "name": "keleo-language",
   "version": "1.0.0",
+  "license": "CC-BY-4.0",
   "description": "Practice Language JSON Schema, semantic guidance, and validation tooling",
   "private": true,
   "scripts": {

@@ -319,7 +319,7 @@ Patterns merge by canonical name. When two patterns share the same name:
   - `narrativeContexts`: Merged by composite key, under the general NarrativeContexts rule below. (An earlier revision of this spec named a `narrativeElementName` property here; PatternView has no such property.)
   - `activitySpaces` and `activities` string arrays are unioned.
   - **`alphaStates`** (AlphaContribution arrays) merge using pattern-view-specific logic that unions alpha state entries by `alphaName::stateName` key.
-  - **`loopsBackTo`** is a single object, so scalar handling applies and the overlay wins. The same is true of `loopsBackTo` on a State (Section 6.2). Two practices declaring different loop targets on one view or one state is a modelling conflict rather than something to resolve silently — the overlay winning is a tie-break, not an answer, and the authors should agree on the shape of the cycle. Note also that a practice redeclaring a baseline alpha can turn a ladder into a loop by adding `loopsBackTo` to one of its states; that is a semantic change to the inherited concern and the redeclaration's description should say so.
+  - **`loopsBackTo`** is an exception to the base-priority scalar rule in Section 4.3: a declared overlay replaces the whole object; an absent overlay preserves the base object. The same rule applies to `loopsBackTo` on a State (Section 6.2). Different declared loop targets are a modelling conflict for the authors to resolve, with overlay priority providing a deterministic result. A redeclaration that adds or retargets a loop should explain that change in its description.
   - **`alphaInstances`** merge by canonical instance name:
     - `evidenceBy` arrays are deduplicated by `name::workProductName::levelOfDetailName` composite key.
   - Results are sorted by `seq` value.
@@ -621,7 +621,7 @@ A practice may switch off an element it inherits by declaring `suppressed: true`
 
 **Ordering is load-bearing.** The pass must run **after** all layers have overlaid, so that a suppression declared in a dependent practice can reach an element contributed by the practice it depends on; and **before** synthesized element stub generation (Section 7.5) and before dangling-reference validation, so that nothing is synthesized for an element that is about to disappear and so that references into a suppressed element are reported rather than silently satisfied by a stub.
 
-**Resolution.** For each element carrying `suppressed: true`, determine whether any other loaded document requires it — by redeclaring it without suppression, or by referencing it. Where none does, remove the element. Where one does, the conflict resolves by declaration precedence, which is built once per composition:
+**Resolution.** For each element carrying `suppressed: true`, determine whether a loaded document other than its original declaring document redeclares it without suppression. Only such a redeclaration is a requirement signal. The original declaration and references do not keep an element alive. Where no requirement exists, remove the element. Where one exists, the conflict resolves by declaration precedence, which is built once per composition:
 
 1. Baselines before practices.
 2. Within baselines, the order of `baselinePracticeNames`.
