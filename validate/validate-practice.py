@@ -2232,6 +2232,20 @@ class PracticeValidator:
         # documents, so repeating it per practice would report each cycle many times.
         has_errors |= self._check_embedding_acyclic(orchestrations_in_scope, "")
 
+        for name in orchestrations_in_scope:
+            stages = self._merged_orchestration_stages(name, own)
+            if stages and not any(stage.get('relationship') == 'sequential'
+                                  for stage in stages.values()):
+                self.warnings.append({
+                    "category": "integrity",
+                    "severity": "warning",
+                    "path": "patternOrchestrations",
+                    "issue": f"Merged orchestration '{name}' has no sequential stage",
+                    "expected": "at least one sequential stage in a populated orchestration",
+                    "actual": f"{len(stages)} stage(s), none sequential",
+                    "suggestion": "Declare the stage that establishes progression as sequential; if a host anchors the other stages, review its relationship."
+                })
+
         # seq is unique among the sequential stages of the merged orchestration, so
         # the pool spans every practice contributing to a name rather than resetting
         # per practice. Sibling practices of a method are not in one another's

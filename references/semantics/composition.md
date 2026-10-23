@@ -993,16 +993,25 @@ Bindings are consumed **after** the merge algorithm produces the unified documen
 
 Most practices extend what they inherit. Some need to diminish it. A restricted variant — the same technology family with a smaller footprint and a narrower deployment model — inherits the whole of what it depends on, and before this mechanism existed its only options were to inherit all of it and overstate what applies, or to drop the dependency and lose the shared content entirely.
 
-`suppressed: true` on an inherited element switches it off in the composed result.
+`suppressed: true` on an inherited element switches it off in the composed result. Suppression still requires a complete, valid declaration. For example, if the inherited alpha has exactly the three states below, place this object in the practice's `alphas` array:
 
 ```json
 {
-  "kind": "alpha",
   "name": "Multi-Cluster Federation",
   "description": "Coordination of workloads across independently operated clusters.",
-  "suppressed": true
+  "focusName": "Delivery",
+  "suppressed": true,
+  "states": [
+    { "name": "Planned", "seq": 1, "description": "Coordination is planned.", "checklist": [] },
+    { "name": "Available", "seq": 2, "description": "Coordination is available.", "checklist": [] },
+    { "name": "Operating", "seq": 3, "description": "Coordination is operating.", "checklist": [] }
+  ]
 }
 ```
+
+Use the inherited alpha's name, focus and complete state list. Each state needs `name`, `description`, `seq` and `checklist`; an empty checklist is accepted. To suppress just one state, put `suppressed: true` on that state and restate every inherited state in the enclosing alpha. `kind` is a document discriminator and is not an Alpha property.
+
+A work product likewise needs its complete inherited `levelsOfDetail` list and its purpose anchors: `contributesToAlphaNames`, or a `contributesTo` on at least one level. Suppression does not waive schema, redeclaration or floating-work-product checks.
 
 **Two granularities, one property.** Every element type and every part type extends `PracticeElement`, so the same property suppresses a whole element — an alpha, a work product, an activity, a pattern — and a part of one: an individual state, level of detail, or checklist item. There is no separate mechanism for parts, and none is needed.
 
@@ -1013,6 +1022,8 @@ Most practices extend what they inherit. Some need to diminish it. A restricted 
 #### 4.9.1 Conflict Resolution by Declaration Precedence
 
 A method may load one practice that suppresses an element and another that still requires it. Both contributions are carried into the merge and **declaration precedence** decides, rather than the merge refusing to compose or picking a winner arbitrarily.
+
+A requirement means a redeclaration without suppression by a document other than the original declaring document. Neither the original declaration nor a reference is a requirement signal. References that survive removal are checked as described in Section 4.9.2.
 
 The precedence order is built once per composition:
 

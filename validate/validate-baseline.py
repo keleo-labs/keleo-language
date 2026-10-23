@@ -1043,6 +1043,16 @@ class BaselineValidator:
 
     def validate_pattern_groups(self) -> None:
         """Check that baseline patternGroups define empty entries (template groups)"""
+        if self.baseline.get('patternGroups'):
+            self.warnings.append({
+                "category": "deprecation",
+                "severity": "warning",
+                "path": "patternGroups",
+                "issue": "patternGroups is deprecated as of schema 2.21.0",
+                "expected": "patternOrchestrations, or grouping on the merge-stamped sourcePracticeName",
+                "actual": f"{len(self.baseline['patternGroups'])} group(s) declared",
+                "suggestion": "Publish orchestration shells where the order means 'then'; group by sourcePracticeName at display time for provenance."
+            })
         for idx, pg in enumerate(self.baseline.get('patternGroups', [])):
             pg_name = pg.get('name', f'patternGroups[{idx}]')
             entries = pg.get('entries', [])
