@@ -1,3 +1,42 @@
 node_modules/
 __pycache__/
 *.pyc
+
+# Credentials and machine-specific agent state
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+auth.json
+tokens.json
+service-account*.json
+.aws/
+.ssh/
+.codex/
+.claude/
+.DS_Store
+
+# Keep private working material outside shared instructions.
+AGENTS.local.md
+*.local.*
+.private/
+private/
+personal/
+company/
+secrets/
+
+# Share only reviewed skill files; new agent files need an explicit opt-in.
+.agents/**
+!.agents/skills/
+!.agents/skills/plan-from-feedback/
+!.agents/skills/plan-from-feedback/SKILL.md
+!.agents/skills/plan-from-feedback/contract.feature
+!.agents/skills/feedback-foundation/
+!.agents/skills/feedback-foundation/FEEDBACK-FOUNDATION.md
+!.agents/skills/feedback-foundation/drafting.md
+!.agents/skills/feedback-foundation/sanitisation.md
+!.agents/skills/feedback-foundation/extension-template.md
