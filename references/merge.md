@@ -1,5 +1,12 @@
 # Practice and Method Composition: Merge Algorithm Specification
 
+Signal journals, project recommendation cards and application policies (schema
+3.3.0) are runtime records, not methodology elements. Do not overlay or merge
+them into a composed practice or method. Signal rules remain in independently
+versioned integration mappings. Resolve recommendation element references against
+the completed methodology composition. See the
+[signal contract](semantics/external-signals.md).
+
 ## Table of Contents
 
 1. [Overview](#1-overview)

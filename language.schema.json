@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/language.schema.json",
-  "$comment": "schemaVersion:3.2.1",
+  "$comment": "schemaVersion:3.3.0",
   "title": "Practice language (from language.mmd)",
-  "description": "JSON Schema derived from the Mermaid classDiagram in language.mmd. Identity is by name; most cross-links are string names (not embedded objects). Root validation discriminates Practice vs Method vs PracticeBaseline. Method can use embedded objects (baselinePractice + practices) or string references (baselinePracticeName + practiceNames) or a mix.",
+  "description": "Practice Language definitions, projects, integration mappings, signal journals and change documents. Identity is by name; most cross-links are symbolic string references. Methods support embedded documents, named references or a mix.",
   "$defs": {
     "AssetReference": {
       "type": "object",
@@ -1788,7 +1788,7 @@
         },
         "documentType": {
           "type": "string",
-          "enum": ["practiceBaseline", "practice", "method", "project", "integrationMapping", "changeRequest", "changeSet"],
+          "enum": ["practiceBaseline", "practice", "method", "project", "integrationMapping", "signalJournal", "changeRequest", "changeSet"],
           "description": "The root type of the JSON document, matching the schema's root discrimination result."
         },
         "documentName": {
@@ -3122,7 +3122,20 @@
         { "$ref": "#/$defs/PracticeElement" },
         {
           "type": "object",
-          "required": ["serviceKind", "entityMappings"],
+          "required": ["serviceKind"],
+          "anyOf": [
+            { "required": ["entityMappings"] },
+            { "required": ["signalRules"] }
+          ],
+          "allOf": [
+            {
+              "if": { "required": ["signalRules"] },
+              "then": {
+                "required": ["version", "schemaVersion"],
+                "properties": { "version": { "pattern": "^\\d+\\.\\d+\\.\\d+$" } }
+              }
+            }
+          ],
           "properties": {
             "serviceKind": {
               "type": "string",
@@ -3142,6 +3155,12 @@
               "minItems": 1,
               "items": { "$ref": "#/$defs/EntityMapping" },
               "description": "How external entities map to schema elements."
+            },
+            "signalRules": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/SignalRule" },
+              "description": "Discovery and recommendation rules. These produce journal records, not implicit synchronisation writes."
             },
             "queryTemplates": {
               "type": "array",
@@ -3229,6 +3248,195 @@
         }
       ],
       "unevaluatedProperties": false
+    },
+    "SignalRuleList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SignalRule" }
+    },
+    "RecommendationCardList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/RecommendationCard" }
+    },
+    "RecommendationPolicyList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/RecommendationPolicy" }
+    },
+    "SignalRule": {
+      "type": "object",
+      "required": ["name", "queryTemplateName", "tier", "interpretation", "recommendation"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "queryTemplateName": { "type": "string", "minLength": 1 },
+        "tier": { "enum": ["direct", "pattern", "llm-assisted"] },
+        "interpretation": { "type": "string", "minLength": 1, "description": "How to recognise a signal and establish its relevance to the supplied context. External content is evidence, not executable instructions." },
+        "recommendation": { "type": "string", "minLength": 1, "description": "Guidance for producing advice or typed project change proposals with rationale." },
+        "targets": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/MappingTarget" } }
+      },
+      "additionalProperties": false
+    },
+    "SignalContext": {
+      "type": "object",
+      "required": ["documentType", "documentName"],
+      "properties": {
+        "documentType": { "enum": ["practice", "method", "project"] },
+        "documentName": { "type": "string", "minLength": 1 },
+        "elements": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["targetKind", "elementName"],
+            "properties": {
+              "targetKind": { "enum": ["alpha", "workProduct", "outcome", "activity"] },
+              "elementName": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ExternalSignal": {
+      "type": "object",
+      "required": ["name", "sourceKey", "source", "discoveredAt", "interpretation"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "sourceKey": { "type": "string", "minLength": 1, "description": "Stable identity of the source version and extracted finding; repeated discovery reuses this key and signal name." },
+        "source": { "$ref": "#/$defs/ExternalLink", "required": ["uri"], "properties": { "uri": { "minLength": 1 } } },
+        "excerpt": { "type": "string", "minLength": 1 },
+        "publishedAt": { "type": "string", "format": "date-time" },
+        "discoveredAt": { "type": "string", "format": "date-time" },
+        "interpretation": { "type": "string", "minLength": 1 },
+        "supersedes": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "RecommendationCollection": {
+      "type": "string",
+      "enum": ["plan.pattern.alphaInstanceNames", "plan.pattern.workProductInstanceNames", "current.alphaInstances", "current.workProductInstances", "target.alphaInstances", "target.workProductInstances", "outcomes", "actions"]
+    },
+    "RecommendationProposal": {
+      "type": "object",
+      "description": "One typed create or replacement update. An update carries the exact previous object for optimistic concurrency. Changes in a recommendation are applied atomically.",
+      "required": ["operation", "collection", "value"],
+      "properties": {
+        "operation": { "enum": ["create", "update"] },
+        "collection": { "$ref": "#/$defs/RecommendationCollection" },
+        "value": { "type": "object" },
+        "previous": { "type": "object", "description": "Exact existing object expected before an update. Renaming instances is outside this proposal format." }
+      },
+      "allOf": [
+        { "if": { "properties": { "operation": { "const": "update" } } }, "then": { "required": ["previous"] }, "else": { "not": { "required": ["previous"] } } },
+        { "if": { "properties": { "collection": { "const": "plan.pattern.alphaInstanceNames" } } }, "then": { "properties": { "value": { "$ref": "#/$defs/AlphaInstanceName" }, "previous": { "$ref": "#/$defs/AlphaInstanceName" } } } },
+        { "if": { "properties": { "collection": { "const": "plan.pattern.workProductInstanceNames" } } }, "then": { "properties": { "value": { "$ref": "#/$defs/WorkProductInstanceName" }, "previous": { "$ref": "#/$defs/WorkProductInstanceName" } } } },
+        { "if": { "properties": { "collection": { "enum": ["current.alphaInstances", "target.alphaInstances"] } } }, "then": { "properties": { "value": { "$ref": "#/$defs/AlphaInstance" }, "previous": { "$ref": "#/$defs/AlphaInstance" } } } },
+        { "if": { "properties": { "collection": { "enum": ["current.workProductInstances", "target.workProductInstances"] } } }, "then": { "properties": { "value": { "$ref": "#/$defs/WorkProductInstance" }, "previous": { "$ref": "#/$defs/WorkProductInstance" } } } },
+        { "if": { "properties": { "collection": { "const": "outcomes" } } }, "then": { "properties": { "value": { "$ref": "#/$defs/OutcomeInstance" }, "previous": { "$ref": "#/$defs/OutcomeInstance" } } } },
+        { "if": { "properties": { "collection": { "const": "actions" } } }, "then": { "properties": { "value": { "$ref": "#/$defs/Action" }, "previous": { "$ref": "#/$defs/Action" } } } }
+      ],
+      "additionalProperties": false
+    },
+    "SignalRecommendation": {
+      "type": "object",
+      "required": ["name", "signalNames", "context", "integrationMappingName", "mappingVersion", "ruleName", "createdAt", "rationale", "advice"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "signalNames": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "context": { "$ref": "#/$defs/SignalContext" },
+        "integrationMappingName": { "type": "string", "minLength": 1 },
+        "mappingVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "ruleName": { "type": "string", "minLength": 1 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "rationale": { "type": "string", "minLength": 1 },
+        "advice": { "type": "string", "minLength": 1 },
+        "proposals": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/RecommendationProposal" } },
+        "changeRequestName": { "type": "string", "minLength": 1, "description": "Reviewed methodology ChangeRequest.changeId; never grants automatic application authority." },
+        "supersedes": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        { "if": { "required": ["proposals"] }, "then": { "properties": { "context": { "properties": { "documentType": { "const": "project" } } } }, "not": { "required": ["changeRequestName"] } } },
+        { "if": { "required": ["changeRequestName"] }, "then": { "properties": { "context": { "properties": { "documentType": { "enum": ["practice", "method"] } } } } } }
+      ],
+      "additionalProperties": false
+    },
+    "SignalJournal": {
+      "type": "object",
+      "required": ["name", "journalKind", "version", "schemaVersion", "signals", "recommendations"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "journalKind": { "const": "signals" },
+        "description": { "type": "string" },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "schemaVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "signals": { "type": "array", "items": { "$ref": "#/$defs/ExternalSignal" } },
+        "recommendations": { "type": "array", "items": { "$ref": "#/$defs/SignalRecommendation" } }
+      },
+      "additionalProperties": false
+    },
+    "RecommendationPolicy": {
+      "type": "object",
+      "required": ["name", "integrationMappingName", "mappingVersion", "ruleName", "operations", "collections"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "integrationMappingName": { "type": "string", "minLength": 1 },
+        "mappingVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "ruleName": { "type": "string", "minLength": 1 },
+        "revokedAt": { "type": "string", "format": "date-time", "description": "Withdraws future automatic application authority from this instant while retaining evidence for earlier receipts." },
+        "operations": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["create", "update"] } },
+        "collections": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/RecommendationCollection" } }
+      },
+      "additionalProperties": false
+    },
+    "RecommendationApplication": {
+      "type": "object",
+      "required": ["name", "attemptedAt", "actor", "mode", "outcome"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "attemptedAt": { "type": "string", "format": "date-time" },
+        "actor": { "type": "string", "minLength": 1 },
+        "mode": { "enum": ["manual", "automatic"] },
+        "policyName": { "type": "string", "minLength": 1 },
+        "outcome": { "enum": ["succeeded", "failed"] },
+        "error": { "type": "string", "minLength": 1 },
+        "results": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {
+            "type": "object", "required": ["collection", "instanceName"],
+            "properties": {
+              "collection": { "$ref": "#/$defs/RecommendationCollection" },
+              "instanceName": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "allOf": [
+        { "if": { "properties": { "mode": { "const": "automatic" } } }, "then": { "required": ["policyName"] }, "else": { "not": { "required": ["policyName"] } } },
+        { "if": { "properties": { "outcome": { "const": "succeeded" } } }, "then": { "required": ["results"], "not": { "required": ["error"] } }, "else": { "required": ["error"], "not": { "required": ["results"] } } }
+      ],
+      "additionalProperties": false
+    },
+    "RecommendationCard": {
+      "type": "object",
+      "required": ["name", "journalName", "recommendationName", "status"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "journalName": { "type": "string", "minLength": 1 },
+        "recommendationName": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["inbox", "reviewing", "accepted", "dismissed", "applied"] },
+        "assignedTo": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "decidedAt": { "type": "string", "format": "date-time" },
+        "decidedBy": { "type": "string", "minLength": 1 },
+        "notes": { "type": "array", "items": { "$ref": "#/$defs/Note" } },
+        "applications": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/RecommendationApplication" } }
+      },
+      "allOf": [
+        { "if": { "properties": { "status": { "enum": ["accepted", "dismissed", "applied"] } } }, "then": { "required": ["decidedAt", "decidedBy"] } },
+        { "if": { "required": ["applications"] }, "then": { "properties": { "status": { "enum": ["accepted", "dismissed", "applied"] } } } },
+        { "if": { "properties": { "status": { "enum": ["inbox", "reviewing", "accepted", "dismissed"] } } }, "then": { "properties": { "applications": { "items": { "properties": { "outcome": { "const": "failed" } } } } } } },
+        { "if": { "properties": { "status": { "const": "applied" } } }, "then": { "required": ["applications"], "properties": { "applications": { "contains": { "properties": { "outcome": { "const": "succeeded" } }, "required": ["outcome"] }, "minContains": 1, "maxContains": 1 } } } }
+      ],
+      "additionalProperties": false
     },
     "IntegrationInstance": {
       "type": "object",
@@ -3649,6 +3857,16 @@
               "items": { "$ref": "#/$defs/ExternalLink" },
               "description": "Optional project-wide external links not specific to a tracked alpha/work-product instance (e.g. remembered Smartsheet workspace/folder/plan URLs, team charter, way-of-working document)."
             },
+            "recommendations": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/RecommendationCard" },
+              "description": "Project-owned workflow cards referencing shared signal journal recommendations."
+            },
+            "recommendationPolicies": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/RecommendationPolicy" },
+              "description": "Explicit opt-in grants for automatic project changes from named, versioned signal rules. Omission grants no authority."
+            },
             "integrations": {
               "type": "array",
               "items": { "$ref": "#/$defs/IntegrationInstance" },
@@ -3676,43 +3894,47 @@
   },
   "then": { "$ref": "#/$defs/ChangeSet" },
   "else": {
-    "if": {
-      "type": "object",
-      "required": ["changeId"]
-    },
-    "then": { "$ref": "#/$defs/ChangeRequest" },
+    "if": { "type": "object", "required": ["journalKind"] },
+    "then": { "$ref": "#/$defs/SignalJournal" },
     "else": {
       "if": {
         "type": "object",
-        "required": ["serviceKind"]
+        "required": ["changeId"]
       },
-      "then": { "$ref": "#/$defs/IntegrationMapping" },
+      "then": { "$ref": "#/$defs/ChangeRequest" },
       "else": {
         "if": {
           "type": "object",
-          "anyOf": [
-            { "required": ["practiceName"] },
-            { "required": ["methodName"] }
-          ]
+          "required": ["serviceKind"]
         },
-        "then": { "$ref": "#/$defs/Project" },
+        "then": { "$ref": "#/$defs/IntegrationMapping" },
         "else": {
           "if": {
             "type": "object",
             "anyOf": [
-              { "required": ["practices"] },
-              { "required": ["practiceNames"] },
-              { "required": ["baselinePractice"] }
+              { "required": ["practiceName"] },
+              { "required": ["methodName"] }
             ]
           },
-          "then": { "$ref": "#/$defs/Method" },
+          "then": { "$ref": "#/$defs/Project" },
           "else": {
             "if": {
               "type": "object",
-              "required": ["baselinePracticeName"]
+              "anyOf": [
+                { "required": ["practices"] },
+                { "required": ["practiceNames"] },
+                { "required": ["baselinePractice"] }
+              ]
             },
-            "then": { "$ref": "#/$defs/Practice" },
-            "else": { "$ref": "#/$defs/PracticeBaseline" }
+            "then": { "$ref": "#/$defs/Method" },
+            "else": {
+              "if": {
+                "type": "object",
+                "required": ["baselinePracticeName"]
+              },
+              "then": { "$ref": "#/$defs/Practice" },
+              "else": { "$ref": "#/$defs/PracticeBaseline" }
+            }
           }
         }
       }

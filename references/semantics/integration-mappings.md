@@ -92,7 +92,7 @@ IntegrationMapping extends PracticeElement (inheriting `name`, `description`, `t
 **Required properties:**
 
 - `serviceKind` -- functional classification of the external service: `crm`, `project-management`, `document-store`, `data-warehouse`, `api`, `file`. This is tool-agnostic: it describes what the service does, not which product it is. A Salesforce integration and a HubSpot integration both use `"crm"`.
-- `entityMappings` -- array of EntityMapping objects (minimum 1), each declaring how one external entity type maps to schema elements.
+- At least one non-empty `entityMappings` or `signalRules` array. Entity mappings declare how external entities map to schema elements; signal rules declare discovery and recommendations. Either may be used alone, or both together. See [External signals and contextual recommendations](external-signals.md).
 
 **Optional practice/method reference:**
 
@@ -114,12 +114,18 @@ Standard document metadata: `version`, `schemaVersion`, `authors`, `createdAt`, 
   "serviceKind": "crm",
   "practiceName": "Customer Account Planning",
   "version": "1.0.0",
-  "schemaVersion": "2.15.0",
+  "schemaVersion": "3.3.0",
   "authors": ["Integration Team"],
   "createdAt": "2026-09-01",
   "updatedAt": "2026-09-01",
   "keywords": ["salesforce", "crm", "opportunities"],
-  "entityMappings": [ ]
+  "entityMappings": [
+    {
+      "name": "opportunity-mapping",
+      "externalEntityType": "Opportunity",
+      "targets": [{ "targetKind": "alpha", "elementName": "Opportunity", "tier": "direct" }]
+    }
+  ]
 }
 ```
 

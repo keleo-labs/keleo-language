@@ -1,0 +1,23 @@
+{
+  "name": "Invalid signal identities",
+  "journalKind": "signals",
+  "version": "1.0.0",
+  "schemaVersion": "3.3.0",
+  "signals": [
+    {
+      "name": "first-discovery",
+      "sourceKey": "same-source-version-and-finding",
+      "source": { "name": "Report", "uri": "https://example.com/report" },
+      "discoveredAt": "2026-10-24T08:00:00Z",
+      "interpretation": "Investment announced."
+    },
+    {
+      "name": "duplicate-discovery",
+      "sourceKey": "same-source-version-and-finding",
+      "source": { "name": "Report", "uri": "https://example.com/report" },
+      "discoveredAt": "2026-10-24T09:00:00Z",
+      "interpretation": "Investment announced."
+    }
+  ],
+  "recommendations": []
+}

@@ -1,5 +1,10 @@
 [< Back to Semantic Guidance Hub](../semantics.md)
 
+Projects may hold optional `recommendations` and `recommendationPolicies`.
+These reference external signal journals and manage project-owned review and
+application decisions. See [External signals and contextual recommendations](external-signals.md)
+for the fixed Kanban lifecycle, typed proposals and application authority rules.
+
 ## 12 Project Execution Tracking
 
 The Practice Language defines practices, methods, and baselines as methodology specifications — they describe *what should be done*. The Project type bridges the gap to execution, providing a structure for tracking *what is being done* against those specifications. A Project is an execution instance of a Practice or Method, recording team composition, a tailored plan, the currently assessed state of tracked concerns and artifacts, and the desired target state.

@@ -1,0 +1,29 @@
+{
+  "name": "Company report signals",
+  "description": "Discover public report evidence relevant to account planning.",
+  "serviceKind": "document-store",
+  "practiceName": "Fixture Account Planning",
+  "version": "1.0.0",
+  "schemaVersion": "3.3.0",
+  "queryTemplates": [
+    {
+      "name": "annual-reports",
+      "tier": "llm-assisted",
+      "intent": "Find newly published annual reports for {company} and retain the publisher's source URL and relevant passages.",
+      "parameters": [{ "name": "company", "source": "service.parameters" }]
+    }
+  ],
+  "signalRules": [
+    {
+      "name": "modernisation-investment",
+      "queryTemplateName": "annual-reports",
+      "tier": "llm-assisted",
+      "interpretation": "Identify explicit investment in IT modernisation and relate the finding to the company in the supplied project context. Distinguish announced intention from completed investment.",
+      "recommendation": "Recommend investigating an Initiative and Opportunity, with a rationale and the supporting passage. Do not infer that an opportunity is already qualified.",
+      "targets": [
+        { "targetKind": "alpha", "elementName": "Initiative", "tier": "llm-assisted" },
+        { "targetKind": "alpha", "elementName": "Opportunity", "tier": "llm-assisted" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "name": "Fixture Account Planning",
+  "description": "Generic account-planning concerns for external signal examples.",
+  "baselinePracticeName": "Fixture Essentials",
+  "version": "1.0.0",
+  "schemaVersion": "3.3.0",
+  "alphas": [
+    {
+      "name": "Initiative",
+      "description": "A potential investment to investigate.",
+      "contributesTo": "Platform",
+      "focusName": "Direction",
+      "states": [
+        { "name": "Identified", "description": "The investment is identified.", "seq": 1, "checklist": [] },
+        { "name": "Validated", "description": "The investment intent is confirmed.", "seq": 2, "checklist": [] },
+        { "name": "Addressed", "description": "The investment has an agreed response.", "seq": 3, "checklist": [] }
+      ]
+    },
+    {
+      "name": "Opportunity",
+      "description": "A possible commercial opportunity to investigate.",
+      "contributesTo": "Platform",
+      "focusName": "Direction",
+      "states": [
+        { "name": "Identified", "description": "The opportunity is identified.", "seq": 1, "checklist": [] },
+        { "name": "Validated", "description": "The opportunity is confirmed.", "seq": 2, "checklist": [] },
+        { "name": "Addressed", "description": "The opportunity has an agreed response.", "seq": 3, "checklist": [] }
+      ]
+    }
+  ]
+}
