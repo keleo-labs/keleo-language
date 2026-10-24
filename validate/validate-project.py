@@ -22,6 +22,7 @@ ensure_dependencies()
 
 import jsonschema  # noqa: E402
 from jsonschema import Draft202012Validator, RefResolver  # noqa: E402
+from signal_validation import SignalValidator  # noqa: E402
 
 
 class ProjectValidator:
@@ -727,6 +728,15 @@ class ProjectValidator:
 
         return True
 
+    def validate_recommendations(self, documents=(), preflight=False) -> bool:
+        if not (self.project.get('recommendations') or self.project.get('recommendationPolicies')):
+            return True
+        checker = SignalValidator(self.schema, [self.project, *documents], preflight)
+        checker.validate_project(self.project)
+        self.errors.extend(checker.errors)
+        self.warnings.extend(checker.warnings)
+        return not checker.errors
+
     def generate_report(self) -> Dict:
         return {
             "project_file": str(self.project_file),
@@ -751,6 +761,10 @@ def main():
     )
     parser.add_argument("project", help="Project JSON file")
     parser.add_argument("schema", help="Language schema JSON file")
+    parser.add_argument("--document", action="append", default=[],
+                        help="Referenced journal, mapping or context JSON; repeatable")
+    parser.add_argument("--preflight", action="store_true",
+                        help="Require resolved references and check accepted proposals against current data")
     parser.add_argument("--quiet", "-q", action="store_true",
                         help="Suppress progress messages to stderr")
     parser.add_argument("--brief", action="store_true",
@@ -792,6 +806,10 @@ def main():
 
     progress("Validating integrations...")
     validator.validate_integrations()
+
+    progress("Validating recommendations...")
+    documents = [validator._load_json(Path(path)) for path in args.document]
+    validator.validate_recommendations(documents, args.preflight)
 
     progress("Validating schema version...")
     validator.validate_schema_version()

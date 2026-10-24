@@ -25,6 +25,7 @@ ensure_dependencies()
 
 import jsonschema  # noqa: E402
 from jsonschema import Draft202012Validator, RefResolver  # noqa: E402
+from signal_validation import SignalValidator  # noqa: E402
 
 
 class IntegrationMappingValidator:
@@ -310,6 +311,20 @@ class IntegrationMappingValidator:
                 return False
         return True
 
+    def validate_signal_rules(self, documents=()) -> bool:
+        if not self.mapping.get('signalRules'):
+            return True
+        checker = SignalValidator(self.schema, [*([self.practice] if self.practice else []), *documents])
+        context = self.practice
+        if context is None and self.mapping.get('signalRules'):
+            for kind in ('practice', 'method'):
+                if self.mapping.get(f'{kind}Name'):
+                    context = checker.resolve(kind, self.mapping[f'{kind}Name'], 'signalRules')
+        checker.validate_mapping(self.mapping, context)
+        self.errors.extend(checker.errors)
+        self.warnings.extend(checker.warnings)
+        return not checker.errors
+
     def generate_report(self) -> Dict:
         return {
             "valid": len(self.errors) == 0,
@@ -319,6 +334,7 @@ class IntegrationMappingValidator:
             "document_name": self.mapping.get('name', 'unknown'),
             "service_kind": self.mapping.get('serviceKind', 'unknown'),
             "entity_mapping_count": len(self.mapping.get('entityMappings', [])),
+            "signal_rule_count": len(self.mapping.get('signalRules', [])),
             "errors": self.errors,
             "warnings": self.warnings
         }
@@ -334,6 +350,8 @@ def main():
     parser.add_argument("schema", help="Language schema JSON file")
     parser.add_argument("practice", nargs="?", default=None,
                         help="Optional practice/method JSON file for element name resolution")
+    parser.add_argument("--document", action="append", default=[],
+                        help="Additional methodology dependency JSON; repeatable")
     parser.add_argument("--quiet", "-q", action="store_true",
                         help="Suppress progress messages to stderr")
     parser.add_argument("--brief", action="store_true",
@@ -367,6 +385,9 @@ def main():
 
     progress("Validating query sources...")
     validator.validate_query_sources()
+
+    progress("Validating signal rules...")
+    validator.validate_signal_rules([validator._load_json(Path(path)) for path in args.document])
 
     progress("Validating schema version...")
     validator.validate_schema_version()

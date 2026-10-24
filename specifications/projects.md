@@ -679,6 +679,20 @@ Scenario: Instance relatesTo is a self-link
   Then a validation error is reported: relatesTo must not reference the declaring instance
 ```
 
+## External signal recommendations (3.3.0)
+
+Optional `recommendations` cards reference a standalone signal journal and own
+project review state, responsibility, decisions and application receipts.
+Optional `recommendationPolicies` grant explicit authority for named, versioned
+rules to create or update project instances and actions. The fixed Kanban stages
+are `inbox`, `reviewing`, `accepted`, `dismissed` and `applied`.
+
+The [external signal semantics](../references/semantics/external-signals.md)
+define the typed proposal and authority contract. Executable acceptance scenarios
+are in [external-signals.feature](external-signals.feature). Journal evidence is
+shared while project decisions remain independent; these records do not alter
+methodology composition.
+
 ## Open Questions
 
 None currently outstanding.

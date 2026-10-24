@@ -36,7 +36,16 @@ Validator entry points:
 | PracticeBaseline | [`validate-baseline.py`](../../validate/validate-baseline.py) |
 | Project | [`validate-project.py`](../../validate/validate-project.py) |
 | IntegrationMapping | [`validate-integration-mapping.py`](../../validate/validate-integration-mapping.py) |
+| SignalJournal | [`validate-signal-journal.py`](../../validate/validate-signal-journal.py) |
 | Any, structure only | [`validate-schema.js`](../../validate/validate-schema.js) |
+
+Signal journals and recommendation cards add checks for evidence references,
+unique source identities, acyclic supersession, policy coverage and receipts.
+Project `--preflight` checks pending proposal preconditions. Full context requires
+repeatable `--document` arguments; unloaded references warn during snapshot
+validation and fail during strict journal validation or project preflight. See the
+[signal contract](external-signals.md#validation-and-consumer-adoption) for runtime
+obligations that snapshot validation cannot establish.
 
 ### 16.2 Reference guarantees
 

@@ -1,0 +1,69 @@
+{
+  "name": "Company signals",
+  "journalKind": "signals",
+  "version": "1.0.0",
+  "schemaVersion": "3.3.0",
+  "signals": [
+    {
+      "name": "example-company-2026-modernisation",
+      "sourceKey": "example-company:annual-report:2026:v1:it-modernisation",
+      "source": {
+        "name": "Example Company annual report 2026",
+        "uri": "https://example.com/investors/annual-report-2026",
+        "pages": "p. 12",
+        "kind": "document"
+      },
+      "excerpt": "The company plans to invest in modernising its IT infrastructure.",
+      "publishedAt": "2026-10-20T09:00:00Z",
+      "discoveredAt": "2026-10-24T08:00:00Z",
+      "interpretation": "An announced IT investment warrants account-team investigation; no qualified opportunity is established by this passage."
+    }
+  ],
+  "recommendations": [
+    {
+      "name": "example-company-modernisation-investigation",
+      "signalNames": ["example-company-2026-modernisation"],
+      "context": {
+        "documentType": "project",
+        "documentName": "Example Company account plan",
+        "elements": [
+          { "targetKind": "alpha", "elementName": "Initiative" },
+          { "targetKind": "alpha", "elementName": "Opportunity" }
+        ]
+      },
+      "integrationMappingName": "Company report signals",
+      "mappingVersion": "1.0.0",
+      "ruleName": "modernisation-investment",
+      "createdAt": "2026-10-24T08:01:00Z",
+      "rationale": "The report concerns the company tracked by this project and names investment relevant to the account-planning practice.",
+      "advice": "Investigate the announced investment with the account team before qualifying an opportunity.",
+      "proposals": [
+        {
+          "operation": "create",
+          "collection": "plan.pattern.alphaInstanceNames",
+          "value": { "name": "IT modernisation initiative", "description": "Investigate the announced IT investment.", "alphaName": "Initiative" }
+        },
+        {
+          "operation": "create",
+          "collection": "plan.pattern.alphaInstanceNames",
+          "value": { "name": "IT modernisation opportunity", "description": "Investigate possible account-team engagement.", "alphaName": "Opportunity" }
+        }
+      ]
+    },
+    {
+      "name": "account-planning-investment-advice",
+      "signalNames": ["example-company-2026-modernisation"],
+      "context": {
+        "documentType": "practice",
+        "documentName": "Fixture Account Planning",
+        "elements": [{ "targetKind": "alpha", "elementName": "Initiative" }]
+      },
+      "integrationMappingName": "Company report signals",
+      "mappingVersion": "1.0.0",
+      "ruleName": "modernisation-investment",
+      "createdAt": "2026-10-24T08:02:00Z",
+      "rationale": "Public investment announcements can inform the identification of initiatives in this practice.",
+      "advice": "Consider annual-report evidence when investigating initiatives; review any resulting methodology changes."
+    }
+  ]
+}

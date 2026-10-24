@@ -1,0 +1,30 @@
+{
+  "name": "Example Company account plan",
+  "description": "Account-team response to public investment signals.",
+  "practiceName": "Fixture Account Planning",
+  "version": "1.0.0",
+  "schemaVersion": "3.3.0",
+  "plan": { "pattern": { "name": "Account plan", "description": "Investigate account priorities.", "patternViews": [{ "name": "Investigate", "description": "Review account signals.", "seq": 1, "alphaStates": [] }], "alphaInstanceNames": [] } },
+  "current": {},
+  "target": {},
+  "recommendations": [
+    {
+      "name": "Investigate IT modernisation",
+      "journalName": "Company signals",
+      "recommendationName": "example-company-modernisation-investigation",
+      "status": "accepted",
+      "decidedAt": "2026-10-24T09:00:00Z",
+      "decidedBy": "Account team"
+    }
+  ],
+  "recommendationPolicies": [
+    {
+      "name": "Create report-led investigations",
+      "integrationMappingName": "Company report signals",
+      "mappingVersion": "1.0.0",
+      "ruleName": "modernisation-investment",
+      "operations": ["create"],
+      "collections": ["plan.pattern.alphaInstanceNames"]
+    }
+  ]
+}

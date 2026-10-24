@@ -106,6 +106,7 @@
     - 15.9 [Conflict Resolution](semantics/integration-mappings.md#159-conflict-resolution)
     - 15.10 [Project-Level Integration Instances](semantics/integration-mappings.md#1510-project-level-integration-instances)
     - 15.11 [Bundle Distribution](semantics/integration-mappings.md#1511-bundle-distribution)
+    - [External signals and contextual recommendations](semantics/external-signals.md)
 16. [Constraints and Inference Guarantees](semantics/constraints-and-inference.md)
     - 16.1 [How to Read This Section](semantics/constraints-and-inference.md#161-how-to-read-this-section)
     - 16.2 [Reference Guarantees](semantics/constraints-and-inference.md#162-reference-guarantees)
@@ -261,6 +262,8 @@ Consolidates all acyclicity constraints for directed reference graphs in the Pra
 Defines the IntegrationMapping system for bridging external services (CRM, project management, document stores, etc.) to Practice Language project elements. Covers purpose and design rationale (15.1), the three-tier mapping model with direct, pattern, and llm-assisted confidence levels (15.2), document structure and root discrimination via serviceKind (15.3), entity mapping authoring with targets and cardinality (15.4), field mapping and value maps for property-level translation (15.5), identity resolution for create-vs-update decisions (15.6), reusable parameterised query templates with an optional ordered source chain (15.7), conditional logic for subtype routing and target activation (15.8), conflict resolution strategies and priority-based cross-mapping arbitration (15.9), project-level IntegrationInstance connections with sync state tracking (15.10), and bundle distribution patterns for independent or practice-bundled packaging (15.11). Read when authoring integration mappings, connecting external services to projects, or designing sync runtimes.
 
 **Full guidance:** [semantics/integration-mappings.md](semantics/integration-mappings.md)
+
+**External signals (schema 3.3.0):** [semantics/external-signals.md](semantics/external-signals.md) describes reusable signal rules, standalone journals and project recommendation cards with fixed Kanban states. It defines provenance, typed proposals, explicit automatic application policies, receipts and duplicate/stale proposal checks.
 
 ---
 

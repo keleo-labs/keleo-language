@@ -96,11 +96,23 @@ The `package` field (required, `PackageIdentity` object) provides:
 The `documents` array (required, at least one entry) provides an ordered inventory of all Practice Language JSON documents in the package. Each `PackageDocument` entry declares:
 
 - `path` — relative path to the JSON file within the ZIP (must begin with `documents/` and end with `.json`)
-- `documentType` — the root type: `practiceBaseline`, `practice`, `method`, or `project`
+- `documentType` — the root type: `practiceBaseline`, `practice`, `method`, `project`, `integrationMapping`, `signalJournal`, `changeRequest` or `changeSet`
 - `documentName` — the `name` property of the root document, which is the identity key used for symbolic resolution
 - `entryPoint` — boolean flag (default `false`) indicating whether this document is a primary entry point
 
 Entry points are the documents a consumer should resolve first. A method package marks the method as the entry point; a library package might mark all practices as entry points for independent consumption. At least one document SHOULD be marked as an entry point.
+
+Schema 3.3.0 adds `signalJournal` for external evidence and recommendations.
+Use the journal's root `name` as `documentName`; project cards resolve
+`journalName` against that inventory. Supply referenced journals, methodology
+documents and pinned mapping versions in the package or its dependencies.
+Journal records remain separate from methodology composition. See the
+[signal semantics](../references/semantics/external-signals.md).
+
+The inventory still requires unique document names within each type. Keep
+archived versions of a mapping in separate versioned packages or external files;
+signal provenance resolves by mapping name and root `version`. This does not
+change name-based methodology composition.
 
 ### Dependencies
 
