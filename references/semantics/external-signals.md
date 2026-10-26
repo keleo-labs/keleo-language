@@ -2,6 +2,12 @@
 
 ## External signals and contextual recommendations
 
+Schema 4 also permits a card with `localRecommendation` instead of
+`journalName`/`recommendationName`. Its proposal is an explicit child-creation
+preview; it reuses the same workflow without an external signal. Local policies
+pin the template/version and source scope, and successful receipts identify the
+committed operation and child. See [delegation authority](project-hierarchy.md#local-recommendations-and-authority).
+
 Schema **3.3.0** adds signal rules, a standalone `SignalJournal` and project-owned
 recommendation cards. These retain why external content matters without treating
 an inferred opportunity as an existing external-system record. See the

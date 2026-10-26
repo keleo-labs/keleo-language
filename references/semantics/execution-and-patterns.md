@@ -440,6 +440,12 @@ Baselines define groups with `entries: []`. Extension practices define groups wi
 
 ### 9.4 Outcome Definitions and Value Measurement
 
+Cross-project reporting in schema 4 preserves this methodology-level measurement
+framework. `OutcomeValueKind` distinguishes the `actualValue`, `forecastValue`
+and `targetValue` on an OutcomeInstance. Target reports read explicit targets
+without forecast weighting; their totals remain separate from parent targets.
+See [project reporting](project-hierarchy.md#reporting-contracts-and-outcome-values).
+
 Outcomes define how a practice delivers measurable value. While narratives articulate *why* a practice matters, outcomes define *how value delivery is tracked* — connecting practice elements to quantifiable progress indicators.
 
 An Outcome extends PracticeElement and operates as a template. Practices declare outcomes with measurement frameworks; projects instantiate them as OutcomeInstances with specific targets (see [Section 12.8](project-tracking.md#128-outcome-instances-and-value-tracking)).

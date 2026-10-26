@@ -8,6 +8,10 @@ The Project type provides a mechanism for users to track the current state and d
 
 A Project is a type of PracticeElement, inheriting `name`, `description`, and optional `tags`, `keywords`, `narratives`, and `assetNames`. Since narratives include `citationNames`, a Project may also include `citations` and `acknowledgements`.
 
+Schema 4 additionally requires a UUID `projectId`. It is the persistent project
+identity; names remain editable descriptions. The cross-project interfaces and
+migration requirements are specified below.
+
 A Project is distinct from Practice, Method, and PracticeBaseline — it is not a methodology definition but an execution instance of one. It must be discriminated at the root level alongside the existing types.
 
 A Project includes a top-level `notes` array (of Note objects) for project-wide observations, decisions, and commentary that are not specific to the plan, current state, target state, or team.
@@ -678,6 +682,130 @@ Scenario: Instance relatesTo is a self-link
   When the project is validated
   Then a validation error is reported: relatesTo must not reference the declaring instance
 ```
+
+## Project hierarchy interfaces (4.0.0)
+
+The schema `$defs` are the structural contracts. Operational meaning and
+ownership transitions are defined in
+[Project hierarchy and reporting](../references/semantics/project-hierarchy.md),
+with executable scenarios in [project-hierarchy.feature](project-hierarchy.feature).
+
+### Identity and catalogue inputs
+
+Every Project requires `projectId: UUID`. `parentProject` and `projectReferences`
+contain `ProjectReference` values (`projectId` only). The former establishes
+ownership; the latter does not. Projects do not author children arrays.
+
+`ProjectItemReference` contains `projectId`, `collection` and `instanceName`.
+Collections identify plan declarations, current/target assessments, project
+outcomes/actions or cycle objectives/outcomes/actions. `cycles.*` collections
+require `cycleName`. A `ProjectReportReference` instead contains `projectId`
+and `reportName`.
+
+`ProjectCatalogue.projects[]` contains `document: Project`, `revision: string`
+and optional `containingProjectId: UUID`. The revision identifies a supplied
+snapshot rather than the document's semver release. Methodology dependencies
+continue to be supplied separately.
+
+### Reporting interfaces
+
+`ReportDefinition` extends `PracticeElement` with a `ReportingContract` and
+`bindings: ReportBinding[]`; optional `childCoverage` preserves expected scope.
+`ReportingContract` requires metric, aggregation, unit and period. Sum reports
+also require `valueKind: actual | forecast | target`; count reports omit it.
+
+`ReportingMetricDefinition` extends `PracticeElement` with globally scoped
+`metricId` and semver `version`. `ReportingPeriod` contains timestamp `start`
+and `end`, interpreted as a half-open interval. Metric meaning, unit, period
+and value kind must agree across a numeric reporting chain.
+
+`ReportBinding` extends `PracticeElement` with `sourceKind` and `source`.
+Outcome sources additionally require `valueSource: recorded | derived`.
+Assessment sources require an explicit `target`. Report sources refer to an
+immediate child report. Targets select recorded `OutcomeInstance.targetValue`;
+derived target bindings are invalid.
+
+`ReportingSource` on existing metrics, outcome instances and assessments carries
+identity, metric, period and optional observation/synchronisation provenance.
+`ReportContribution` records original/current source references, that origin's
+identity, metric/version, period, unit, input revision and evidence. Numeric
+rows carry value kind and value; attainment rows carry `attained`. Numeric
+weighting records both `rawValue` and `weight`, prohibited on target rows.
+
+`ReportResult` requires report reference, calculation timestamp, completeness,
+contributions, coverage and diagnostics. Complete results require `total` and
+no gap diagnostics. Incomplete results prohibit `total`. Validators check
+consumer-produced results without persisting derived assessments.
+
+### Creation interfaces
+
+`ProjectCreationTemplate` extends `PracticeElement` with `version`, applicable
+`rootKind`/`rootTypeName`, named `selectors`, named `variants` and optional
+`defaultVariantName`. Selectors and variants also extend `PracticeElement`.
+`ProjectScopeSelector.selection` is `root`, `named` or `related`; related
+selection requires explicit relationship kind and direction.
+
+Each variant declares an exact `MethodologyReference`, `instanceMappings`,
+`actionMappings` and `reportingBindings`. `TemplateInstanceMapping` associates
+a selector and source/target type names, with optional state, level and
+state-scoped checklist maps. `TemplateActionMapping` declares selector,
+assignment mappings and optional destination cycle. `CreationReportingBinding`
+describes a child-local source/report and parent summary destination using the
+same reporting contract. It also extends `PracticeElement`.
+
+`ProjectCreationPreview` records operation ID, template/version, parent UUID,
+source item, selected variant, expanded selected items, proposed child Project,
+source revisions, source snapshots and expanded instance/action/report maps.
+Instance maps retain original source identity and reference. Confirmation or
+an exact scoped policy supplies authority; a template default does not.
+
+`ProjectDelegation` records the preview, prepared/failed/committed status and
+attributed history. Commitment requires a timestamp and summary report name;
+failure requires an error. `DelegationHistory` retains the typed original
+source, timestamp, attribution and existing assessment/action snapshot type.
+It is historical data, excluded from current source calculations.
+
+`RecommendationCard` accepts either the existing journal reference or a
+`localRecommendation`, never both. Local recommendations hold source, creation
+timestamp, rationale, advice and preview. Successful application result entries
+identify `operationId` and `childProjectId`; journal-backed instance result
+entries retain their existing collection/name shape.
+
+### Requirement and diagnostic interfaces
+
+`ReportingRequirement` extends `PracticeElement` and `ReportingContract` with
+`requirementId`, semver `version`, `coverAllChildren`, `allowExclusions` and
+optional `maxSourceAgeSeconds`. Bind it to a local report through
+`ReportingRequirementBinding` (`requirementId`, `version`, `reportName`).
+
+`ChildReportCoverage` identifies a child UUID and either contributing
+`bindingNames` or an `exclusionReason`. Disappeared configured children remain
+expected; newly discovered children require mappings when coverage is required.
+
+`ReportingDiagnostic` requires stable `code`, affected `projectId`, `reportName`
+and `issue`. Inherited diagnostics also retain `requirementId`,
+`originatingProjectId` and offending/related references. Missing mappings and
+freshness withhold report totals without invalidating local project JSON.
+
+### Validator commands and outputs
+
+The existing project CLI adds repeatable `--report-result` and
+`--creation-preview`, plus `--catalogue`. `--document` supplies methodology and
+existing recommendation contexts. `--preflight` checks current write
+preconditions and authority; no mode applies writes.
+
+```bash
+python3 validate/validate-project.py project.json language.schema.json \
+  --catalogue catalogue.json --document practice.json --document baseline.json \
+  --report-result result.json --creation-preview preview.json --preflight
+```
+
+The existing `valid`, errors, warnings and exit status describe malformed local
+documents, ownership contradictions and unsafe operation/result claims.
+`hierarchy.resolutionChecked` records whether a catalogue was supplied.
+`reporting.alignmentComplete` and its diagnostics describe reporting gaps;
+unknown source freshness remains inspectable. Each supplied result is checked
+independently, so unrelated reports remain available.
 
 ## External signal recommendations (3.3.0)
 

@@ -865,7 +865,7 @@ class PracticeValidator:
 
     def validate_internal_integrity(self) -> bool:
         """Validate internal cross-references within practice/method"""
-        has_errors = False
+        has_errors = not self.validate_project_creation_templates()
 
         # Determine if this is a Practice or Method
         is_method = 'practices' in self.practice or 'baselinePractice' in self.practice
@@ -1393,7 +1393,7 @@ class PracticeValidator:
     ELEMENT_COLLECTIONS = [
         'focuses', 'alphas', 'alphaInstances', 'workProductInstances', 'activitySpaces',
         'competencies', 'activities', 'workProducts', 'personas', 'personaGroups',
-        'narrativeTypes', 'patterns', 'patternGroups', 'outcomes',
+        'narrativeTypes', 'patterns', 'patternGroups', 'outcomes', 'projectCreationTemplates',
     ]
 
     def _inherited_element_names(self) -> Dict[str, set]:
@@ -3914,6 +3914,27 @@ class PracticeValidator:
                         has_warnings = True
 
         return True
+
+    def validate_project_creation_templates(self) -> bool:
+        from delegation_validation import validate_templates
+        from project_catalogue import ProjectCatalogue
+
+        def contains_templates(document):
+            return bool(document.get('projectCreationTemplates')) or any(
+                contains_templates(p) for p in document.get('practices', []) if isinstance(p, dict))
+
+        if not any(contains_templates(doc) for doc in [self.practice, *self.dependencies]):
+            return True
+        context = ProjectCatalogue(self.schema, documents=[self.practice, self.baseline, *self.dependencies])
+        definition = 'Method' if any(k in self.practice for k in ('practices', 'practiceNames', 'baselinePractice')) else 'Practice'
+        if not context.check(self.practice, definition):
+            self.errors.extend(context.errors)
+            return False
+        scope = context.methodology_scope(self.practice)
+        validate_templates(context, self.practice, scope)
+        self.errors.extend(context.errors)
+        self.warnings.extend(context.warnings)
+        return not context.errors
 
     def validate_schema_version(self) -> bool:
         """Validate schemaVersion compatibility if present."""

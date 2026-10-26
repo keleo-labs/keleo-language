@@ -22,20 +22,25 @@ ensure_dependencies()
 
 import jsonschema  # noqa: E402
 from jsonschema import Draft202012Validator, RefResolver  # noqa: E402
-from signal_validation import SignalValidator  # noqa: E402
+from signal_validation import FORMATS, SignalValidator  # noqa: E402
+from project_catalogue import ProjectCatalogue  # noqa: E402
+from reporting_validation import ReportingValidator  # noqa: E402
+from delegation_validation import DelegationValidator  # noqa: E402
 
 
 class ProjectValidator:
     """Validates Project JSON against schema and internal cross-reference integrity"""
 
-    def __init__(self, project_file: Path, schema_file: Path):
+    def __init__(self, project_file: Path, schema_file: Path, project=None):
         self.project_file = project_file
         self.schema_file = schema_file
         self.errors = []
         self.warnings = []
 
-        self.project = self._load_json(project_file)
+        self.project = self._load_json(project_file) if project is None else project
         self.schema = self._load_json(schema_file)
+        self.hierarchy = {"resolutionChecked": False}
+        self.reporting = {"alignmentComplete": None, "diagnostics": [], "results": []}
 
     def _load_json(self, file_path: Path) -> Dict:
         try:
@@ -55,7 +60,7 @@ class ProjectValidator:
                 base_uri=f"file://{schema_dir}/",
                 referrer=self.schema
             )
-            validator = Draft202012Validator(self.schema, resolver=resolver)
+            validator = Draft202012Validator(self.schema, resolver=resolver, format_checker=FORMATS)
             schema_errors = list(validator.iter_errors(self.project))
 
             for error in schema_errors:
@@ -737,6 +742,46 @@ class ProjectValidator:
         self.warnings.extend(checker.warnings)
         return not checker.errors
 
+    def validate_hierarchy(self, catalogue=None, documents=(), preflight=False,
+                           report_results=(), creation_previews=(), now=None):
+        context = ProjectCatalogue(self.schema, catalogue, self.project, documents, preflight)
+        context.validate()
+        for project in context.projects.values():
+            local = ProjectValidator(self.project_file, self.schema_file, project=project)
+            local.validate_local()
+            for error in local.errors:
+                context.issue('CATALOGUE_PROJECT_INVALID', error['issue'], project['projectId'], path=error['path'])
+        reporting = ReportingValidator(context, report_results, now)
+        reporting.validate()
+        delegations = DelegationValidator(context)
+        delegations.validate(creation_previews)
+        previews = list(creation_previews)
+        for project in context.projects.values():
+            previews.extend(d['preview'] for d in project.get('delegations', []) if d['status'] != 'committed')
+            previews.extend(c['localRecommendation']['proposal'] for c in project.get('recommendations', []) if 'localRecommendation' in c)
+        for preview in previews:
+            if context.check(preview, 'ProjectCreationPreview'):
+                child = ProjectValidator(self.project_file, self.schema_file, project=preview['child'])
+                child.validate_local()
+                for error in child.errors:
+                    context.issue('DELEGATION_CHILD_INVALID', error['issue'], preview['child']['projectId'], path=error['path'])
+        self.errors.extend(context.errors)
+        self.warnings.extend(context.warnings)
+        self.hierarchy = {'resolutionChecked': context.supplied, 'operations': delegations.results}
+        self.reporting = reporting.summary()
+        return not context.errors
+
+    def validate_local(self):
+        if not self.validate_schema():
+            return False
+        for check in (self.validate_practice_reference, self.validate_cycles,
+                      self.validate_pattern_view_references, self.validate_actions,
+                      self.validate_instance_consistency, self.validate_instance_relationships,
+                      self.validate_priority_thresholds, self.validate_integrations,
+                      self.validate_schema_version):
+            check()
+        return not self.errors
+
     def generate_report(self) -> Dict:
         return {
             "project_file": str(self.project_file),
@@ -746,9 +791,12 @@ class ProjectValidator:
             "warning_count": len(self.warnings),
             "errors": self.errors,
             "warnings": self.warnings,
+            "hierarchy": self.hierarchy,
+            "reporting": self.reporting,
             "summary": {
                 "schema": sum(1 for e in self.errors if e['category'] == 'schema'),
                 "integrity": sum(1 for e in self.errors if e['category'] == 'integrity'),
+                "catalogue": sum(1 for e in self.errors if e['category'] == 'catalogue'),
             }
         }
 
@@ -765,6 +813,9 @@ def main():
                         help="Referenced journal, mapping or context JSON; repeatable")
     parser.add_argument("--preflight", action="store_true",
                         help="Require resolved references and check accepted proposals against current data")
+    parser.add_argument('--catalogue', help='ProjectCatalogue JSON snapshot; project discovery stays in consumers')
+    parser.add_argument('--report-result', action='append', default=[], help='Consumer ReportResult JSON; repeatable')
+    parser.add_argument('--creation-preview', action='append', default=[], help='ProjectCreationPreview JSON; repeatable')
     parser.add_argument("--quiet", "-q", action="store_true",
                         help="Suppress progress messages to stderr")
     parser.add_argument("--brief", action="store_true",
@@ -780,39 +831,16 @@ def main():
 
     validator = ProjectValidator(project_file, schema_file)
 
-    progress("Validating schema...")
-    validator.validate_schema()
-
-    progress("Validating practice/method reference...")
-    validator.validate_practice_reference()
-
-    progress("Validating cycles...")
-    validator.validate_cycles()
-
-    progress("Validating pattern view references...")
-    validator.validate_pattern_view_references()
-
-    progress("Validating actions...")
-    validator.validate_actions()
-
-    progress("Validating instance consistency...")
-    validator.validate_instance_consistency()
-
-    progress("Validating instance relationships...")
-    validator.validate_instance_relationships()
-
-    progress("Validating priority thresholds...")
-    validator.validate_priority_thresholds()
-
-    progress("Validating integrations...")
-    validator.validate_integrations()
-
-    progress("Validating recommendations...")
-    documents = [validator._load_json(Path(path)) for path in args.document]
-    validator.validate_recommendations(documents, args.preflight)
-
-    progress("Validating schema version...")
-    validator.validate_schema_version()
+    progress('Validating local project...')
+    validator.validate_local()
+    if not validator.errors:
+        documents = [validator._load_json(Path(path)) for path in args.document]
+        validator.validate_recommendations(documents, args.preflight)
+        progress('Validating ownership, reporting and delegation...')
+        catalogue = validator._load_json(Path(args.catalogue)) if args.catalogue else None
+        results = [validator._load_json(Path(path)) for path in args.report_result]
+        previews = [validator._load_json(Path(path)) for path in args.creation_preview]
+        validator.validate_hierarchy(catalogue, documents, args.preflight, results, previews)
 
     report = validator.generate_report()
 

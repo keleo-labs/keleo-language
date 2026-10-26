@@ -98,6 +98,9 @@ The `documents` array (required, at least one entry) provides an ordered invento
 - `path` — relative path to the JSON file within the ZIP (must begin with `documents/` and end with `.json`)
 - `documentType` — the root type: `practiceBaseline`, `practice`, `method`, `project`, `integrationMapping`, `signalJournal`, `changeRequest` or `changeSet`
 - `documentName` — the `name` property of the root document, which is the identity key used for symbolic resolution
+- `projectId` — required UUID for project entries in schema 4; must equal the
+  packaged Project's `projectId`. Project names are descriptive rather than
+  catalogue identity keys.
 - `entryPoint` — boolean flag (default `false`) indicating whether this document is a primary entry point
 
 Entry points are the documents a consumer should resolve first. A method package marks the method as the entry point; a library package might mark all practices as entry points for independent consumption. At least one document SHOULD be marked as an entry point.
@@ -109,10 +112,25 @@ documents and pinned mapping versions in the package or its dependencies.
 Journal records remain separate from methodology composition. See the
 [signal semantics](../references/semantics/external-signals.md).
 
-The inventory still requires unique document names within each type. Keep
+The inventory requires unique project UUIDs and unique methodology document names within each type. Keep
 archived versions of a mapping in separate versioned packages or external files;
 signal provenance resolves by mapping name and root `version`. This does not
 change name-based methodology composition.
+
+Schema 4 also embeds versioned creation templates in Practice and Method
+documents. They are covered by those documents' inventory entries and declared
+package dependencies; they are not assets or a new document kind. Consumers
+compose them atomically by template name/version and resolve their methodology,
+narrative and asset references in the declared dependency scope.
+
+Catalogues, creation previews and report results are API envelopes rather than
+new package document kinds. Delegation receipts and reporting declarations travel
+inside their Project. See the [schema-4 migration guide](../references/semantics/project-hierarchy.md#migration-from-schema-3).
+
+Package consumers can call `ProjectCatalogue.validate_project_inventory` with
+the manifest and a mapping of entry paths to loaded document objects. It checks
+that project inventory UUIDs and descriptive names match their documents and
+rejects duplicate project UUIDs without reading archives or discovering files.
 
 ### Dependencies
 
@@ -283,6 +301,10 @@ Scenario: No circular package dependencies (13)
 The merge algorithm (described in `references/merge.md`, Section 2.3) requires a library lookup index that maps practice and baseline names to their full document bodies. A `.keleo` package serves as such a library: its manifest's `documents` array maps `(documentType, documentName)` pairs to file paths, enabling the merge algorithm to resolve symbolic name references to document bodies without external configuration.
 
 When a Method uses `practiceNames` or `baselinePracticeName` string references, the consumer builds a resolution index from the package's document inventory. The merge algorithm then resolves names against this index during composition.
+
+Schema-4 projects use a separate index keyed by UUID `projectId`. Neither package
+precedence nor a matching `documentName` resolves duplicate project UUIDs; report
+those as identity conflicts. A project may be renamed without changing that key.
 
 ### Multi-Package Resolution
 

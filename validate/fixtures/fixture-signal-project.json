@@ -1,9 +1,10 @@
 {
+  "projectId": "673dcb6b-f27f-4fd8-a685-21bf43d516bb",
   "name": "Example Company account plan",
   "description": "Account-team response to public investment signals.",
   "practiceName": "Fixture Account Planning",
   "version": "1.0.0",
-  "schemaVersion": "3.3.0",
+  "schemaVersion": "4.0.0",
   "plan": { "pattern": { "name": "Account plan", "description": "Investigate account priorities.", "patternViews": [{ "name": "Investigate", "description": "Review account signals.", "seq": 1, "alphaStates": [] }], "alphaInstanceNames": [] } },
   "current": {},
   "target": {},
