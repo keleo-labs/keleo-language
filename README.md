@@ -6,6 +6,12 @@ The Practice Language JSON Schema is a meta-model for describing practices, meth
 
 The schema is defined in [`language.schema.json`](language.schema.json) using JSON Schema Draft 2020-12. Semantic guidance and operational architecture are documented in [`references/semantics.md`](references/semantics.md).
 
+Schema **4.0.0** requires persistent UUID project identity and adds explicit project
+ownership, reporting, delegation templates and inherited reporting requirements.
+Read the [migration guide](references/semantics/project-hierarchy.md#migration-from-schema-3)
+before upgrading consumers. The project validator accepts catalogue snapshots,
+report results and creation previews without applying writes.
+
 ## What the language is
 
 An ontology, in the sense Tom Gruber gave the word, is [a formal specification of a shared conceptualization](https://tomgruber.org/writing/ontolingua-kaj-1993/). That is what this schema is for working practice. A domain agrees on what it cares about, and the language writes that agreement down in a form software can check.

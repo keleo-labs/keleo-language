@@ -76,6 +76,7 @@
     - 11.7 [Phase 2 Translation Guidance](semantics/narrative-and-assets.md#117-phase-2-translation-guidance)
     - 11.8 [Best Practices](semantics/narrative-and-assets.md#118-best-practices)
 12. [Project Execution Tracking](semantics/project-tracking.md)
+    - [Project hierarchy, reporting and delegation (schema 4)](semantics/project-hierarchy.md)
     - 12.1 [Project Purpose and Root Discrimination](semantics/project-tracking.md#121-project-purpose-and-root-discrimination)
     - 12.2 [Team Structure and Team API Principles](semantics/project-tracking.md#122-team-structure-and-team-api-principles)
     - 12.3 [Plan Section and Pattern Ownership](semantics/project-tracking.md#123-plan-section-and-pattern-ownership)

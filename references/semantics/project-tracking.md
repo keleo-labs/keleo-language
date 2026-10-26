@@ -1,11 +1,17 @@
 [< Back to Semantic Guidance Hub](../semantics.md)
 
 Projects may hold optional `recommendations` and `recommendationPolicies`.
-These reference external signal journals and manage project-owned review and
+These reference external signal journals or local delegation proposals and manage project-owned review and
 application decisions. See [External signals and contextual recommendations](external-signals.md)
 for the fixed Kanban lifecycle, typed proposals and application authority rules.
 
 ## 12 Project Execution Tracking
+
+Schema 4 requires a persistent UUID `projectId` on every Project, alongside its
+inherited `name` and `description`. Ownership, cross-project reports, creation
+templates and inherited requirements are specified in
+[Project hierarchy and reporting](project-hierarchy.md). These capabilities
+preserve independent project methods and parent-owned acceptance criteria.
 
 The Practice Language defines practices, methods, and baselines as methodology specifications — they describe *what should be done*. The Project type bridges the gap to execution, providing a structure for tracking *what is being done* against those specifications. A Project is an execution instance of a Practice or Method, recording team composition, a tailored plan, the currently assessed state of tracked concerns and artifacts, and the desired target state.
 
@@ -142,6 +148,7 @@ Three mechanisms interact to determine whether a checklist item is active in a g
 ```json
 {
   "name": "Platform Modernisation",
+  "projectId": "1fe5263b-ef19-4d3f-bb72-2631c7a86944",
   "practiceName": "Cloud Platform Engineering",
   "priorityThreshold": "should",
   "currentCycleName": "Sprint 3",
@@ -346,6 +353,11 @@ An OutcomeInstance has:
 
 The computed aggregate is **derived at read time** and is not stored on the OutcomeInstance. `actualValue` records confirmed measurements; `forecastValue` captures projections. `status` is author-set; tooling does not infer it from computed vs `targetValue`.
 
+`OutcomeValueKind` selects `actualValue`, `forecastValue` or `targetValue` for
+recorded cross-project reporting. A target report requires an explicit
+`targetValue`, applies no forecast weight and never overwrites the parent's
+own target. See [reporting contracts](project-hierarchy.md#reporting-contracts-and-outcome-values).
+
 **Placement**
 
 OutcomeInstances appear in two locations:
@@ -378,6 +390,7 @@ A consuming system resolves outcome values by following the practice template's 
 ```json
 {
   "kind": "project",
+  "projectId": "7849d90b-b59e-4d0e-8501-a1be32197952",
   "name": "Cisco EMEA TEP FY26",
   "outcomes": [
     {
@@ -556,6 +569,7 @@ When validating project-level actions, `outcomeInstanceNames` resolves against p
 ```json
 {
   "kind": "project",
+  "projectId": "e27a7004-d62f-42c2-a184-5b1b3915d8bb",
   "name": "Platform Modernisation",
   "practiceName": "Cloud Migration",
   "actions": [
