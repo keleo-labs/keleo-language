@@ -570,6 +570,19 @@ class ProjectHierarchy(unittest.TestCase):
         self.assertFalse(self.definition('PackageDocument').is_valid(entry))
         entry['projectId'] = self.parent['projectId']
         self.definition('PackageDocument').validate(entry)
+        legacy = deepcopy(self.parent)
+        legacy.pop('projectId')
+        legacy.pop('reports')
+        legacy['schemaVersion'] = '3.3.0'
+        original = deepcopy(legacy)
+        migrated = deepcopy(legacy)
+        migrated.update(projectId=self.parent['projectId'], schemaVersion='4.0.0')
+        validator = ProjectValidator(FIXTURES / 'fixture-signal-project.json', SCHEMA, project=migrated)
+        self.assertTrue(validator.validate_local(), validator.errors)
+        self.assertEqual(legacy, original)
+        migrated['schemaVersion'] = '3.3.0'
+        self.assertFalse(validator.validate_schema_version())
+        self.assertTrue(any(e['path'] == 'schemaVersion' for e in validator.errors))
 
     def test_rename_same_names_and_uuid_case_preserve_identity(self):
         context = self.context()
