@@ -12,13 +12,36 @@ Read the [migration guide](references/semantics/project-hierarchy.md#migration-f
 before upgrading consumers. The project validator accepts catalogue snapshots,
 report results and creation previews without applying writes.
 
+### Additional metadata
+
+Two separate `1.0.0` schemas describe local authoring catalogs:
+[`source-catalog.schema.json`](source-catalog.schema.json) stores reusable source
+sections and [`practice-catalog.schema.json`](practice-catalog.schema.json) indexes
+one practice or baseline and its links to source sections. These catalogs are local
+metadata, not Practice Language documents or bundle contents. Practice citations
+and references keep their existing role. See [catalog semantics](references/semantics/catalogs.md)
+and `validate/validate-catalog.py` for their meaning and checks.
+
+The section lookup design is informed by [Kumar et al., *STAIR: STructure Aware
+Information Retriever* (2026)](https://arxiv.org/html/2609.03874v1). That paper
+evaluates a fine-tuned retriever; these catalog schemas make no claim to reproduce
+its model or measured accuracy.
+
 ## What the language is
 
-An ontology, in the sense Tom Gruber gave the word, is [a formal specification of a shared conceptualization](https://tomgruber.org/writing/ontolingua-kaj-1993/). That is what this schema is for working practice. A domain agrees on what it cares about, and the language writes that agreement down in a form software can check.
-
-The shape is the familiar one of entities, relationships and properties. **Alphas** are the entities — the things a domain is concerned about, like a platform, a requirement or a customer relationship. `contributesTo`, `mapsTo` and `relatesTo` are the relationships between them. **States**, and the checklists that make each state assessable, are the properties that say where an alpha has got to.
+An ontology, in Tom Gruber's terms, is [a formal specification of a shared conceptualization](https://tomgruber.org/writing/ontolingua-kaj-1993/). The Practice Language expresses how a team works and the rules that govern its work in a form software can check. This lets software assist teams as they follow a practice.
 
 The consequence is that methodology stops being documentation and becomes data. A practice expressed this way can be validated, merged with another practice, compared against a rival approach, and composed into a method — by software, without a human rereading the prose each time.
+
+You can understand the language through two views: things to work with and things to do.
+
+### Things to work with
+
+**Alphas** are the primary areas of concern, such as a platform, a requirement or a customer relationship. Each alpha has a sequence of states that describes its progression. **Work products** are the tangible outputs of the work and provide evidence for an alpha's state.
+
+### Things to do
+
+**Activities** describe the work a team performs to create work products and move alphas through their states.
 
 ## Constraints and inference
 
