@@ -1,10 +1,273 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/language.schema.json",
-  "$comment": "schemaVersion:3.3.0",
+  "$comment": "schemaVersion:4.0.0",
   "title": "Practice language (from language.mmd)",
-  "description": "Practice Language definitions, projects, integration mappings, signal journals and change documents. Identity is by name; most cross-links are symbolic string references. Methods support embedded documents, named references or a mix.",
+  "description": "Practice Language definitions, UUID-identified projects, integration mappings, signal journals and change documents. Methodology identity is by name; project identity is a persistent UUID. Methods support embedded documents, named references or a mix.",
   "$defs": {
+    "ProjectId": { "type": "string", "format": "uuid", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
+    "OutcomeValueKind": { "enum": ["actual", "forecast", "target"] },
+    "ProjectReference": {
+      "type": "object", "required": ["projectId"],
+      "properties": { "projectId": { "$ref": "#/$defs/ProjectId" } }, "additionalProperties": false
+    },
+    "ProjectItemLocator": {
+      "type": "object", "required": ["collection", "instanceName"],
+      "properties": {
+        "collection": { "enum": ["plan.pattern.alphaInstanceNames", "plan.pattern.workProductInstanceNames", "current.alphaInstances", "current.workProductInstances", "target.alphaInstances", "target.workProductInstances", "outcomes", "actions", "cycles.alphaInstances", "cycles.workProductInstances", "cycles.outcomes", "cycles.actions"] },
+        "instanceName": { "type": "string", "minLength": 1 }, "cycleName": { "type": "string", "minLength": 1 }
+      },
+      "if": { "properties": { "collection": { "pattern": "^cycles\\." } }, "required": ["collection"] },
+      "then": { "required": ["cycleName"] }, "else": { "not": { "required": ["cycleName"] } }
+    },
+    "LocalProjectItemReference": { "allOf": [{ "$ref": "#/$defs/ProjectItemLocator" }], "unevaluatedProperties": false },
+    "ProjectItemReference": {
+      "allOf": [{ "$ref": "#/$defs/ProjectItemLocator" }, { "type": "object", "required": ["projectId"], "properties": { "projectId": { "$ref": "#/$defs/ProjectId" } } }],
+      "unevaluatedProperties": false
+    },
+    "ProjectReportReference": {
+      "type": "object", "required": ["projectId", "reportName"],
+      "properties": { "projectId": { "$ref": "#/$defs/ProjectId" }, "reportName": { "type": "string", "minLength": 1 } }, "additionalProperties": false
+    },
+    "ReportingPeriod": {
+      "type": "object", "required": ["start", "end"],
+      "properties": { "start": { "type": "string", "format": "date-time" }, "end": { "type": "string", "format": "date-time" } }, "additionalProperties": false
+    },
+    "ReportingMetricDefinition": {
+      "allOf": [{ "$ref": "#/$defs/PracticeElement" }, { "type": "object", "required": ["metricId", "version"], "properties": {
+        "kind": { "const": "reportingMetricDefinition" }, "metricId": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }
+      } }], "unevaluatedProperties": false
+    },
+    "ReportingContract": {
+      "type": "object", "required": ["metric", "aggregation", "unit", "period"],
+      "properties": {
+        "metric": { "$ref": "#/$defs/ReportingMetricDefinition" }, "aggregation": { "enum": ["sum", "attainmentCount"] },
+        "unit": { "type": "string", "minLength": 1, "description": "Explicit unit; use '1' for unitless quantities and 'count' for attainment." },
+        "period": { "$ref": "#/$defs/ReportingPeriod" }, "valueKind": { "$ref": "#/$defs/OutcomeValueKind" }
+      },
+      "if": { "properties": { "aggregation": { "const": "sum" } }, "required": ["aggregation"] },
+      "then": { "required": ["valueKind"] }, "else": { "not": { "required": ["valueKind"] } }
+    },
+    "ReportBinding": {
+      "allOf": [{ "$ref": "#/$defs/PracticeElement" }, { "type": "object", "required": ["sourceKind", "source"], "properties": {
+        "kind": { "const": "reportBinding" }, "sourceKind": { "enum": ["outcome", "assessment", "report"] },
+        "source": { "oneOf": [{ "$ref": "#/$defs/ProjectItemReference" }, { "$ref": "#/$defs/ProjectReportReference" }] },
+        "target": { "$ref": "#/$defs/ProjectItemReference" }, "valueSource": { "enum": ["recorded", "derived"] }
+      }, "allOf": [
+        { "if": { "properties": { "sourceKind": { "const": "report" } }, "required": ["sourceKind"] }, "then": { "properties": { "source": { "$ref": "#/$defs/ProjectReportReference" } } }, "else": { "properties": { "source": { "$ref": "#/$defs/ProjectItemReference" } } } },
+        { "if": { "properties": { "sourceKind": { "const": "assessment" } }, "required": ["sourceKind"] }, "then": { "required": ["target"] }, "else": { "not": { "required": ["target"] } } },
+        { "if": { "properties": { "sourceKind": { "const": "outcome" } }, "required": ["sourceKind"] }, "then": { "required": ["valueSource"] }, "else": { "not": { "required": ["valueSource"] } } }
+      ] }], "unevaluatedProperties": false
+    },
+    "ChildReportCoverage": {
+      "type": "object", "required": ["projectId"], "properties": {
+        "projectId": { "$ref": "#/$defs/ProjectId" }, "bindingNames": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "exclusionReason": { "type": "string", "pattern": "\\S" }
+      }, "oneOf": [{ "required": ["bindingNames"], "not": { "required": ["exclusionReason"] } }, { "required": ["exclusionReason"], "not": { "required": ["bindingNames"] } }], "additionalProperties": false
+    },
+    "ReportDefinition": {
+      "allOf": [{ "$ref": "#/$defs/PracticeElement" }, { "$ref": "#/$defs/ReportingContract" }, { "type": "object", "required": ["bindings"], "properties": {
+        "kind": { "const": "reportDefinition" }, "bindings": { "type": "array", "items": { "$ref": "#/$defs/ReportBinding" } },
+        "childCoverage": { "type": "array", "items": { "$ref": "#/$defs/ChildReportCoverage" } }
+      } }], "unevaluatedProperties": false
+    },
+    "SourceIdentity": {
+      "type": "object", "required": ["namespace", "key"], "properties": {
+        "namespace": { "type": "string", "minLength": 1, "description": "External system and tenant namespace, or project:<canonical UUID>." },
+        "key": { "type": "string", "minLength": 1 }
+      }, "additionalProperties": false
+    },
+    "ReportingSource": {
+      "type": "object", "required": ["identity", "metric", "period"], "properties": {
+        "identity": { "$ref": "#/$defs/SourceIdentity" }, "metric": { "$ref": "#/$defs/ReportingMetricDefinition" },
+        "period": { "$ref": "#/$defs/ReportingPeriod" }, "originalSource": { "$ref": "#/$defs/ProjectItemReference" },
+        "observedAt": { "type": "string", "format": "date-time" }, "synchronizedAt": { "type": "string", "format": "date-time" },
+        "integrationName": { "type": "string", "minLength": 1 }
+      }, "additionalProperties": false
+    },
+    "ReportContribution": {
+      "type": "object", "required": ["bindingName", "origin", "originalSource", "source", "metricId", "metricVersion", "unit", "period", "inputRevision", "evidence"],
+      "properties": {
+        "bindingName": { "type": "string", "minLength": 1 }, "origin": { "$ref": "#/$defs/SourceIdentity" },
+        "originalSource": { "$ref": "#/$defs/ProjectItemReference" }, "source": { "$ref": "#/$defs/ProjectItemReference" },
+        "metricId": { "type": "string", "minLength": 1 }, "metricVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "unit": { "type": "string", "minLength": 1 }, "period": { "$ref": "#/$defs/ReportingPeriod" }, "valueKind": { "$ref": "#/$defs/OutcomeValueKind" },
+        "inputRevision": { "type": "string", "minLength": 1 }, "value": { "type": "number" }, "attained": { "type": "boolean" },
+        "rawValue": { "type": "number" }, "weight": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evidence": { "type": "array", "items": { "$ref": "#/$defs/ExternalLink" } },
+        "observedAt": { "type": "string", "format": "date-time" }, "synchronizedAt": { "type": "string", "format": "date-time" },
+        "integrationName": { "type": "string", "minLength": 1 }, "via": { "type": "array", "items": { "$ref": "#/$defs/ProjectReportReference" } }
+      }, "oneOf": [
+        { "required": ["value", "valueKind"], "not": { "required": ["attained"] } },
+        { "required": ["attained"], "not": { "anyOf": [{ "required": ["value"] }, { "required": ["valueKind"] }, { "required": ["weight"] }, { "required": ["rawValue"] }] } }
+      ], "allOf": [
+        { "if": { "required": ["valueKind"], "properties": { "valueKind": { "const": "target" } } }, "then": { "not": { "anyOf": [{ "required": ["weight"] }, { "required": ["rawValue"] }] } } },
+        { "if": { "required": ["weight"] }, "then": { "required": ["rawValue"] } },
+        { "if": { "required": ["rawValue"] }, "then": { "required": ["weight"] } }
+      ], "additionalProperties": false
+    },
+    "ReportingDiagnostic": {
+      "type": "object", "required": ["code", "projectId", "reportName", "issue"], "properties": {
+        "code": { "type": "string", "minLength": 1 }, "projectId": { "$ref": "#/$defs/ProjectId" }, "reportName": { "type": "string" },
+        "issue": { "type": "string" }, "requirementId": { "type": "string" }, "path": { "type": "string" },
+        "originatingProjectId": { "$ref": "#/$defs/ProjectId" }, "source": { "type": "object" }, "relatedReferences": { "type": "array", "items": { "type": "object" } }
+      }, "additionalProperties": false
+    },
+    "ReportResult": {
+      "type": "object", "required": ["report", "calculatedAt", "complete", "contributions", "coverage", "diagnostics"], "properties": {
+        "report": { "$ref": "#/$defs/ProjectReportReference" }, "calculatedAt": { "type": "string", "format": "date-time" }, "complete": { "type": "boolean" },
+        "contributions": { "type": "array", "items": { "$ref": "#/$defs/ReportContribution" } }, "coverage": { "type": "array", "items": { "$ref": "#/$defs/ChildReportCoverage" } },
+        "diagnostics": { "type": "array", "items": { "$ref": "#/$defs/ReportingDiagnostic" } }, "total": { "type": "number" }
+      }, "if": { "properties": { "complete": { "const": true } }, "required": ["complete"] }, "then": { "required": ["total"], "properties": { "diagnostics": { "maxItems": 0 } } },
+      "else": { "not": { "required": ["total"] } }, "additionalProperties": false
+    },
+    "ReportingRequirement": {
+      "allOf": [{ "$ref": "#/$defs/PracticeElement" }, { "$ref": "#/$defs/ReportingContract" }, { "type": "object", "required": ["requirementId", "version"], "properties": {
+        "kind": { "const": "reportingRequirement" }, "requirementId": { "type": "string", "minLength": 1 }, "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "coverAllChildren": { "type": "boolean", "default": false }, "allowExclusions": { "type": "boolean", "default": false },
+        "maxSourceAgeSeconds": { "type": "integer", "minimum": 1 }
+      } }], "unevaluatedProperties": false
+    },
+    "ReportingRequirementBinding": {
+      "type": "object", "required": ["requirementId", "version", "reportName"], "properties": {
+        "requirementId": { "type": "string", "minLength": 1 }, "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }, "reportName": { "type": "string", "minLength": 1 }
+      }, "additionalProperties": false
+    },
+    "ProjectCatalogue": {
+      "type": "object", "required": ["projects"], "properties": { "projects": { "type": "array", "items": {
+        "type": "object", "required": ["document", "revision"], "properties": {
+          "document": { "$ref": "#/$defs/Project" }, "revision": { "type": "string", "minLength": 1 }, "containingProjectId": { "$ref": "#/$defs/ProjectId" }
+        }, "additionalProperties": false
+      } } }, "additionalProperties": false
+    },
+    "MethodologyReference": {
+      "type": "object", "required": ["documentType", "documentName", "version"], "properties": {
+        "documentType": { "enum": ["practice", "method"] }, "documentName": { "type": "string", "minLength": 1 }, "version": { "type": "string", "minLength": 1 }
+      }, "additionalProperties": false
+    },
+    "ProjectCreationTemplateReference": {
+      "type": "object", "required": ["methodology", "templateName", "version"], "properties": {
+        "methodology": { "$ref": "#/$defs/MethodologyReference" }, "templateName": { "type": "string", "minLength": 1 }, "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }
+      }, "additionalProperties": false
+    },
+    "ProjectScopeSelector": {
+      "allOf": [{ "$ref": "#/$defs/PracticeElement" }, { "type": "object", "required": ["selection"], "properties": {
+        "kind": { "const": "projectScopeSelector" }, "selection": { "enum": ["root", "named", "related"] },
+        "items": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/LocalProjectItemReference" } },
+        "relationshipKind": { "$ref": "#/$defs/InstanceRelationship/properties/relationshipKind" }, "direction": { "$ref": "#/$defs/InstanceRelationship/properties/direction" }
+      }, "allOf": [
+        { "if": { "properties": { "selection": { "const": "named" } }, "required": ["selection"] }, "then": { "required": ["items"] }, "else": { "not": { "required": ["items"] } } },
+        { "if": { "properties": { "selection": { "const": "related" } }, "required": ["selection"] }, "then": { "required": ["relationshipKind", "direction"] }, "else": { "not": { "anyOf": [{ "required": ["relationshipKind"] }, { "required": ["direction"] }] } } }
+      ] }], "unevaluatedProperties": false
+    },
+    "ChecklistMapping": {
+      "type": "object", "required": ["fromStateOrLevel", "fromChecklist", "toStateOrLevel", "toChecklist"], "properties": {
+        "fromStateOrLevel": { "type": "string", "minLength": 1 }, "fromChecklist": { "type": "string", "minLength": 1 },
+        "toStateOrLevel": { "type": "string", "minLength": 1 }, "toChecklist": { "type": "string", "minLength": 1 }
+      }, "additionalProperties": false
+    },
+    "TemplateInstanceMapping": {
+      "type": "object", "required": ["selectorName", "instanceKind", "sourceTypeName", "targetTypeName"], "properties": {
+        "selectorName": { "type": "string", "minLength": 1 }, "instanceKind": { "enum": ["alpha", "workProduct"] },
+        "sourceTypeName": { "type": "string", "minLength": 1 }, "targetTypeName": { "type": "string", "minLength": 1 },
+        "stateMappings": { "type": "array", "items": { "$ref": "#/$defs/StateContribution" } }, "lodMappings": { "type": "array", "items": { "$ref": "#/$defs/LodContribution" } },
+        "checklistMappings": { "type": "array", "items": { "$ref": "#/$defs/ChecklistMapping" } }
+      }, "if": { "properties": { "instanceKind": { "const": "alpha" } }, "required": ["instanceKind"] },
+      "then": { "not": { "required": ["lodMappings"] } }, "else": { "not": { "required": ["stateMappings"] } }, "additionalProperties": false
+    },
+    "AssigneeMapping": {
+      "type": "object", "required": ["from", "to"], "properties": { "from": { "type": "string", "minLength": 1 }, "to": { "type": "string", "minLength": 1 } }, "additionalProperties": false
+    },
+    "TemplateActionMapping": {
+      "type": "object", "required": ["selectorName", "assigneeMappings"], "properties": {
+        "selectorName": { "type": "string", "minLength": 1 }, "targetCycleName": { "type": "string", "minLength": 1 },
+        "assigneeMappings": { "type": "array", "items": { "$ref": "#/$defs/AssigneeMapping" } }
+      }, "additionalProperties": false
+    },
+    "CreationReportingBinding": {
+      "allOf": [{ "$ref": "#/$defs/PracticeElement" }, { "$ref": "#/$defs/ReportingContract" }, { "type": "object", "required": ["parentReportName", "childReportName", "source"], "properties": {
+        "kind": { "const": "creationReportingBinding" }, "parentReportName": { "type": "string", "minLength": 1 }, "childReportName": { "type": "string", "minLength": 1 },
+        "source": { "$ref": "#/$defs/LocalProjectItemReference" }, "target": { "$ref": "#/$defs/LocalProjectItemReference" }, "valueSource": { "enum": ["recorded", "derived"] }
+      }, "if": { "properties": { "aggregation": { "const": "sum" } }, "required": ["aggregation"] },
+      "then": { "required": ["valueSource"], "not": { "required": ["target"] } },
+      "else": { "required": ["target"], "not": { "required": ["valueSource"] } } }], "unevaluatedProperties": false
+    },
+    "ProjectCreationVariant": {
+      "allOf": [{ "$ref": "#/$defs/PracticeElement" }, { "type": "object", "required": ["methodology", "instanceMappings", "actionMappings", "reportingBindings"], "properties": {
+        "kind": { "const": "projectCreationVariant" }, "methodology": { "$ref": "#/$defs/MethodologyReference" },
+        "instanceMappings": { "type": "array", "items": { "$ref": "#/$defs/TemplateInstanceMapping" } }, "actionMappings": { "type": "array", "items": { "$ref": "#/$defs/TemplateActionMapping" } },
+        "reportingBindings": { "type": "array", "items": { "$ref": "#/$defs/CreationReportingBinding" } }
+      } }], "unevaluatedProperties": false
+    },
+    "ProjectCreationTemplate": {
+      "allOf": [{ "$ref": "#/$defs/PracticeElement" }, { "type": "object", "required": ["version", "rootKind", "rootTypeName", "selectors", "variants"], "properties": {
+        "kind": { "const": "projectCreationTemplate" }, "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "rootKind": { "enum": ["alpha", "workProduct"] }, "rootTypeName": { "type": "string", "minLength": 1 },
+        "selectors": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/ProjectScopeSelector" } },
+        "variants": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/ProjectCreationVariant" } }, "defaultVariantName": { "type": "string", "minLength": 1 }
+      } }], "unevaluatedProperties": false
+    },
+    "InputRevision": {
+      "type": "object", "required": ["revision"], "properties": {
+        "projectId": { "$ref": "#/$defs/ProjectId" }, "methodology": { "$ref": "#/$defs/ContextDocumentReference" }, "revision": { "type": "string", "minLength": 1 }
+      }, "oneOf": [{ "required": ["projectId"], "not": { "required": ["methodology"] } }, { "required": ["methodology"], "not": { "required": ["projectId"] } }], "additionalProperties": false
+    },
+    "InstanceTransfer": {
+      "type": "object", "required": ["source", "target", "assessmentTransfer", "origin", "originalSource"], "properties": {
+        "origin": { "$ref": "#/$defs/SourceIdentity" }, "originalSource": { "$ref": "#/$defs/ProjectItemReference" },
+        "source": { "$ref": "#/$defs/ProjectItemReference" }, "target": { "$ref": "#/$defs/ProjectItemReference" }, "assessmentTransfer": { "enum": ["copy", "mapped", "unassessed"] },
+        "stateMappings": { "type": "array", "items": { "$ref": "#/$defs/StateContribution" } }, "lodMappings": { "type": "array", "items": { "$ref": "#/$defs/LodContribution" } }, "checklistMappings": { "type": "array", "items": { "$ref": "#/$defs/ChecklistMapping" } }
+      }, "additionalProperties": false
+    },
+    "ActionTransfer": {
+      "type": "object", "required": ["source", "target", "assigneeMappings"], "properties": {
+        "source": { "$ref": "#/$defs/ProjectItemReference" }, "target": { "$ref": "#/$defs/ProjectItemReference" }, "assigneeMappings": { "type": "array", "items": { "$ref": "#/$defs/AssigneeMapping" } }
+      }, "additionalProperties": false
+    },
+    "CreationReportMapping": {
+      "type": "object", "required": ["parentReportName", "childReport", "parentBinding"], "properties": {
+        "parentReportName": { "type": "string", "minLength": 1 }, "childReport": { "$ref": "#/$defs/ReportDefinition" }, "parentBinding": { "$ref": "#/$defs/ReportBinding" }
+      }, "additionalProperties": false
+    },
+    "ProjectCreationPreview": {
+      "type": "object", "required": ["operationId", "template", "parentProjectId", "source", "variantName", "sourceRevisions", "sourceSnapshots", "selectedItems", "child", "instanceMappings", "actionMappings", "reportingBindings"], "properties": {
+        "sourceSnapshots": { "type": "array", "items": { "$ref": "#/$defs/DelegationHistory" } },
+        "operationId": { "type": "string", "minLength": 1 }, "template": { "$ref": "#/$defs/ProjectCreationTemplateReference" }, "parentProjectId": { "$ref": "#/$defs/ProjectId" },
+        "source": { "$ref": "#/$defs/ProjectItemReference" }, "variantName": { "type": "string", "minLength": 1 },
+        "sourceRevisions": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/InputRevision" } }, "selectedItems": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/ProjectItemReference" } },
+        "child": { "$ref": "#/$defs/Project" }, "instanceMappings": { "type": "array", "items": { "$ref": "#/$defs/InstanceTransfer" } }, "actionMappings": { "type": "array", "items": { "$ref": "#/$defs/ActionTransfer" } },
+        "reportingBindings": { "type": "array", "items": { "$ref": "#/$defs/CreationReportMapping" } },
+        "confirmedBy": { "type": "string", "minLength": 1 }, "confirmedAt": { "type": "string", "format": "date-time" }, "policyName": { "type": "string", "minLength": 1 }
+      }, "dependentRequired": { "confirmedBy": ["confirmedAt"], "confirmedAt": ["confirmedBy"] }, "additionalProperties": false
+    },
+    "DelegationHistory": {
+      "type": "object", "required": ["source", "recordedAt", "attributedTo", "snapshot"], "properties": {
+        "source": { "$ref": "#/$defs/ProjectItemReference" }, "recordedAt": { "type": "string", "format": "date-time" }, "attributedTo": { "type": "string", "minLength": 1 },
+        "snapshot": { "oneOf": [{ "$ref": "#/$defs/AlphaInstance" }, { "$ref": "#/$defs/WorkProductInstance" }, { "$ref": "#/$defs/Action" }, { "$ref": "#/$defs/OutcomeInstance" }] }
+      }, "additionalProperties": false
+    },
+    "ProjectDelegation": {
+      "type": "object", "required": ["preview", "status", "history"], "properties": {
+        "preview": { "$ref": "#/$defs/ProjectCreationPreview" }, "status": { "enum": ["prepared", "failed", "committed"] },
+        "history": { "type": "array", "items": { "$ref": "#/$defs/DelegationHistory" } }, "committedAt": { "type": "string", "format": "date-time" }, "error": { "type": "string", "minLength": 1 },
+        "summaryReportName": { "type": "string", "minLength": 1 }
+      }, "allOf": [
+        { "if": { "properties": { "status": { "const": "committed" } }, "required": ["status"] }, "then": { "required": ["committedAt", "summaryReportName"], "not": { "required": ["error"] } }, "else": { "not": { "required": ["committedAt"] } } },
+        { "if": { "properties": { "status": { "const": "failed" } }, "required": ["status"] }, "then": { "required": ["error"] }, "else": { "not": { "required": ["error"] } } }
+      ], "additionalProperties": false
+    },
+    "LocalDelegationRecommendation": {
+      "type": "object", "required": ["source", "createdAt", "rationale", "advice", "proposal"], "properties": {
+        "source": { "$ref": "#/$defs/ProjectItemReference" }, "createdAt": { "type": "string", "format": "date-time" },
+        "rationale": { "type": "string", "minLength": 1 }, "advice": { "type": "string", "minLength": 1 }, "proposal": { "$ref": "#/$defs/ProjectCreationPreview" }
+      }, "additionalProperties": false
+    },
+    "ContextDocumentReference": {
+      "type": "object", "required": ["documentType", "documentName", "version"], "properties": {
+        "documentType": { "enum": ["practiceBaseline", "practice", "method"] }, "documentName": { "type": "string", "minLength": 1 }, "version": { "type": "string", "minLength": 1 }
+      }, "additionalProperties": false
+    },
     "AssetReference": {
       "type": "object",
       "description": "Reference to a visual asset with semantic type classification. Enables rich visual associations for practice elements.",
@@ -27,7 +290,7 @@
       "description": "Common identity and prose fields for named practice artifacts. tags optional: omit, structured buckets, or legacy string[].",
       "required": ["name", "description"],
       "properties": {
-        "kind": { "type": "string", "enum": ["practice", "method", "practiceBaseline", "project", "integrationMapping", "practiceElementAlias", "workProduct", "workProductInstance", "alpha", "alphaInstance", "activitySpace", "activity", "persona", "personaGroup", "pattern", "patternGroup", "patternOrchestration", "patternView", "outcome", "narrativeType", "citation", "acknowledgement", "test"] },
+        "kind": { "type": "string", "enum": ["practice", "method", "practiceBaseline", "project", "integrationMapping", "practiceElementAlias", "workProduct", "workProductInstance", "alpha", "alphaInstance", "activitySpace", "activity", "persona", "personaGroup", "pattern", "patternGroup", "patternOrchestration", "patternView", "outcome", "narrativeType", "citation", "acknowledgement", "test", "reportDefinition", "reportingMetricDefinition", "reportBinding", "reportingRequirement", "projectCreationTemplate", "projectCreationVariant", "projectScopeSelector", "creationReportingBinding"] },
         "name": { "type": "string" },
         "description": { "type": "string" },
         "tags": {
@@ -625,6 +888,7 @@
           "type": "object",
           "required": ["alphaName", "stateName"],
           "properties": {
+            "reportingSource": { "$ref": "#/$defs/ReportingSource" },
             "alphaName": {
               "type": "string",
               "description": "Name of the Alpha this instance tracks (symbolic link; must match Alpha.name)."
@@ -740,6 +1004,7 @@
           "type": "object",
           "required": ["workProductName", "levelOfDetailName"],
           "properties": {
+            "reportingSource": { "$ref": "#/$defs/ReportingSource" },
             "workProductName": {
               "type": "string",
               "description": "Name of the WorkProduct (symbolic link; must match WorkProduct.name)."
@@ -1442,6 +1707,7 @@
       "description": "A named quantitative measurement on a work product instance. Captures structured data extracted from external documents (CRM records, financial reports, dashboards) for aggregation via outcome metric contributions.",
       "required": ["name", "value"],
       "properties": {
+        "reportingSource": { "$ref": "#/$defs/ReportingSource" },
         "name": {
           "type": "string",
           "description": "Metric identifier (e.g., 'acv', 'users', 'capacity')."
@@ -1592,6 +1858,7 @@
       "additionalProperties": false
     },
     "Outcome": {
+      "description": "Methodology-level definition of measurement. OutcomeInstance holds project actualValue, forecastValue and targetValue; OutcomeValueKind selects those values for cross-project reports. Target reports use explicit targets without forecast weighting and do not overwrite parent targets.",
       "allOf": [
         { "$ref": "#/$defs/PracticeElement" },
         {
@@ -1618,9 +1885,10 @@
     },
     "OutcomeInstance": {
       "type": "object",
-      "description": "A project-level instantiation of a practice-defined Outcome. Sets a specific target and tracks achievement. The measurement framework (contributions, forecast weights) is inherited from the referenced Outcome template.",
+      "description": "A project-level instantiation of a practice-defined Outcome. Sets a specific target and tracks achievement. OutcomeValueKind selects actualValue, forecastValue or targetValue for recorded reporting. Target reports use explicit targetValue without recognition or forecast weighting. Contribution rules remain on Outcome; derived values are never written back by reporting.",
       "required": ["name", "outcomeName"],
       "properties": {
+        "reportingSource": { "$ref": "#/$defs/ReportingSource" },
         "name": {
           "type": "string",
           "description": "Project-specific name for this outcome instance (e.g., 'FY26 Cisco EMEA Revenue')."
@@ -1639,7 +1907,7 @@
         },
         "targetValue": {
           "type": "number",
-          "description": "Numeric target for comparison with the computed aggregate. Complements free-text measure. Should use the same unit as contributing metrics."
+          "description": "Explicit numeric target selected by OutcomeValueKind 'target'. Complements free-text measure, which is never parsed into a number. Target reporting applies no forecast weight and never rewrites a parent's independent target. Should use the same unit as contributing metrics."
         },
         "actualValue": {
           "type": "number",
@@ -1781,6 +2049,7 @@
       "description": "An entry in the package document inventory. Maps a file path within the ZIP archive to its Practice Language document type and name.",
       "required": ["path", "documentType", "documentName"],
       "properties": {
+        "projectId": { "$ref": "#/$defs/ProjectId", "description": "Required for a project inventory entry; must equal the contained Project.projectId. documentName remains its descriptive name." },
         "path": {
           "type": "string",
           "description": "Relative path to the JSON file within the ZIP archive (e.g., 'documents/my-practice.json'). Must begin with 'documents/'.",
@@ -1801,6 +2070,7 @@
           "description": "True if this document is a primary entry point of the package. Entry points are the documents a consumer should resolve first."
         }
       },
+      "allOf": [{ "if": { "properties": { "documentType": { "const": "project" } }, "required": ["documentType"] }, "then": { "required": ["projectId"] }, "else": { "not": { "required": ["projectId"] } } }],
       "additionalProperties": false
     },
     "PackageIdentity": {
@@ -1991,6 +2261,7 @@
           "type": "object",
           "required": ["baselinePracticeName"],
           "properties": {
+            "projectCreationTemplates": { "type": "array", "items": { "$ref": "#/$defs/ProjectCreationTemplate" } },
             "baselinePracticeName": {
               "type": "string",
               "description": "Name of the PracticeBaseline this practice depends on (symbolic link; must match PracticeBaseline.name in the method or registry; do not embed the baseline object in this field)."
@@ -2269,6 +2540,7 @@
         {
           "type": "object",
           "properties": {
+            "projectCreationTemplates": { "type": "array", "items": { "$ref": "#/$defs/ProjectCreationTemplate" } },
             "baselinePractice": {
               "$ref": "#/$defs/PracticeBaseline",
               "description": "Full baseline practice object. Use this OR baselinePracticeName (not both)."
@@ -3375,8 +3647,10 @@
     },
     "RecommendationPolicy": {
       "type": "object",
-      "required": ["name", "integrationMappingName", "mappingVersion", "ruleName", "operations", "collections"],
+      "required": ["name"],
       "properties": {
+        "template": { "$ref": "#/$defs/ProjectCreationTemplateReference" },
+        "source": { "$ref": "#/$defs/ProjectItemReference" },
         "name": { "type": "string", "minLength": 1 },
         "integrationMappingName": { "type": "string", "minLength": 1 },
         "mappingVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
@@ -3385,7 +3659,10 @@
         "operations": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["create", "update"] } },
         "collections": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/RecommendationCollection" } }
       },
-      "additionalProperties": false
+      "oneOf": [
+        { "required": ["integrationMappingName", "mappingVersion", "ruleName", "operations", "collections"], "not": { "anyOf": [{ "required": ["template"] }, { "required": ["source"] }] } },
+        { "required": ["template", "source"], "not": { "anyOf": [{ "required": ["integrationMappingName"] }, { "required": ["mappingVersion"] }, { "required": ["ruleName"] }, { "required": ["operations"] }, { "required": ["collections"] }] } }
+      ], "additionalProperties": false
     },
     "RecommendationApplication": {
       "type": "object",
@@ -3401,12 +3678,17 @@
         "results": {
           "type": "array", "minItems": 1, "uniqueItems": true,
           "items": {
-            "type": "object", "required": ["collection", "instanceName"],
+            "type": "object",
             "properties": {
+              "operationId": { "type": "string", "minLength": 1 },
+              "childProjectId": { "$ref": "#/$defs/ProjectId" },
               "collection": { "$ref": "#/$defs/RecommendationCollection" },
               "instanceName": { "type": "string", "minLength": 1 }
             },
-            "additionalProperties": false
+            "oneOf": [
+              { "required": ["collection", "instanceName"], "not": { "anyOf": [{ "required": ["operationId"] }, { "required": ["childProjectId"] }] } },
+              { "required": ["operationId", "childProjectId"], "not": { "anyOf": [{ "required": ["collection"] }, { "required": ["instanceName"] }] } }
+            ], "additionalProperties": false
           }
         }
       },
@@ -3418,8 +3700,9 @@
     },
     "RecommendationCard": {
       "type": "object",
-      "required": ["name", "journalName", "recommendationName", "status"],
+      "required": ["name", "status"],
       "properties": {
+        "localRecommendation": { "$ref": "#/$defs/LocalDelegationRecommendation" },
         "name": { "type": "string", "minLength": 1 },
         "journalName": { "type": "string", "minLength": 1 },
         "recommendationName": { "type": "string", "minLength": 1 },
@@ -3430,6 +3713,10 @@
         "notes": { "type": "array", "items": { "$ref": "#/$defs/Note" } },
         "applications": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/RecommendationApplication" } }
       },
+      "oneOf": [
+        { "required": ["journalName", "recommendationName"], "not": { "required": ["localRecommendation"] } },
+        { "required": ["localRecommendation"], "not": { "anyOf": [{ "required": ["journalName"] }, { "required": ["recommendationName"] }] } }
+      ],
       "allOf": [
         { "if": { "properties": { "status": { "enum": ["accepted", "dismissed", "applied"] } } }, "then": { "required": ["decidedAt", "decidedBy"] } },
         { "if": { "required": ["applications"] }, "then": { "properties": { "status": { "enum": ["accepted", "dismissed", "applied"] } } } },
@@ -3754,13 +4041,20 @@
       "unevaluatedProperties": false
     },
     "Project": {
-      "description": "An execution instance of a Practice or Method, tracking real-world progress against a plan. Contains team, plan, current state, and target state sections.",
+      "description": "An execution instance of a Practice or Method with persistent UUID identity and editable name and description. Contains team, plan, current and target state, with optional ownership, reporting and delegation contracts.",
       "allOf": [
         { "$ref": "#/$defs/PracticeElement" },
         {
           "type": "object",
-          "required": ["plan", "current", "target"],
+          "required": ["projectId", "plan", "current", "target"],
           "properties": {
+            "projectId": { "$ref": "#/$defs/ProjectId" },
+            "parentProject": { "$ref": "#/$defs/ProjectReference" },
+            "projectReferences": { "type": "array", "items": { "$ref": "#/$defs/ProjectReference" } },
+            "reports": { "type": "array", "items": { "$ref": "#/$defs/ReportDefinition" } },
+            "reportingRequirements": { "type": "array", "items": { "$ref": "#/$defs/ReportingRequirement" } },
+            "reportingRequirementBindings": { "type": "array", "items": { "$ref": "#/$defs/ReportingRequirementBinding" } },
+            "delegations": { "type": "array", "items": { "$ref": "#/$defs/ProjectDelegation" } },
             "practiceName": {
               "type": "string",
               "description": "Symbolic link to a Practice by name. Exactly one of practiceName or methodName must be present."

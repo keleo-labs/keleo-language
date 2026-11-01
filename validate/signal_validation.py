@@ -255,11 +255,13 @@ class SignalValidator:
         policy_index = self.index(policies, 'recommendationPolicies')
         self.index(cards, 'recommendations')
         for policy in policies:
-            self.check_rule(policy, 'recommendationPolicies')
+            if 'integrationMappingName' in policy:
+                self.check_rule(policy, 'recommendationPolicies')
         seen = set()
         for idx, card in enumerate(cards):
             path = f'recommendations[{idx}]'
-            key = (card['journalName'], card['recommendationName'])
+            key = (('local', card['localRecommendation']['proposal']['operationId'])
+                   if 'localRecommendation' in card else (card['journalName'], card['recommendationName']))
             if key in seen:
                 self.issue(path, 'Duplicate card for the same journal recommendation')
             seen.add(key)
@@ -286,6 +288,9 @@ class SignalValidator:
             if attempts and card['status'] == 'dismissed' and parse_timestamp(
                     attempts[-1]['attemptedAt']) > parse_timestamp(card['decidedAt']):
                 self.issue(path, 'Dismissal must follow failed application attempts')
+            if 'localRecommendation' in card:
+                # Catalogue-aware delegation checks validate the proposal and result references.
+                continue
             journal = self.resolve('signalJournal', card['journalName'], path)
             if not journal:
                 continue
@@ -293,7 +298,7 @@ class SignalValidator:
                 continue
             if card['journalName'] not in self.checked_journals:
                 self.checked_journals.add(card['journalName'])
-                referenced = {c['recommendationName'] for c in cards if c['journalName'] == card['journalName']}
+                referenced = {c['recommendationName'] for c in cards if c.get('journalName') == card['journalName']}
                 self.validate_journal(journal, referenced)
             recommendation = next((r for r in journal['recommendations'] if r['name'] == card['recommendationName']), None)
             if recommendation is None:
@@ -316,7 +321,7 @@ class SignalValidator:
             for attempt in attempts:
                 if attempt['mode'] == 'automatic':
                     policy = policy_index.get(attempt['policyName'])
-                    if not policy or any(policy[key] != recommendation[key] for key in (
+                    if not policy or any(policy.get(key) != recommendation[key] for key in (
                             'integrationMappingName', 'mappingVersion', 'ruleName')) or any(
                             p['operation'] not in policy['operations'] or p['collection'] not in policy['collections']
                             for p in proposals):
@@ -325,6 +330,9 @@ class SignalValidator:
                             attempt['attemptedAt']) >= parse_timestamp(policy['revokedAt']):
                         self.issue(path, 'Automatic application used a revoked project policy')
                 if attempt['outcome'] == 'succeeded':
+                    if any('collection' not in result for result in attempt['results']):
+                        self.issue(path, 'Signal proposal results must identify collection and instanceName')
+                        continue
                     expected = {(p['collection'], p['value']['name']) for p in proposals}
                     actual = {(r['collection'], r['instanceName']) for r in attempt['results']}
                     if actual != expected:

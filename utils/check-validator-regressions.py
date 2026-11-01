@@ -8,6 +8,9 @@ from pathlib import Path
 import re
 import sys
 import unittest
+from datetime import datetime, timezone
+import subprocess
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'validate'))
@@ -16,6 +19,10 @@ from _venv_bootstrap import ensure_dependencies
 ensure_dependencies()
 from jsonschema import Draft202012Validator
 from signal_validation import SignalValidator
+from project_catalogue import ProjectCatalogue, document_revision, project_key, reference_key
+from reporting_validation import ReportingValidator
+from delegation_validation import DelegationValidator, validate_templates
+from signal_validation import FORMATS, document_type
 
 
 def load_validator(filename, classname):
@@ -441,6 +448,627 @@ class ExternalSignals(unittest.TestCase):
     def test_journal_package_inventory(self):
         entry = {'path': 'documents/signals.json', 'documentType': 'signalJournal', 'documentName': self.journal['name']}
         Draft202012Validator({'$ref': '#/$defs/PackageDocument', '$defs': self.schema['$defs']}).validate(entry)
+
+
+class ProjectHierarchy(unittest.TestCase):
+    """Scenarios: specifications/project-hierarchy.feature, RFEs #26–#29."""
+
+    def setUp(self):
+        self.schema = json.loads(SCHEMA.read_text())
+        self.catalogue = json.loads((FIXTURES / 'fixture-project-catalogue.json').read_text())
+        self.parent, self.first, self.second = [entry['document'] for entry in self.catalogue['projects']]
+        self.practice = json.loads((FIXTURES / 'fixture-signal-practice.json').read_text())
+        self.practice['outcomes'] = [{'name': 'Value', 'description': 'Declared value for this project.'}]
+        self.template = json.loads((FIXTURES / 'fixture-project-template.json').read_text())
+        self.practice['projectCreationTemplates'] = [self.template]
+        alternate = deepcopy(self.practice)
+        alternate['name'] = 'Fixture Alternate Delivery'
+        alternate.pop('projectCreationTemplates')
+        self.baseline = json.loads((FIXTURES / 'fixture-baseline.json').read_text())
+        self.documents = [self.practice, alternate, self.baseline]
+        self.now = datetime(2026, 10, 26, 10, tzinfo=timezone.utc)
+
+    def context(self, preflight=False):
+        context = ProjectCatalogue(self.schema, self.catalogue, self.parent, self.documents, preflight)
+        context.validate()
+        return context
+
+    def reporting(self, results=()):
+        context = self.context()
+        checker = ReportingValidator(context, results, self.now)
+        checker.validate()
+        return context, checker
+
+    def definition(self, name):
+        return Draft202012Validator({'$ref': f'#/$defs/{name}', '$defs': self.schema['$defs']}, format_checker=FORMATS)
+
+    @staticmethod
+    def codes(context, checker=None):
+        diagnostics = context.errors + context.warnings
+        if isinstance(checker, ReportingValidator):
+            diagnostics += checker.summary()['diagnostics']
+        return {d['code'] for d in diagnostics}
+
+    def row(self, index, value_kind='target'):
+        project = (self.first, self.second)[index]
+        outcome = project['outcomes'][0]
+        metadata = outcome['reportingSource']
+        reference = {'projectId': project['projectId'], 'collection': 'outcomes', 'instanceName': 'Value'}
+        row = {'bindingName': ('First delivery', 'Second delivery')[index], 'origin': metadata['identity'],
+               'originalSource': reference, 'source': reference, 'metricId': metadata['metric']['metricId'],
+               'metricVersion': '1.0.0', 'unit': 'GBP', 'period': metadata['period'], 'valueKind': value_kind,
+               'inputRevision': self.catalogue['projects'][index + 1]['revision'], 'evidence': [],
+               'value': outcome[value_kind + 'Value']}
+        for field in ('observedAt', 'synchronizedAt'):
+            if field in metadata:
+                row[field] = metadata[field]
+        return row
+
+    def result(self, value_kind='target'):
+        rows = [self.row(0, value_kind), self.row(1, value_kind)]
+        return {'report': {'projectId': self.parent['projectId'], 'reportName': 'Targets'},
+                'calculatedAt': '2026-10-26T10:00:00Z', 'complete': True,
+                'contributions': rows, 'coverage': deepcopy(self.parent['reports'][0]['childCoverage']),
+                'diagnostics': [], 'total': {'actual': 90, 'forecast': 230, 'target': 300}[value_kind]}
+
+    def require_reports(self, **changes):
+        contract = {field: deepcopy(self.parent['reports'][0][field]) for field in ('metric', 'aggregation', 'unit', 'period', 'valueKind')}
+        requirement = {'name': 'Consistent targets', 'description': 'Comparable declared targets throughout the tree.',
+                       'requirementId': 'example:targets', 'version': '1.0.0', 'coverAllChildren': True,
+                       'allowExclusions': False, **contract, **changes}
+        self.parent['reportingRequirements'] = [requirement]
+        for project in (self.parent, self.first, self.second):
+            project['reportingRequirementBindings'] = [{'requirementId': requirement['requirementId'],
+                                                       'version': '1.0.0', 'reportName': 'Targets'}]
+        return requirement
+
+    def preview(self):
+        child = deepcopy(self.first)
+        child['projectId'] = '4b1a9e5b-8d7b-4ba6-b662-8ff24be2be76'
+        child['name'] = 'Delegated delivery'
+        child['plan']['pattern']['alphaInstanceNames'] = [{**self.parent['plan']['pattern']['alphaInstanceNames'][0], 'name': 'Delivery'}]
+        original = self.parent['current']['alphaInstances'][0]
+        child['current'] = {'alphaInstances': [{**deepcopy(original), 'name': 'Delivery'}]}
+        child['target'] = {'alphaInstances': [{**deepcopy(self.parent['target']['alphaInstances'][0]), 'name': 'Delivery'}]}
+        child['reports'][0]['bindings'][0]['source']['projectId'] = child['projectId']
+        child['outcomes'][0]['reportingSource']['identity']['key'] = 'delegated-value'
+        root = {'projectId': self.parent['projectId'], 'collection': 'plan.pattern.alphaInstanceNames', 'instanceName': 'Expansion'}
+        assessed = {**root, 'collection': 'current.alphaInstances'}
+        source_snapshot = {'source': assessed, 'recordedAt': '2026-10-26T09:00:00Z',
+                           'attributedTo': 'Example owner', 'snapshot': deepcopy(original)}
+        template_ref = {'methodology': {'documentType': 'practice', 'documentName': self.practice['name'], 'version': '1.0.0'},
+                        'templateName': self.template['name'], 'version': '1.0.0'}
+        return {'operationId': 'delegate-expansion-1', 'template': template_ref,
+                'parentProjectId': self.parent['projectId'], 'source': root, 'variantName': 'Same practice',
+                'sourceRevisions': [{'projectId': self.parent['projectId'], 'revision': 'parent-r1'}] + [
+                    {'methodology': {'documentType': document_type(doc), 'documentName': doc['name'], 'version': doc['version']},
+                     'revision': document_revision(doc)} for doc in (self.practice, self.baseline)],
+                'sourceSnapshots': [source_snapshot], 'selectedItems': [root], 'child': child,
+                'instanceMappings': [{'source': root, 'target': {'projectId': child['projectId'], 'collection': 'plan.pattern.alphaInstanceNames', 'instanceName': 'Delivery'},
+                                      'assessmentTransfer': 'copy', 'origin': {'namespace': 'project:' + self.parent['projectId'], 'key': 'current.alphaInstances/Expansion'},
+                                      'originalSource': assessed}],
+                'actionMappings': [], 'reportingBindings': [{'parentReportName': 'Targets', 'childReport': deepcopy(child['reports'][0]),
+                    'parentBinding': {'name': 'Delegated target', 'description': 'Child-owned delivery value.', 'sourceKind': 'report',
+                                      'source': {'projectId': child['projectId'], 'reportName': 'Targets'}}}],
+                'confirmedBy': 'Example owner', 'confirmedAt': '2026-10-26T09:30:00Z'}
+
+    def delegation(self, preview, preflight=True):
+        context = self.context(preflight)
+        checker = DelegationValidator(context)
+        checker.validate([preview])
+        return context, checker
+
+    def test_project_uuid_and_package_inventory_are_required(self):
+        for identity in (None, '', 'Portfolio', '673dcb6bf27f4fd8a68521bf43d516bb'):
+            project = deepcopy(self.parent)
+            if identity is None:
+                project.pop('projectId')
+            else:
+                project['projectId'] = identity
+            self.assertFalse(self.definition('Project').is_valid(project))
+        entry = {'path': 'documents/project.json', 'documentType': 'project', 'documentName': 'Portfolio'}
+        self.assertFalse(self.definition('PackageDocument').is_valid(entry))
+        entry['projectId'] = self.parent['projectId']
+        self.definition('PackageDocument').validate(entry)
+        legacy = deepcopy(self.parent)
+        legacy.pop('projectId')
+        legacy.pop('reports')
+        legacy['schemaVersion'] = '3.3.0'
+        original = deepcopy(legacy)
+        migrated = deepcopy(legacy)
+        migrated.update(projectId=self.parent['projectId'], schemaVersion='4.0.0')
+        validator = ProjectValidator(FIXTURES / 'fixture-signal-project.json', SCHEMA, project=migrated)
+        self.assertTrue(validator.validate_local(), validator.errors)
+        self.assertEqual(legacy, original)
+        migrated['schemaVersion'] = '3.3.0'
+        self.assertFalse(validator.validate_schema_version())
+        self.assertTrue(any(e['path'] == 'schemaVersion' for e in validator.errors))
+
+    def test_rename_same_names_and_uuid_case_preserve_identity(self):
+        context = self.context()
+        ref = {'projectId': self.first['projectId'].upper(), 'collection': 'outcomes', 'instanceName': 'Value'}
+        self.first['name'] = 'Renamed delivery'
+        self.assertEqual(context.item(ref)['targetValue'], 100)
+        self.assertEqual(len(context.children(self.parent['projectId'])), 2)
+        self.assertEqual(context.errors, [])
+
+    def test_duplicate_uuid_cycle_missing_parent_and_folder_disagreement(self):
+        duplicate = deepcopy(self.catalogue['projects'][1])
+        duplicate['document']['projectId'] = duplicate['document']['projectId'].upper()
+        self.catalogue['projects'].append(duplicate)
+        self.assertIn('DUPLICATE_PROJECT_ID', self.codes(self.context()))
+        self.catalogue['projects'].pop()
+        self.parent['parentProject'] = {'projectId': self.first['projectId']}
+        self.assertIn('OWNERSHIP_CYCLE', self.codes(self.context()))
+        self.parent.pop('parentProject')
+        self.catalogue['projects'][1]['containingProjectId'] = self.second['projectId']
+        self.assertIn('OWNERSHIP_LOCATION_CONFLICT', self.codes(self.context()))
+        self.first['parentProject']['projectId'] = '11111111-1111-4111-8111-111111111111'
+        self.assertIn('PARENT_UNRESOLVED', self.codes(self.context()))
+
+    def test_nonowning_references_do_not_create_children(self):
+        self.first.pop('parentProject')
+        self.catalogue['projects'][1].pop('containingProjectId')
+        self.parent['projectReferences'] = [{'projectId': self.first['projectId']}]
+        self.assertEqual(len(self.context().children(self.parent['projectId'])), 1)
+
+    def test_collection_and_cycle_scopes_do_not_fall_back(self):
+        ref = {'projectId': self.first['projectId'], 'collection': 'current.alphaInstances', 'instanceName': 'Value'}
+        context = self.context()
+        self.assertIsNone(context.item(ref))
+        self.assertIn('INSTANCE_UNRESOLVED', self.codes(context))
+        ref['collection'] = 'cycles.outcomes'
+        self.assertFalse(self.definition('ProjectItemReference').is_valid(ref))
+        ref['cycleName'] = 'Iteration 1'
+        self.definition('ProjectItemReference').validate(ref)
+
+    def test_valid_actual_forecast_and_target_results_preserve_parent(self):
+        original = deepcopy(self.catalogue)
+        for kind in ('actual', 'forecast', 'target'):
+            for project in (self.parent, self.first, self.second):
+                project['reports'][0]['valueKind'] = kind
+            context, checker = self.reporting([self.result(kind)])
+            self.assertEqual(context.errors, [], context.errors)
+            self.assertEqual(checker.summary()['diagnostics'], [])
+        self.assertEqual(self.parent['outcomes'][0]['targetValue'], 400)
+        self.assertEqual(self.parent['current'], original['projects'][0]['document']['current'])
+
+    def test_repeated_lineage_is_counted_once(self):
+        result = self.result()
+        result['contributions'].append(deepcopy(result['contributions'][0]))
+        context, checker = self.reporting([result])
+        self.assertEqual(context.errors, [], context.errors)
+        self.assertFalse(checker.summary()['diagnostics'])
+        result['contributions'][-1]['value'] = 999
+        context, checker = self.reporting([result])
+        self.assertIn('REPORT_LINEAGE_CONFLICT', self.codes(context, checker))
+        self.assertIn('REPORT_RESULT_FALSE_COMPLETE', self.codes(context, checker))
+
+    def test_missing_targets_units_periods_and_derived_targets_are_gaps(self):
+        self.first['outcomes'][0].pop('targetValue')
+        context, checker = self.reporting()
+        self.assertIn('REPORT_VALUE_MISSING', self.codes(context, checker))
+        self.assertEqual(context.errors, [])
+        self.first['outcomes'][0]['targetValue'] = 100
+        self.first['outcomes'][0]['unit'] = 'USD'
+        self.assertIn('REPORT_UNIT_MISMATCH', self.codes(*self.reporting()))
+        self.first['outcomes'][0]['unit'] = 'GBP'
+        self.first['outcomes'][0]['reportingSource']['period']['end'] = '2027-02-01T00:00:00Z'
+        self.assertIn('REPORT_MEASUREMENT_MISMATCH', self.codes(*self.reporting()))
+        self.first['reports'][0]['bindings'][0]['valueSource'] = 'derived'
+        self.assertIn('REPORT_TARGET_DERIVATION_INVALID', self.codes(*self.reporting()))
+
+    def test_target_weights_and_incomplete_headlines_are_rejected(self):
+        result = self.result()
+        result['contributions'][0].update(weight=0.5, rawValue=200)
+        self.assertFalse(self.definition('ReportResult').is_valid(result))
+        result = self.result()
+        result['complete'] = False
+        self.assertFalse(self.definition('ReportResult').is_valid(result))
+
+    def test_local_value_requires_explicit_binding(self):
+        report = self.parent['reports'][0]
+        self.parent['outcomes'][0]['reportingSource'] = deepcopy(self.first['outcomes'][0]['reportingSource'])
+        self.parent['outcomes'][0]['reportingSource']['identity']['key'] = 'parent-distinct-value'
+        report['bindings'].append({'name': 'Local value', 'description': 'Explicit additional parent scope.', 'sourceKind': 'outcome',
+                                   'source': {'projectId': self.parent['projectId'], 'collection': 'outcomes', 'instanceName': 'Value'}, 'valueSource': 'recorded'})
+        result = self.result()
+        row = self.row(0)
+        row.update(bindingName='Local value', origin=self.parent['outcomes'][0]['reportingSource']['identity'],
+                   source={**row['source'], 'projectId': self.parent['projectId']}, originalSource={**row['originalSource'], 'projectId': self.parent['projectId']},
+                   inputRevision='parent-r1', value=400)
+        result['contributions'].append(row)
+        result['total'] = 700
+        context, checker = self.reporting([result])
+        self.assertEqual(context.errors, [], context.errors)
+        self.assertFalse(checker.summary()['diagnostics'])
+
+    def test_inherited_mapping_gaps_keep_local_project_valid(self):
+        self.require_reports()
+        self.first.pop('reportingRequirementBindings')
+        context, checker = self.reporting()
+        self.assertEqual(context.errors, [])
+        self.assertIn('REQUIREMENT_MAPPING_MISSING', self.codes(context, checker))
+        validator = ProjectValidator(FIXTURES / 'fixture-signal-project.json', SCHEMA, project=self.parent)
+        self.assertTrue(validator.validate_local(), validator.errors)
+        validator.validate_hierarchy(self.catalogue, self.documents, now=self.now)
+        self.assertTrue(validator.generate_report()['valid'])
+        self.assertFalse(validator.reporting['alignmentComplete'])
+
+    def test_inherited_contract_conflicts_and_value_kinds(self):
+        requirement = self.require_reports()
+        weaker = deepcopy(requirement)
+        weaker['allowExclusions'] = True
+        self.first['reportingRequirements'] = [weaker]
+        self.assertIn('REQUIREMENT_CONFLICT', self.codes(*self.reporting()))
+        self.first.pop('reportingRequirements')
+        self.first['reports'][0]['valueKind'] = 'actual'
+        self.assertIn('REQUIREMENT_REPORT_MISMATCH', self.codes(*self.reporting()))
+
+    def test_new_and_vanished_children_remain_coverage_gaps(self):
+        self.require_reports()
+        self.parent['reports'][0]['childCoverage'].pop()
+        self.assertIn('REPORT_CHILD_MAPPING_MISSING', self.codes(*self.reporting()))
+        self.catalogue['projects'].pop()
+        self.assertIn('PROJECT_UNRESOLVED', self.codes(*self.reporting()))
+
+    def test_exclusions_remain_visible_and_cannot_weaken_ancestors(self):
+        requirement = self.require_reports(allowExclusions=True)
+        report = self.parent['reports'][0]
+        report['bindings'].pop()
+        report['childCoverage'][1] = {'projectId': self.second['projectId'], 'exclusionReason': 'Separate reporting scope.'}
+        context, checker = self.reporting()
+        self.assertEqual(context.errors, [])
+        self.assertFalse(checker.summary()['diagnostics'])
+        self.assertIn('exclusionReason', report['childCoverage'][1])
+        requirement['allowExclusions'] = False
+        self.assertIn('REPORT_EXCLUSION_FORBIDDEN', self.codes(*self.reporting()))
+
+    def test_source_age_uses_source_time_not_calculation_time(self):
+        self.require_reports(maxSourceAgeSeconds=7200)
+        self.first['outcomes'][0]['reportingSource'].pop('observedAt')
+        context, checker = self.reporting()
+        self.assertIn('REPORT_SOURCE_AGE_UNKNOWN', self.codes(context, checker))
+        self.assertTrue(any(not f['known'] for f in checker.summary()['sourceFreshness']))
+        self.first['outcomes'][0]['reportingSource']['observedAt'] = '2026-10-01T00:00:00Z'
+        self.assertIn('REPORT_SOURCE_TOO_OLD', self.codes(*self.reporting()))
+
+    def test_named_definitions_require_description_and_accept_metadata(self):
+        requirement = self.require_reports()
+        objects = {'ReportDefinition': self.parent['reports'][0], 'ReportingMetricDefinition': self.parent['reports'][0]['metric'],
+                   'ReportBinding': self.parent['reports'][0]['bindings'][0], 'ReportingRequirement': requirement,
+                   'ProjectCreationTemplate': self.template, 'ProjectCreationVariant': self.template['variants'][0],
+                   'ProjectScopeSelector': self.template['selectors'][0], 'CreationReportingBinding': self.template['variants'][0]['reportingBindings'][0]}
+        for name, original in objects.items():
+            with self.subTest(name=name):
+                element = deepcopy(original)
+                element['tags'] = {'domainTags': ['Delivery']}
+                element['assetNames'] = [{'assetName': 'Overview', 'type': 'diagram'}]
+                self.definition(name).validate(element)
+                element.pop('description')
+                self.assertFalse(self.definition(name).is_valid(element))
+
+    def test_metadata_references_and_suppression_are_checked(self):
+        report = self.parent['reports'][0]
+        report['assetNames'] = [{'assetName': 'Missing diagram', 'type': 'diagram'}]
+        self.assertIn('ASSET_UNRESOLVED', self.codes(*self.reporting()))
+        report['suppressed'] = True
+        self.assertIn('ELEMENT_METADATA_INVALID', self.codes(*self.reporting()))
+        report['narratives'] = [{'name': 'Context', 'description': 'Reporting context.', 'narrativeTypeName': 'Missing narrative', 'narrativeContexts': []}]
+        self.assertIn('NARRATIVE_UNRESOLVED', self.codes(*self.reporting()))
+
+    def test_preview_is_valid_and_never_mutates_sources(self):
+        preview = self.preview()
+        before = deepcopy(self.catalogue)
+        self.definition('ProjectCreationPreview').validate(preview)
+        context, checker = self.delegation(preview)
+        self.assertEqual(context.errors, [], context.errors)
+        self.assertEqual(self.catalogue, before)
+        self.assertEqual(checker.results[0]['childProjectId'], preview['child']['projectId'])
+
+    def test_stale_parent_and_methodology_revisions_reject_preview(self):
+        preview = self.preview()
+        self.catalogue['projects'][0]['revision'] = 'parent-r2'
+        self.assertIn('DELEGATION_STALE_INPUT', self.codes(self.delegation(preview)[0]))
+        self.catalogue['projects'][0]['revision'] = 'parent-r1'
+        self.practice['description'] += ' Revised.'
+        self.assertIn('DELEGATION_STALE_INPUT', self.codes(self.delegation(preview)[0]))
+
+    def test_unmapped_assessment_stays_absent(self):
+        preview = self.preview()
+        preview['instanceMappings'][0]['assessmentTransfer'] = 'unassessed'
+        preview['child']['current'] = {}
+        context, _ = self.delegation(preview)
+        self.assertEqual(context.errors, [], context.errors)
+        preview['child']['current'] = deepcopy(self.parent['current'])
+        preview['child']['current']['alphaInstances'][0]['name'] = 'Delivery'
+        self.assertIn('DELEGATION_ASSESSMENT_INVENTED', self.codes(self.delegation(preview)[0]))
+
+    def test_explicit_scope_and_confirmation_are_required(self):
+        preview = self.preview()
+        preview.pop('confirmedBy')
+        preview.pop('confirmedAt')
+        self.assertIn('DELEGATION_CONFIRMATION_REQUIRED', self.codes(self.delegation(preview)[0]))
+        preview['selectedItems'].append({'projectId': self.first['projectId'], 'collection': 'outcomes', 'instanceName': 'Value'})
+        self.assertIn('DELEGATION_SCOPE_INVALID', self.codes(self.delegation(preview)[0]))
+
+    def test_template_conflicts_and_undeclared_selectors(self):
+        conflicting = deepcopy(self.template)
+        conflicting['rootTypeName'] = 'Opportunity'
+        self.practice['projectCreationTemplates'].append(conflicting)
+        context = self.context()
+        validate_templates(context, self.practice, [self.practice, self.baseline])
+        self.assertIn('TEMPLATE_CONFLICT', self.codes(context))
+        self.template['variants'][0]['instanceMappings'][0]['selectorName'] = 'Undefined'
+        validate_templates(context, self.practice, [self.practice, self.baseline])
+        self.assertIn('TEMPLATE_SELECTOR_UNRESOLVED', self.codes(context))
+
+    def test_committed_operation_retries_return_existing_child(self):
+        preview = self.preview()
+        self.parent['reports'][0]['bindings'].append(deepcopy(preview['reportingBindings'][0]['parentBinding']))
+        operation = {'preview': deepcopy(preview), 'status': 'committed', 'committedAt': '2026-10-26T09:45:00Z',
+                     'summaryReportName': 'Targets', 'history': deepcopy(preview['sourceSnapshots'])}
+        self.parent['delegations'] = [operation]
+        self.parent['current'] = {}
+        self.catalogue['projects'].append({'revision': 'new-child-r1', 'document': deepcopy(preview['child'])})
+        context, checker = self.delegation(preview)
+        self.assertEqual(context.errors, [], context.errors)
+        self.assertTrue(all(r['existing'] for r in checker.results))
+        changed = deepcopy(preview)
+        changed['child']['projectId'] = '11111111-1111-4111-8111-111111111111'
+        self.assertIn('DELEGATION_OPERATION_CONFLICT', self.codes(self.delegation(changed)[0]))
+
+    def test_failed_creation_retains_parent_and_no_second_owner(self):
+        preview = self.preview()
+        self.parent['delegations'] = [{'preview': preview, 'status': 'failed', 'error': 'Staging failed.', 'history': []}]
+        context = self.context()
+        DelegationValidator(context).validate()
+        self.assertEqual(context.errors, [], context.errors)
+        self.assertEqual(self.parent['current']['alphaInstances'][0]['stateName'], 'Validated')
+        self.catalogue['projects'].append({'revision': 'bad-stage', 'document': preview['child']})
+        context = self.context()
+        DelegationValidator(context).validate()
+        self.assertIn('DELEGATION_SECOND_OWNER', self.codes(context))
+
+    def test_local_recommendation_reuses_workflow_without_signal(self):
+        preview = self.preview()
+        card = {'name': 'Delegate Expansion', 'status': 'accepted', 'decidedBy': 'Example owner', 'decidedAt': '2026-10-26T09:30:00Z',
+                'localRecommendation': {'source': preview['source'], 'createdAt': '2026-10-26T09:00:00Z',
+                                        'rationale': 'The work has an independent delivery scope.', 'advice': 'Confirm scope and method.', 'proposal': preview}}
+        self.parent['recommendations'] = [card]
+        checker = SignalValidator(self.schema, [self.parent, *self.documents], True)
+        checker.validate_project(self.parent)
+        self.assertEqual(checker.errors, [], checker.errors)
+        context = self.context(True)
+        DelegationValidator(context).validate()
+        self.assertEqual(context.errors, [], context.errors)
+        card['status'] = 'applied'
+        checker = SignalValidator(self.schema, [self.parent], True)
+        checker.validate_project(self.parent)
+        self.assertTrue(checker.errors)
+
+    def test_automatic_creation_is_scoped_to_template_version_and_source(self):
+        preview = self.preview()
+        preview.pop('confirmedAt')
+        preview.pop('confirmedBy')
+        preview['policyName'] = 'Explicit delegation policy'
+        self.assertIn('DELEGATION_AUTHORITY_MISSING', self.codes(self.delegation(preview)[0]))
+        self.parent['recommendationPolicies'] = [{'name': preview['policyName'], 'template': preview['template'], 'source': preview['source']}]
+        self.assertEqual(self.delegation(preview)[0].errors, [])
+        self.parent['recommendationPolicies'][0]['revokedAt'] = '2026-10-26T09:00:00Z'
+        self.assertIn('DELEGATION_AUTHORITY_REVOKED', self.codes(self.delegation(preview)[0]))
+
+    def test_cli_uuid_parity_and_reporting_gaps_have_distinct_exit_status(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'project.json'
+            catalogue = Path(folder) / 'catalogue.json'
+            path.write_text(json.dumps(self.parent))
+            catalogue.write_text(json.dumps(self.catalogue))
+            node = subprocess.run(['node', str(ROOT / 'validate/validate-schema.js'), str(path)], capture_output=True, text=True)
+            self.assertEqual(node.returncode, 0, node.stderr + node.stdout)
+            self.require_reports()
+            self.first.pop('reportingRequirementBindings')
+            path.write_text(json.dumps(self.parent))
+            catalogue.write_text(json.dumps(self.catalogue))
+            command = [sys.executable, str(ROOT / 'validate/validate-project.py'), str(path), str(SCHEMA), '--catalogue', str(catalogue), '--quiet']
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertFalse(json.loads(result.stdout)['reporting']['alignmentComplete'])
+            self.parent.pop('projectId')
+            path.write_text(json.dumps(self.parent))
+            self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
+            self.assertNotEqual(subprocess.run(['node', str(ROOT / 'validate/validate-schema.js'), str(path)], capture_output=True).returncode, 0)
+
+    def test_malformed_catalogues_and_contexts_report_errors_without_crashing(self):
+        for snapshot in ({'projects': [{'document': self.parent}]}, [], {'projects': 'invalid'}):
+            context = ProjectCatalogue(self.schema, snapshot)
+            context.validate()
+            ReportingValidator(context).validate()
+            DelegationValidator(context).validate()
+            self.assertIn('SCHEMA_INVALID', self.codes(context))
+        context = ProjectCatalogue(self.schema, documents=[[]])
+        self.assertIn('SCHEMA_INVALID', self.codes(context))
+
+    def test_gap_diagnostics_retain_requirement_and_source_provenance(self):
+        self.require_reports()
+        self.first.pop('reportingRequirementBindings')
+        context, checker = self.reporting()
+        result = self.result()
+        result['complete'] = False
+        result.pop('total')
+        result['diagnostics'] = deepcopy(checker.gaps[(project_key(self.parent['projectId']), 'Targets')])
+        context, checker = self.reporting([result])
+        self.assertEqual(context.errors, [], context.errors)
+        result['diagnostics'][0]['projectId'] = self.first['projectId']
+        self.assertIn('REPORT_DIAGNOSTICS_MISSING', self.codes(*self.reporting([result])))
+
+    def test_source_weight_is_applied_once_and_conflicts_are_reported(self):
+        outcome = self.practice['outcomes'][0]
+        outcome['metricContributions'] = [{'alphaName': 'Initiative', 'metricName': 'value', 'recognizedAtStateName': 'Addressed',
+                                           'forecastWeights': [{'stateName': 'Validated', 'weight': 0.5}, {'stateName': 'Addressed', 'weight': 1}]}]
+        report = self.parent['reports'][0]
+        report['valueKind'] = 'forecast'
+        report.pop('childCoverage')
+        report['bindings'] = [{'name': 'Derived', 'description': 'Source-weighted forecast.', 'sourceKind': 'outcome', 'valueSource': 'derived',
+                               'source': {'projectId': self.parent['projectId'], 'collection': 'outcomes', 'instanceName': 'Value'}}]
+        source = self.parent['current']['alphaInstances'][0]
+        source['evidenceBy'] = [{'name': 'Evidence', 'description': 'Canonical value record.', 'workProductName': 'Ledger', 'levelOfDetailName': 'Published'}]
+        metric = {'name': 'value', 'value': 100, 'unit': 'GBP', 'reportingSource': deepcopy(self.first['outcomes'][0]['reportingSource'])}
+        metric['reportingSource']['identity']['key'] = 'parent-metric'
+        self.parent['current']['workProductInstances'] = [{**deepcopy(source['evidenceBy'][0]), 'metrics': [metric]}]
+        context, checker = self.reporting()
+        self.assertEqual(context.errors, [], context.errors)
+        facts = checker.facts[(project_key(self.parent['projectId']), 'Targets')]
+        self.assertEqual([(f['rawValue'], f['weight'], f['value']) for f in facts], [(100, 0.5, 50)])
+        grandparent = deepcopy(self.first)
+        grandparent['projectId'] = 'ce536019-333a-4cb2-9510-f94e1b96f1aa'
+        grandparent.pop('parentProject')
+        grandparent['reports'] = [{**deepcopy(report), 'bindings': [
+            {'name': 'Portfolio', 'description': 'Forward source weighting unchanged.', 'sourceKind': 'report',
+             'source': {'projectId': self.parent['projectId'], 'reportName': 'Targets'}}]}]
+        self.parent['parentProject'] = {'projectId': grandparent['projectId']}
+        self.catalogue['projects'].append({'document': grandparent, 'revision': 'grandparent-r1'})
+        context, checker = self.reporting()
+        self.assertEqual(checker.facts[(project_key(grandparent['projectId']), 'Targets')][0]['value'], 50)
+        other = deepcopy(source)
+        other['name'], other['stateName'] = 'Another assessment', 'Addressed'
+        self.parent['current']['alphaInstances'].append(other)
+        self.assertIn('REPORT_LINEAGE_CONFLICT', self.codes(*self.reporting()))
+
+    def test_attainment_requires_own_method_target_and_evidence(self):
+        report = self.parent['reports'][0]
+        report.update(aggregation='attainmentCount', unit='count')
+        report.pop('valueKind')
+        report.pop('childCoverage')
+        report['metric'].update(metricId='example:attained', description='Evidenced attainment of the local target.')
+        report['bindings'] = [{'name': 'Acceptance', 'description': 'Parent-owned acceptance.', 'sourceKind': 'assessment',
+                               'source': {'projectId': self.parent['projectId'], 'collection': 'current.alphaInstances', 'instanceName': 'Expansion'},
+                               'target': {'projectId': self.parent['projectId'], 'collection': 'target.alphaInstances', 'instanceName': 'Expansion'}}]
+        self.practice['alphas'][0]['states'][-1]['checklist'] = [{'name': 'Approval', 'description': 'Approval is evidenced.', 'seq': 1}]
+        current = self.parent['current']['alphaInstances'][0]
+        current.update(stateName='Addressed', checklistStates=[{'checklistName': 'Approval', 'state': 'complete',
+                                                             'evidence': {'name': 'Approval record', 'uri': 'https://example.org/approval'}}])
+        original = deepcopy(self.parent['current'])
+        context, checker = self.reporting()
+        self.assertEqual(context.errors, [], context.errors)
+        self.assertTrue(checker.facts[(project_key(self.parent['projectId']), 'Targets')][0]['attained'])
+        self.assertEqual(self.parent['current'], original)
+        current['checklistStates'][0].pop('evidence')
+        self.assertFalse(self.reporting()[1].facts[(project_key(self.parent['projectId']), 'Targets')][0]['attained'])
+        current['stateName'] = 'A state from another method'
+        self.assertIn('REPORT_ASSESSMENT_UNRESOLVED', self.codes(*self.reporting()))
+
+    def test_cross_method_mapping_preserves_evidence_and_rejects_missing_checklist_maps(self):
+        self.practice['alphas'][0]['states'][1]['checklist'] = [{'name': 'Approval', 'description': 'Approved.', 'seq': 1}]
+        self.parent['current']['alphaInstances'][0]['checklistStates'] = [{'checklistName': 'Approval', 'state': 'complete',
+                                                                        'evidence': {'name': 'Approval', 'uri': 'https://example.org/approval'}}]
+        alternate = self.documents[1]
+        alternate['alphas'][0]['states'][1].update(name='Ready', checklist=[{'name': 'Verified', 'description': 'Verified.', 'seq': 1}])
+        variant = self.template['variants'][0]
+        variant['methodology']['documentName'] = alternate['name']
+        rule = variant['instanceMappings'][0]
+        rule.update(stateMappings=[{'fromState': 'Validated', 'toState': 'Ready'}],
+                    checklistMappings=[{'fromStateOrLevel': 'Validated', 'fromChecklist': 'Approval', 'toStateOrLevel': 'Ready', 'toChecklist': 'Verified'}])
+        preview = self.preview()
+        preview['child']['practiceName'] = alternate['name']
+        target = preview['child']['current']['alphaInstances'][0]
+        target['stateName'], target['checklistStates'][0]['checklistName'] = 'Ready', 'Verified'
+        transfer = preview['instanceMappings'][0]
+        transfer.update(assessmentTransfer='mapped', stateMappings=deepcopy(rule['stateMappings']), checklistMappings=deepcopy(rule['checklistMappings']))
+        preview['sourceRevisions'].append({'methodology': {'documentType': 'practice', 'documentName': alternate['name'], 'version': '1.0.0'}, 'revision': document_revision(alternate)})
+        context, _ = self.delegation(preview)
+        self.assertEqual(context.errors, [], context.errors)
+        self.assertEqual(target['checklistStates'][0]['evidence'], self.parent['current']['alphaInstances'][0]['checklistStates'][0]['evidence'])
+        rule['checklistMappings'] = []
+        transfer['checklistMappings'] = []
+        preview['sourceRevisions'][1]['revision'] = document_revision(self.practice)
+        self.assertIn('DELEGATION_CHECKLIST_MAPPING_AMBIGUOUS', self.codes(self.delegation(preview)[0]))
+
+    def test_action_transfer_checks_open_status_assignments_and_cycle_destination(self):
+        self.parent['actions'] = [{'name': 'Prepare', 'status': 'in-progress', 'assignedTo': ['Owner'], 'advancesAlphaInstances': ['Expansion'], 'outcomeInstanceNames': ['Value']}]
+        self.template['selectors'].append({'name': 'Open action', 'description': 'Explicitly selected follow-up.', 'selection': 'named', 'items': [{'collection': 'actions', 'instanceName': 'Prepare'}]})
+        rule = {'selectorName': 'Open action', 'targetCycleName': 'Iteration 1', 'assigneeMappings': [{'from': 'Owner', 'to': 'Delegate'}]}
+        self.template['variants'][0]['actionMappings'] = [rule]
+        preview = self.preview()
+        source = {'projectId': self.parent['projectId'], 'collection': 'actions', 'instanceName': 'Prepare'}
+        target = {'projectId': preview['child']['projectId'], 'collection': 'cycles.actions', 'cycleName': 'Iteration 1', 'instanceName': 'Prepare'}
+        preview['selectedItems'].append(source)
+        preview['actionMappings'] = [{'source': source, 'target': target, 'assigneeMappings': deepcopy(rule['assigneeMappings'])}]
+        preview['sourceSnapshots'].append({'source': source, 'recordedAt': '2026-10-26T09:00:00Z', 'attributedTo': 'Owner', 'snapshot': deepcopy(self.parent['actions'][0])})
+        preview['child']['team'] = {'name': 'Delivery team', 'description': 'Owners of the delivery.', 'members': [{'name': 'Delegate', 'personaName': 'Lead', 'contact': 'example'}]}
+        preview['child']['cycles'] = [{'name': 'Iteration 1', 'description': 'Delivery interval.', 'actions': [{**deepcopy(self.parent['actions'][0]), 'assignedTo': ['Delegate'], 'advancesAlphaInstances': ['Delivery']}]}]
+        context, _ = self.delegation(preview)
+        self.assertEqual(context.errors, [], context.errors)
+        target['cycleName'] = 'Missing iteration'
+        self.assertIn('INSTANCE_UNRESOLVED', self.codes(self.delegation(preview)[0]))
+        target['cycleName'] = 'Iteration 1'
+        preview['child']['team']['members'] = []
+        self.assertIn('DELEGATION_ASSIGNMENT_UNRESOLVED', self.codes(self.delegation(preview)[0]))
+        self.parent['actions'][0]['status'] = 'done'
+        self.assertIn('DELEGATION_ACTION_CLOSED', self.codes(self.delegation(preview)[0]))
+
+    def test_templates_are_checked_through_practice_validator(self):
+        validator = PracticeValidator(FIXTURES / 'fixture-signal-practice.json', FIXTURES / 'fixture-baseline.json', SCHEMA)
+        validator.practice = self.practice
+        self.assertTrue(validator.validate_project_creation_templates(), validator.errors)
+        self.template['defaultVariantName'] = 'Unknown method'
+        self.assertFalse(validator.validate_project_creation_templates())
+        self.assertIn('TEMPLATE_VARIANT_UNRESOLVED', {e['code'] for e in validator.errors})
+
+    def test_requirement_suppression_is_a_gap_and_does_not_remove_obligations(self):
+        requirement = self.require_reports()
+        weaker = deepcopy(requirement)
+        weaker['suppressed'] = True
+        self.first['reportingRequirements'] = [weaker]
+        context, checker = self.reporting()
+        self.assertEqual(context.errors, [], context.errors)
+        self.assertIn('REQUIREMENT_CONFLICT', self.codes(context, checker))
+
+    def test_extra_child_assessments_and_actions_are_not_invented(self):
+        preview = self.preview()
+        preview['child']['current']['alphaInstances'].append({**deepcopy(preview['child']['current']['alphaInstances'][0]), 'name': 'Unselected'})
+        preview['child']['actions'] = [{'name': 'Unselected action'}]
+        context, _ = self.delegation(preview)
+        self.assertIn('DELEGATION_ASSESSMENT_INVENTED', self.codes(context))
+        self.assertIn('DELEGATION_ACTION_UNDECLARED', self.codes(context))
+
+    def test_delegated_identity_survives_new_assessment_location(self):
+        preview = self.preview()
+        operation = {'preview': preview, 'status': 'committed', 'history': preview['sourceSnapshots'],
+                     'committedAt': '2026-10-26T09:45:00Z', 'summaryReportName': 'Targets'}
+        self.parent['delegations'] = [operation]
+        self.parent['current'] = {}
+        self.catalogue['projects'].append({'document': preview['child'], 'revision': 'child-r1'})
+        context = self.context()
+        reference = {**preview['instanceMappings'][0]['target'], 'collection': 'current.alphaInstances'}
+        self.assertEqual(context.delegated_origin(reference), (preview['instanceMappings'][0]['origin'], preview['instanceMappings'][0]['originalSource']))
+        self.assertIsNone(context.delegated_origin({**reference, 'collection': 'outcomes'}))
+
+    def test_package_inventory_uuid_matches_document_and_rejects_duplicates(self):
+        entry = {'path': 'documents/project.json', 'documentType': 'project', 'documentName': self.parent['name'], 'projectId': self.parent['projectId']}
+        manifest = {'schemaVersion': '4.0.0', 'package': {'name': 'example', 'description': 'Synthetic project snapshot.', 'version': '1.0.0'}, 'documents': [entry]}
+        context = self.context()
+        self.assertTrue(context.validate_project_inventory(manifest, {entry['path']: self.parent}), context.errors)
+        entry['projectId'] = self.first['projectId']
+        self.assertFalse(context.validate_project_inventory(manifest, {entry['path']: self.parent}))
+        self.assertIn('PACKAGE_PROJECT_IDENTITY_MISMATCH', self.codes(context))
+        entry['projectId'] = self.parent['projectId']
+        manifest['documents'].append({**entry, 'path': 'documents/duplicate.json'})
+        context = self.context()
+        context.validate_project_inventory(manifest, {entry['path']: self.parent, 'documents/duplicate.json': self.parent})
+        self.assertIn('DUPLICATE_PROJECT_ID', self.codes(context))
+
+    def test_metric_conflicts_affect_both_declarations_and_paths_are_checked(self):
+        self.first['reports'][0]['metric']['description'] = 'A different semantic definition.'
+        context, checker = self.reporting()
+        for project in (self.parent, self.first):
+            self.assertTrue(any(d['code'] == 'REPORT_METRIC_DEFINITION_CONFLICT' for d in checker.gaps[(project_key(project['projectId']), 'Targets')]))
+        self.first['reports'][0]['metric']['description'] = self.parent['reports'][0]['metric']['description']
+        result = self.result()
+        result['contributions'][0]['via'] = [{'projectId': self.first['projectId'], 'reportName': 'Targets'}]
+        self.assertEqual(self.reporting([result])[0].errors, [])
+        result['contributions'][0]['via'][0]['reportName'] = 'Unrelated report'
+        self.assertIn('REPORT_LINEAGE_PATH_INVALID', self.codes(*self.reporting([result])))
 
 
 if __name__ == '__main__':

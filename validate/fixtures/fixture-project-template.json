@@ -1,0 +1,20 @@
+{
+  "name": "Delegate initiative", "description": "Give an initiative its own delivery project while retaining parent acceptance.",
+  "kind": "projectCreationTemplate", "version": "1.0.0", "rootKind": "alpha", "rootTypeName": "Initiative",
+  "tags": { "domainTags": ["Delivery"] },
+  "selectors": [{ "name": "Initiative", "description": "The explicitly chosen initiative.", "selection": "root" }],
+  "variants": [{
+    "name": "Same practice", "description": "Retain the initiative's existing assessment semantics.",
+    "methodology": { "documentType": "practice", "documentName": "Fixture Account Planning", "version": "1.0.0" },
+    "instanceMappings": [{ "selectorName": "Initiative", "instanceKind": "alpha", "sourceTypeName": "Initiative", "targetTypeName": "Initiative" }],
+    "actionMappings": [],
+    "reportingBindings": [{
+      "name": "Delegated target", "description": "Report the child's explicit target to the parent.",
+      "parentReportName": "Targets", "childReportName": "Targets",
+      "metric": { "name": "Committed value", "description": "Explicit monetary commitment for the reporting period.", "metricId": "example:committed-value", "version": "1.0.0" },
+      "aggregation": "sum", "valueKind": "target", "unit": "GBP", "period": { "start": "2026-10-01T00:00:00Z", "end": "2027-01-01T00:00:00Z" },
+      "source": { "collection": "outcomes", "instanceName": "Value" }, "valueSource": "recorded"
+    }]
+  }],
+  "defaultVariantName": "Same practice"
+}

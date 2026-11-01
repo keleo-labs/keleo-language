@@ -49,6 +49,7 @@ the completed methodology composition. See the
    - 6.15 [PatternGroup Merging](#615-patterngroup-merging)
    - 6.15a [PatternOrchestration Merging](#615a-patternorchestration-merging)
    - 6.16 [Outcome Merging](#616-outcome-merging)
+   - 6.17 [Project creation templates](#617-project-creation-templates)
 7. [Post-Merge Finalization](#7-post-merge-finalization)
    - 7.1 [Binding Resolution](#71-binding-resolution)
    - 7.2 [Supporting Alpha Aggregation](#72-supporting-alpha-aggregation)
@@ -129,6 +130,9 @@ The merge begins by seeding an accumulator document from the resolved baseline:
 - **Alpha instances, work product instances, aliases, acknowledgements, references**: Initialized if present on the baseline.
 - **Metadata fields**: `authors`, `keywords`, `createdAt`, `updatedAt`, `version` are seeded from the baseline.
 - **Method-level fields**: The Method's own `name`, `description`, `tags`, `narratives`, `citations`, and `assets` are applied at initialization, with the Method's description taking precedence.
+- **Project creation templates**: Seed from the Method's own declarations; add
+  templates from practices and dependencies using the atomic versioned rules in
+  Section 6.17.
 
 A `mergesBaselinePracticeName` provenance field records which baseline was used, enabling tooling to distinguish merged composites from raw baselines. Notably, the merged output does **not** carry a `baselinePracticeName` field — it is structurally shaped as a kernel (with direct `alphas`, `focuses`, etc.) so that library resolution and enrichment stubs (Section 7.5) are not re-applied if the merged document is loaded again.
 
@@ -140,6 +144,7 @@ Each extension practice is merged onto the accumulator in dependency-resolved or
 - Alphas, competencies, focuses, work products, patterns, pattern groups, personas, persona groups, narrative types, citations, acknowledgements, assets, alpha instances, work product instances, references, and aliases all merge using their respective merge functions.
 - `authors`, `keywords`, and `practiceDependencyNames` are unioned as string arrays.
 - `updatedAt` is updated if the extension provides a newer timestamp.
+- `projectCreationTemplates` use Section 6.17 rather than generic named-array merging.
 
 **Narrative isolation**: Extension practice root-level narratives are NOT merged into the composite root. Secondary baseline root-level narratives are also excluded. Only the Method's own narratives appear at root level. Practice-specific narratives remain within their respective practice elements (patterns, pattern views, etc.).
 
@@ -448,6 +453,9 @@ Orchestrations merge by canonical name. Within an orchestration, `stages` merge 
 
 ### 6.16 Outcome Merging
 
+Schema-4 report bindings do not change Outcome contribution merging. Reports
+belong to independent projects; they are not methodology merge targets.
+
 **Outcomes** merge by canonical name using the standard named-element merge (Section 5.1). When two practices define an Outcome with the same canonical name:
 
 - **Description**: follows the baseline-preservation rule (Section 4.2).
@@ -462,6 +470,30 @@ Outcomes with unique names from either the base or overlay are preserved as-is.
 **Note:** OutcomeInstance (project-level), Metric (on WorkProductInstance), and Action (on ProjectCycle) do not participate in merge — they exist only in Project documents, which are not merge targets.
 
 ---
+
+### 6.17 Project creation templates
+
+`projectCreationTemplates` may appear on a Practice or Method. Include them from
+declared dependencies, embedded practices and the Method's own declarations.
+These templates are discoverable PracticeElements; preserve their descriptions,
+tags, narratives and asset references with their defining methodology context.
+
+Key templates by `(name, version)`, not name alone. Identical executable
+definitions coalesce; different versions remain distinct. Conflicting contents
+under the same key are composition errors. Never recursively combine selectors,
+method variants or mappings into a new executable operation.
+
+Descriptions and other descriptive metadata do not override executable
+mappings. Existing inherited suppression/specificity controls apply to template
+visibility, with dangling references diagnosed. They grant no creation authority
+and cannot silently change an operation pinned to a template version. Nested
+selectors, variants and reporting bindings retain their PracticeElement metadata
+and are checked within that template's scope.
+
+Project ownership, report definitions, inherited reporting requirements,
+delegation receipts and assessments are not merged as methodology elements.
+Reporting requirements instead follow the explicit ancestor-resolution rules in
+[Project hierarchy and reporting](semantics/project-hierarchy.md#inherited-requirements-and-coverage).
 
 ## 7 Post-Merge Finalization
 

@@ -4,7 +4,7 @@
   "serviceKind": "document-store",
   "practiceName": "Fixture Account Planning",
   "version": "1.0.0",
-  "schemaVersion": "3.3.0",
+  "schemaVersion": "4.0.0",
   "queryTemplates": [
     {
       "name": "annual-reports",

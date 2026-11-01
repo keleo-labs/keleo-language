@@ -2,7 +2,7 @@
   "name": "Company signals",
   "journalKind": "signals",
   "version": "1.0.0",
-  "schemaVersion": "3.3.0",
+  "schemaVersion": "4.0.0",
   "signals": [
     {
       "name": "example-company-2026-modernisation",

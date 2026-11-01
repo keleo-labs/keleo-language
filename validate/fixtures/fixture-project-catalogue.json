@@ -1,0 +1,75 @@
+{
+  "projects": [
+    {
+      "revision": "parent-r1",
+      "document": {
+        "projectId": "673dcb6b-f27f-4fd8-a685-21bf43d516bb",
+        "name": "Portfolio", "description": "Independent delivery projects with explicit target reporting.",
+        "practiceName": "Fixture Account Planning", "schemaVersion": "4.0.0",
+        "plan": { "pattern": { "name": "Portfolio plan", "description": "Investigate and delegate work.", "patternViews": [{ "name": "Deliver", "description": "Deliver the planned scope.", "seq": 1, "alphaStates": [] }], "alphaInstanceNames": [
+          { "name": "Expansion", "description": "An initiative ready for delegation.", "alphaName": "Initiative" }
+        ] } },
+        "current": { "alphaInstances": [{ "name": "Expansion", "description": "Validated initiative detail.", "alphaName": "Initiative", "stateName": "Validated" }] },
+        "target": { "alphaInstances": [{ "name": "Expansion", "description": "Parent-owned acceptance.", "alphaName": "Initiative", "stateName": "Addressed" }] },
+        "outcomes": [{ "name": "Value", "outcomeName": "Value", "targetValue": 400, "unit": "GBP" }],
+        "reports": [{
+          "name": "Targets", "description": "Declared child targets, independent of the parent's target.", "kind": "reportDefinition",
+          "metric": { "name": "Committed value", "description": "Explicit monetary commitment for the reporting period.", "metricId": "example:committed-value", "version": "1.0.0" },
+          "aggregation": "sum", "valueKind": "target", "unit": "GBP", "period": { "start": "2026-10-01T00:00:00Z", "end": "2027-01-01T00:00:00Z" },
+          "bindings": [
+            { "name": "First delivery", "description": "First child's declared target.", "sourceKind": "report", "source": { "projectId": "9d5c250d-43d4-4d08-aa84-77ef9959c701", "reportName": "Targets" } },
+            { "name": "Second delivery", "description": "Second child's declared target.", "sourceKind": "report", "source": { "projectId": "9d5c250d-43d4-4d08-aa84-77ef9959c702", "reportName": "Targets" } }
+          ],
+          "childCoverage": [
+            { "projectId": "9d5c250d-43d4-4d08-aa84-77ef9959c701", "bindingNames": ["First delivery"] },
+            { "projectId": "9d5c250d-43d4-4d08-aa84-77ef9959c702", "bindingNames": ["Second delivery"] }
+          ]
+        }]
+      }
+    },
+    {
+      "revision": "delivery-1-r1", "containingProjectId": "673dcb6b-f27f-4fd8-a685-21bf43d516bb",
+      "document": {
+        "projectId": "9d5c250d-43d4-4d08-aa84-77ef9959c701", "name": "Delivery", "description": "First independently managed delivery.",
+        "parentProject": { "projectId": "673dcb6b-f27f-4fd8-a685-21bf43d516bb" }, "practiceName": "Fixture Account Planning", "schemaVersion": "4.0.0",
+        "plan": { "pattern": { "name": "Delivery plan", "description": "Independent delivery.", "patternViews": [{ "name": "Deliver", "description": "Deliver the planned scope.", "seq": 1, "alphaStates": [] }] } }, "current": {}, "target": {},
+        "outcomes": [{
+          "name": "Value", "outcomeName": "Value", "targetValue": 100, "actualValue": 40, "forecastValue": 80, "unit": "GBP",
+          "reportingSource": {
+            "identity": { "namespace": "example:ledger", "key": "delivery-1" },
+            "metric": { "name": "Committed value", "description": "Explicit monetary commitment for the reporting period.", "metricId": "example:committed-value", "version": "1.0.0" },
+            "period": { "start": "2026-10-01T00:00:00Z", "end": "2027-01-01T00:00:00Z" }, "observedAt": "2026-10-26T09:00:00Z"
+          }
+        }],
+        "reports": [{
+          "name": "Targets", "description": "First local target.",
+          "metric": { "name": "Committed value", "description": "Explicit monetary commitment for the reporting period.", "metricId": "example:committed-value", "version": "1.0.0" },
+          "aggregation": "sum", "valueKind": "target", "unit": "GBP", "period": { "start": "2026-10-01T00:00:00Z", "end": "2027-01-01T00:00:00Z" },
+          "bindings": [{ "name": "Recorded target", "description": "Explicit local outcome target.", "sourceKind": "outcome", "valueSource": "recorded", "source": { "projectId": "9d5c250d-43d4-4d08-aa84-77ef9959c701", "collection": "outcomes", "instanceName": "Value" } }]
+        }]
+      }
+    },
+    {
+      "revision": "delivery-2-r1", "containingProjectId": "673dcb6b-f27f-4fd8-a685-21bf43d516bb",
+      "document": {
+        "projectId": "9d5c250d-43d4-4d08-aa84-77ef9959c702", "name": "Delivery", "description": "Second delivery using a different practice.",
+        "parentProject": { "projectId": "673dcb6b-f27f-4fd8-a685-21bf43d516bb" }, "practiceName": "Fixture Alternate Delivery", "schemaVersion": "4.0.0",
+        "plan": { "pattern": { "name": "Delivery plan", "description": "Independent delivery.", "patternViews": [{ "name": "Deliver", "description": "Deliver the planned scope.", "seq": 1, "alphaStates": [] }] } }, "current": {}, "target": {},
+        "outcomes": [{
+          "name": "Value", "outcomeName": "Value", "targetValue": 200, "actualValue": 50, "forecastValue": 150, "unit": "GBP",
+          "reportingSource": {
+            "identity": { "namespace": "example:ledger", "key": "delivery-2" },
+            "metric": { "name": "Committed value", "description": "Explicit monetary commitment for the reporting period.", "metricId": "example:committed-value", "version": "1.0.0" },
+            "period": { "start": "2026-10-01T00:00:00Z", "end": "2027-01-01T00:00:00Z" }, "synchronizedAt": "2026-10-26T09:00:00Z"
+          }
+        }],
+        "reports": [{
+          "name": "Targets", "description": "Second local target.",
+          "metric": { "name": "Committed value", "description": "Explicit monetary commitment for the reporting period.", "metricId": "example:committed-value", "version": "1.0.0" },
+          "aggregation": "sum", "valueKind": "target", "unit": "GBP", "period": { "start": "2026-10-01T00:00:00Z", "end": "2027-01-01T00:00:00Z" },
+          "bindings": [{ "name": "Recorded target", "description": "Explicit local outcome target.", "sourceKind": "outcome", "valueSource": "recorded", "source": { "projectId": "9d5c250d-43d4-4d08-aa84-77ef9959c702", "collection": "outcomes", "instanceName": "Value" } }]
+        }]
+      }
+    }
+  ]
+}
