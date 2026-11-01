@@ -2,6 +2,10 @@
 
 ## Table of Contents
 
+Local source and practice catalogs used during authoring are specified separately in
+[Catalog semantics](semantics/catalogs.md). They are not Practice Language documents
+and do not change the schema version of `language.schema.json`.
+
 1. [Introduction and Architectural Context](#1-introduction-and-architectural-context)
 2. [Ontological Principles and Semantic Integration](#2-ontological-principles-and-semantic-integration)
 3. [Method, Practice, and Baseline Architecture](#3-method-practice-and-baseline-architecture)

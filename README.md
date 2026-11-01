@@ -4,6 +4,19 @@ The Practice Language JSON Schema is a meta-model for describing practices, meth
 
 ## Schema
 
+Two separate `1.0.0` schemas describe local authoring catalogs:
+[`source-catalog.schema.json`](source-catalog.schema.json) stores reusable source
+sections and [`practice-catalog.schema.json`](practice-catalog.schema.json) indexes
+one practice or baseline and its links to source sections. These catalogs are local
+metadata, not Practice Language documents or bundle contents. Practice citations
+and references keep their existing role. See [catalog semantics](references/semantics/catalogs.md)
+and `validate/validate-catalog.py` for their meaning and checks.
+
+The section lookup design is informed by [Kumar et al., *STAIR: STructure Aware
+Information Retriever* (2026)](https://arxiv.org/html/2609.03874v1). That paper
+evaluates a fine-tuned retriever; these catalog schemas make no claim to reproduce
+its model or measured accuracy.
+
 The schema is defined in [`language.schema.json`](language.schema.json) using JSON Schema Draft 2020-12. Semantic guidance and operational architecture are documented in [`references/semantics.md`](references/semantics.md).
 
 Schema **4.0.0** requires persistent UUID project identity and adds explicit project

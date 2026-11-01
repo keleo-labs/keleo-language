@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "schemaVersion:1.0.0",
+  "title": "Local practice catalog",
+  "type": "object",
+  "required": ["schemaVersion", "practice", "elements"],
+  "properties": {
+    "schemaVersion": {"const": "1.0.0"},
+    "practice": {
+      "type": "object",
+      "required": ["kind", "name", "version", "sha256", "path"],
+      "properties": {
+        "kind": {"enum": ["practice", "practiceBaseline"]},
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "path": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["pointer", "kind", "name", "text", "sourceSections"],
+        "properties": {
+          "pointer": {"type": "string", "pattern": "^/"},
+          "kind": {"type": "string", "minLength": 1},
+          "name": {"type": "string", "minLength": 1},
+          "text": {"type": "string"},
+          "sourceSections": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
