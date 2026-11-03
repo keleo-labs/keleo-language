@@ -2,6 +2,8 @@
 
 ## External signals and contextual recommendations
 
+Signal journals, rules and recommendations are defined in the [integrations and signals schema module](../../schemas/integrations-signals.schema.json). Project-owned recommendation cards and policies use those definitions through the [project module](../../schemas/project.schema.json).
+
 Schema 4 also permits a card with `localRecommendation` instead of
 `journalName`/`recommendationName`. Its proposal is an explicit child-creation
 preview; it reuses the same workflow without an external signal. Local policies

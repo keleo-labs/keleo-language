@@ -1,11 +1,13 @@
 {
   "name": "keleo-language",
-  "version": "4.1.0",
+  "version": "5.0.0",
   "license": "CC-BY-4.0",
   "description": "Practice Language JSON Schema, semantic guidance, and validation tooling",
   "private": true,
   "scripts": {
-    "validate": "node validate/validate-schema.js"
+    "validate": "node validate/validate-schema.js",
+    "schema:build": "node utils/build-language-schema.js",
+    "schema:check": "node utils/check-schema-modules.js"
   },
   "dependencies": {
     "ajv": "^8.17.1",

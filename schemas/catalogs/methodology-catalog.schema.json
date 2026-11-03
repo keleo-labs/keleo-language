@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "schemaVersion:1.0.0",
+  "title": "Local Method or Practice catalog",
+  "type": "object",
+  "required": ["schemaVersion", "kind", "name", "variants"],
+  "properties": {
+    "schemaVersion": {"const": "1.0.0"},
+    "kind": {"enum": ["method", "practice"]},
+    "name": {"type": "string", "minLength": 1},
+    "variants": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "required": ["version", "sha256", "documentKind", "elements"],
+        "properties": {
+          "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "documentKind": {"enum": ["method", "practice", "practiceBaseline"]},
+          "elements": {"type": "array", "items": {"$ref": "#/$defs/element"}}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "element": {
+      "type": "object", "required": ["pointer", "kind", "name", "text"],
+      "properties": {
+        "pointer": {"type": "string", "pattern": "^/"},
+        "kind": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "text": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

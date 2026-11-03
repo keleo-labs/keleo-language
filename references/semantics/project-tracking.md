@@ -7,6 +7,8 @@ for the fixed Kanban lifecycle, typed proposals and application authority rules.
 
 ## 12 Project Execution Tracking
 
+Project execution, reporting and delegation definitions are in the [project schema module](../../schemas/project.schema.json). Shared links, assets and narratives come from the [common module](../../schemas/common.schema.json).
+
 Schema 4 requires a persistent UUID `projectId` on every Project, alongside its
 inherited `name` and `description`. Ownership, cross-project reports, creation
 templates and inherited requirements are specified in

@@ -1,5 +1,25 @@
 Feature: Composition guidance and validation diagnostics
 
+  Scenario: An orchestration pursues multiple outcomes
+    Given two outcomes reference the same orchestration
+    When its purpose is described
+    Then the description explains its intended contribution to both outcomes
+
+  Scenario: A stage advances multiple outcomes independently
+    Given two outcomes reference the same orchestration stage
+    When stage progress is assessed
+    Then each outcome uses its own declared weights and recognition point
+
+  Scenario: Outcome links remain optional
+    Given an orchestration contains a stage with no outcome references
+    When the practice is validated
+    Then no outcome-link requirement is introduced
+
+  Scenario: Purpose does not establish achievement
+    Given an orchestration describes the value it pursues
+    When outcome achievement is assessed
+    Then existing measurement and recognition rules apply
+
   Scenario: Baseline group templates are deprecated
     Given a baseline declares a pattern group with empty entries
     When the baseline is validated

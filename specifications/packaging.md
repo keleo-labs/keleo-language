@@ -14,7 +14,7 @@ The package format builds on two existing schema mechanisms:
 
 2. **Asset paths** — The Asset type's `path` field uses relative paths (e.g., `assets/diagrams/platform-states.svg`). Within a package, these paths resolve relative to the package root, requiring zero transformation between authored and packaged forms.
 
-The manifest schema is defined as four new `$defs` in `language.schema.json`: `PackageManifest`, `PackageIdentity`, `PackageDocument`, and `PackageDependency`. The manifest is not a Practice Language document — it is metadata *about* Practice Language documents and is not subject to root-level type discrimination. Consumers validate it via `language.schema.json#/$defs/PackageManifest`.
+The manifest definitions are authored in `schemas/manifest.schema.json`: `PackageManifest`, `PackageIdentity`, `PackageDocument` and `PackageDependency`. The manifest is not a Practice Language document — it is metadata *about* Practice Language documents and is not subject to root-level type discrimination. Existing consumers validate it via `language.schema.json#/$defs/PackageManifest`; new tools can use `schemas/manifest.schema.json#/$defs/PackageManifest`.
 
 ## File Format
 
@@ -475,7 +475,7 @@ The project is the entry point; the method and its constituents are included so 
 
 ## Schema Changes
 
-The package format adds four `$defs` to `language.schema.json`:
+The package format defines four `$defs` in `schemas/manifest.schema.json`, which are also present in the generated compatibility schema:
 
 | Definition | Required Fields | Purpose |
 |---|---|---|
@@ -488,6 +488,6 @@ No changes to root-level type discrimination, the `kind` enum, or any existing d
 
 ## Coverage Status
 
-- **Schema:** Complete — `PackageManifest`, `PackageIdentity`, `PackageDocument`, `PackageDependency` defined in `language.schema.json`
+- **Schema:** Complete — `PackageManifest`, `PackageIdentity`, `PackageDocument`, `PackageDependency` defined in `schemas/manifest.schema.json` and the generated compatibility schema
 - **Semantics:** Covered in `references/semantics.md` Section 11.4
 - **Validation:** Not yet implemented — planned as `validate/validate-package.py`

@@ -13,6 +13,7 @@ and do not change the schema version of `language.schema.json`.
    - 3.2 [Metadata and Provenance](#32-metadata-and-provenance)
    - 3.3 [Schema Versioning and Document Compatibility](#33-schema-versioning-and-document-compatibility)
    - 3.4 [Document Version Format](#34-document-version-format)
+   - 3.5 [Schema Modules and Compatibility](#35-schema-modules-and-compatibility)
 4. [Adapting and Composing Practices](semantics/composition.md)
    - 4.1 [Practice Dependencies](semantics/composition.md#41-practice-dependencies)
    - 4.2 [Practice and Method Composition (Merge)](semantics/composition.md#42-practice-and-method-composition-merge)
@@ -59,6 +60,7 @@ and do not change the schema version of `language.schema.json`.
    - 9.3 [Pattern Groups: Organising Patterns for Navigation](semantics/execution-and-patterns.md#93-pattern-groups-organising-patterns-for-navigation) — **deprecated, see 9.5**
    - 9.4 [Outcome Definitions and Value Measurement](semantics/execution-and-patterns.md#94-outcome-definitions-and-value-measurement)
    - 9.5 [Pattern Orchestration: Layering Patterns Across an Endeavour](semantics/execution-and-patterns.md#95-pattern-orchestration-layering-patterns-across-an-endeavour)
+     - [Outcome-based purpose and direction](semantics/execution-and-patterns.md#outcome-based-purpose-and-direction) — optional links to several outcomes, including shared stages
      - 9.5.1 [How a Stage Is Placed](semantics/execution-and-patterns.md#951-how-a-stage-is-placed)
      - 9.5.2 [Narrative Binding](semantics/execution-and-patterns.md#952-narrative-binding)
      - 9.5.3 [Reuse and Cycles](semantics/execution-and-patterns.md#953-reuse-and-cycles)
@@ -172,6 +174,12 @@ When a document is packaged in a `.keleo` file, its `schemaVersion` should be co
 
 The `version` field on Practice, PracticeBaseline, Method, and Project represents the version of that document. The recommended format is semver (e.g. `1.0.0`), but shortened forms like `1.0` remain valid for backwards compatibility. Tooling that performs version range comparison should normalise non-semver versions to three-part form: `1.0` becomes `1.0.0`, `2` becomes `2.0.0`.
 
+### 3.5 Schema Modules and Compatibility
+
+The [modular entry point](../schemas/language.schema.json) keeps the same root document discrimination as the generated [compatibility schema](../language.schema.json). The compatibility file is deprecated as an editing source but remains available to existing consumers. Both entry points validate the same Practice Language documents; splitting definitions across files does not change document structure or meaning.
+
+Definitions are grouped by responsibility: [common](../schemas/common.schema.json) holds shared elements, assets, citations and narratives; [practice](../schemas/practice.schema.json) holds baselines, practices, methods and their elements; [integrations-signals](../schemas/integrations-signals.schema.json) holds service mappings and signal workflows; [project](../schemas/project.schema.json) holds execution, reporting and delegation; [manifest](../schemas/manifest.schema.json) holds package metadata; and [changes](../schemas/changes.schema.json) holds change documents. References between modules resolve by schema `$id`. New tools must register the local modules before validating through the modular entry point.
+
 ---
 
 ## 4 Adapting and Composing Practices
@@ -217,6 +225,8 @@ Defines the execution model: Activity Spaces as generalized effort boundaries, A
 ## 9 Lifecycle Orchestration: Patterns and Phase Models
 
 Defines how methodologies are orchestrated into temporal models using Patterns. Covers pattern orchestration and narrative hooks (9.1), the PatternView structure and semantics including alpha state expectations, instance tracking, deliverables, and active work (9.2), pattern groups for navigation organisation (9.3, deprecated), outcome definitions with value measurement and metric/objective contributions, scoped to a pattern's views or an orchestration's stages (9.4), and PatternOrchestration (9.5) — how stages are placed (9.5.1), narrative binding (9.5.2), reuse and cycles (9.5.3), embedding a whole sub-endeavour such as a project inside a programme (9.5.4), baseline-published shells and the additive rule for extending them (9.5.5), and choosing between extending, embedding and authoring new (9.5.6). Read when designing lifecycle patterns, defining phase milestones, sequencing patterns across an endeavour, or establishing outcome measurement.
+
+Orchestration purpose and direction reuse optional outcome links: several outcomes may share an orchestration or stage while retaining independent weights and recognition points.
 
 **Full guidance:** [semantics/execution-and-patterns.md](semantics/execution-and-patterns.md) — Sections 8-9
 

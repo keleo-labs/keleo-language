@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/keleo-studio/schemas/manifest.schema.json",
+  "$comment": "schemaVersion:4.0.1",
+  "$defs": {
+    "DocumentVersionConstraint": {
+      "type": "object",
+      "description": "Version constraint for a named document dependency. Declares the required version range for a referenced practice, baseline, or method. When the referenced document's version does not satisfy this constraint, tooling should emit a warning.",
+      "required": [
+        "documentName",
+        "versionRange"
+      ],
+      "properties": {
+        "documentName": {
+          "type": "string",
+          "description": "Name of the referenced document (must match a dependency name declared elsewhere in this document, e.g. a baselinePracticeName, practiceDependencyNames entry, practiceNames entry, practiceName, or methodName)."
+        },
+        "versionRange": {
+          "type": "string",
+          "description": "Semver range constraint using npm/node-semver syntax (e.g., '^2.0.0', '>=1.0.0 <3.0.0', '~1.2.0'). Tooling normalises non-semver document versions before comparison (e.g. '1.0' becomes '1.0.0')."
+        }
+      },
+      "additionalProperties": false
+    },
+    "PackageDependency": {
+      "type": "object",
+      "description": "A dependency on another .keleo package. Declared when this package contains documents that reference names (baselinePracticeName, practiceNames, practiceDependencyNames) provided by an external package.",
+      "required": [
+        "packageName",
+        "versionRange"
+      ],
+      "properties": {
+        "packageName": {
+          "type": "string",
+          "description": "Name of the required package (must match PackageIdentity.name of the dependency)."
+        },
+        "versionRange": {
+          "type": "string",
+          "description": "Semantic version range constraint (e.g., '>=1.0.0 <2.0.0', '^1.2.0', '1.x'). Consumers use this to select a compatible version from available packages."
+        },
+        "documentNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional explicit list of document names required from the dependency. When omitted, all documents from the dependency are available for resolution."
+        }
+      },
+      "additionalProperties": false
+    },
+    "PackageDocument": {
+      "type": "object",
+      "description": "An entry in the package document inventory. Maps a file path within the ZIP archive to its Practice Language document type and name.",
+      "required": [
+        "path",
+        "documentType",
+        "documentName"
+      ],
+      "properties": {
+        "projectId": {
+          "$ref": "project.schema.json#/$defs/ProjectId",
+          "description": "Required for a project inventory entry; must equal the contained Project.projectId. documentName remains its descriptive name."
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative path to the JSON file within the ZIP archive (e.g., 'documents/my-practice.json'). Must begin with 'documents/'.",
+          "pattern": "^documents/.+\\.json$"
+        },
+        "documentType": {
+          "type": "string",
+          "enum": [
+            "practiceBaseline",
+            "practice",
+            "method",
+            "project",
+            "integrationMapping",
+            "signalJournal",
+            "changeRequest",
+            "changeSet"
+          ],
+          "description": "The root type of the JSON document, matching the schema's root discrimination result."
+        },
+        "documentName": {
+          "type": "string",
+          "description": "The 'name' property of the root document. This is the identity key used for symbolic resolution (e.g., the name that appears in practiceNames, baselinePracticeName)."
+        },
+        "entryPoint": {
+          "type": "boolean",
+          "default": false,
+          "description": "True if this document is a primary entry point of the package. Entry points are the documents a consumer should resolve first."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "documentType": {
+                "const": "project"
+              }
+            },
+            "required": [
+              "documentType"
+            ]
+          },
+          "then": {
+            "required": [
+              "projectId"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "projectId"
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "PackageIdentity": {
+      "type": "object",
+      "description": "Package identity and provenance metadata for a .keleo package.",
+      "required": [
+        "name",
+        "version",
+        "description"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique package name using kebab-case convention (e.g., 'platform-engineering-method', 'devsecops-practice').",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "version": {
+          "type": "string",
+          "description": "Semantic version of the package (e.g., '1.0.0', '2.3.1').",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable summary of the package contents and purpose."
+        },
+        "authors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Package authors (may differ from individual document authors)."
+        },
+        "license": {
+          "type": "string",
+          "description": "Optional SPDX license identifier (e.g., 'Apache-2.0', 'CC-BY-4.0')."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Optional URL for the package homepage, repository, or registry listing."
+        }
+      },
+      "additionalProperties": false
+    },
+    "PackageManifest": {
+      "type": "object",
+      "description": "Root object of manifest.json within a .keleo package. Declares the package identity, document inventory, entry points, and external dependencies. Validated via language.schema.json#/$defs/PackageManifest.",
+      "required": [
+        "schemaVersion",
+        "package",
+        "documents"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "description": "Version of the Practice Language schema this package targets. Consumers use this to determine compatibility before parsing documents.",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "package": {
+          "$ref": "#/$defs/PackageIdentity",
+          "description": "Identity and metadata for this package."
+        },
+        "documents": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/PackageDocument"
+          },
+          "description": "Ordered inventory of all Practice Language JSON documents in this package."
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PackageDependency"
+          },
+          "description": "Optional array of external package dependencies. Declared when documents in this package reference names provided by other packages."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,2684 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/keleo-studio/schemas/practice.schema.json",
+  "$comment": "schemaVersion:4.0.1",
+  "$defs": {
+    "Test": {
+      "description": "A structured verification or execution scenario using the Given/When/Then pattern. Extends PracticeElement with Gherkin-inspired properties for expressing preconditions, triggers, and expected outcomes.",
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "given": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Preconditions that must be true before this scenario is relevant. Each string is a natural-language prerequisite. Use 'but' prefix for negative conditions."
+            },
+            "when": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The action(s) or event(s) being evaluated. Describes what the practitioner does or what occurs that triggers verification."
+            },
+            "then": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The expected outcome(s) or observable result(s). Provides structured outcome decomposition complementing the test's description."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Checklist": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "seq"
+          ],
+          "properties": {
+            "seq": {
+              "type": "integer"
+            },
+            "verificationMethod": {
+              "type": "string",
+              "enum": [
+                "automated-telemetry",
+                "manual-audit",
+                "documentation-review",
+                "system-assertion"
+              ]
+            },
+            "evidencedBy": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/WorkProductContribution"
+              }
+            },
+            "test": {
+              "$ref": "#/$defs/Test",
+              "description": "The primary verification scenario for this checklist item. Adapts the Gherkin Given/When/Then concept for practitioner guidance."
+            },
+            "examples": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Test"
+              },
+              "description": "Parameterized variations illustrating how this checklist item applies in different contexts. Each example is a named test scenario with its own given/when/then steps."
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "must",
+                "should",
+                "could"
+              ],
+              "description": "Importance level for phase-gating using MoSCoW-derived priorities. must: essential — state/LOD cannot be achieved without it. should: expected — important but deferrable with justification. could: supplementary — adds depth but genuinely optional. When omitted, defaults to \"must\"."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "State": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "seq",
+            "checklist"
+          ],
+          "properties": {
+            "seq": {
+              "type": "integer"
+            },
+            "checklist": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Checklist"
+              }
+            },
+            "loopsBackTo": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "stateName"
+              ],
+              "description": "Declares that this state returns to an earlier state of the same alpha, closing a cycle. A temporal edge, not a structural one: it takes no part in the acyclicity constraints and does not license a cycle in Background prerequisites. seq remains the ordering authority, so a consumer that ignores this property still renders a correct linear progression.",
+              "properties": {
+                "stateName": {
+                  "type": "string",
+                  "description": "An earlier state of the same alpha, by name. Its seq must be lower than this one's."
+                },
+                "condition": {
+                  "$ref": "#/$defs/Test",
+                  "description": "When the loop is taken rather than exited, as a Given/When/Then scenario."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "What the repetition achieves."
+                }
+              }
+            },
+            "contributesToState": {
+              "type": "string",
+              "description": "Optional name of a State on the alpha referenced by this alpha's contributesTo or mapsTo property. When the owning alpha uses contributesTo, declares that reaching this state contributes evidence to the named state on the parent alpha. When the owning alpha uses mapsTo, declares state equivalence — this state IS the named state on the parent alpha, viewed through the variant's lens."
+            },
+            "background": {
+              "$ref": "#/$defs/Background",
+              "description": "Shared prerequisites and context for all checklist items in this state. Establishes what must already be true before any checklist item can be evaluated."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "AlphaContribution": {
+      "type": "object",
+      "description": "Symbolic slice to an alpha state: STRING keys only; resolve (alphaName, stateName) to a State under the named Alpha; do not embed Alpha or State.",
+      "required": [
+        "alphaName",
+        "stateName"
+      ],
+      "properties": {
+        "alphaName": {
+          "type": "string",
+          "description": "Name of an Alpha in the same baseline (symbolic link; must match Alpha.name)."
+        },
+        "stateName": {
+          "type": "string",
+          "description": "Name of a State under that Alpha (symbolic link; must match State.name within the named Alpha)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "AlphaRelationship": {
+      "type": "object",
+      "description": "Named semantic relationship to another alpha with explicit directionality. Provides rich relationship semantics beyond contribution/specialization (e.g., 'depends on', 'influences', 'constrains', 'validates').",
+      "required": [
+        "relationship",
+        "alphaName",
+        "direction"
+      ],
+      "properties": {
+        "relationship": {
+          "type": "string",
+          "description": "The type of relationship (e.g., 'depends on', 'influences', 'constrains', 'validates', 'precedes', 'enables'). Use domain-appropriate relationship names."
+        },
+        "alphaName": {
+          "type": "string",
+          "description": "Name of the related Alpha in the same baseline (symbolic link; must match Alpha.name)."
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "outgoing",
+            "incoming",
+            "mutual"
+          ],
+          "description": "Directionality of the relationship. 'outgoing': this alpha acts upon the target (e.g., 'depends on', 'constrains'). 'incoming': the target acts upon this alpha (e.g., 'is supported by', 'is governed by'). 'mutual': symmetric relationship applying in both directions (e.g., 'correlates with')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable explanation of the relationship — why it exists and what it means in context."
+        },
+        "relationshipKind": {
+          "type": "string",
+          "enum": [
+            "dependency",
+            "production",
+            "guidance",
+            "information-flow",
+            "enabling",
+            "impact",
+            "consumption",
+            "mutual"
+          ],
+          "description": "Optional machine-traversable classification of the relationship. The 'relationship' property remains the human-readable domain verb (e.g., 'depends on'); this property provides a closed enum for programmatic traversal without verb NLP. When absent, tooling falls back to direction-based traversal."
+        }
+      },
+      "additionalProperties": false
+    },
+    "InstanceRelationship": {
+      "type": "object",
+      "description": "Named semantic relationship from this tracked instance to another tracked instance (concern or work product). Applies a type-level edge (Alpha.relatesTo, contributesTo, WorkProduct.partOf, or work-product purpose) to named instances. Mutually exclusive targets: exactly one of alphaInstanceName or workProductInstanceName. Do not use for assessment evidence (that remains AlphaInstance.evidenceBy) or for mapsTo (instantiate the variant type instead).",
+      "required": [
+        "relationship",
+        "direction"
+      ],
+      "properties": {
+        "relationship": {
+          "type": "string",
+          "description": "The type of relationship expressed as a domain-appropriate verb (e.g., 'produces', 'part of', 'evidenced by', 'contributes to'). Use domain-appropriate relationship names. Tooling should not parse this string programmatically."
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "outgoing",
+            "incoming",
+            "mutual"
+          ],
+          "description": "Directionality of the relationship from this instance. 'outgoing': this instance acts upon the target. 'incoming': the target acts upon this instance. 'mutual': symmetric in both directions."
+        },
+        "alphaInstanceName": {
+          "type": "string",
+          "description": "Name of the related concern instance (symbolic link; must match AlphaInstanceName.name). Mutually exclusive with workProductInstanceName."
+        },
+        "workProductInstanceName": {
+          "type": "string",
+          "description": "Name of the related work-product instance (symbolic link; must match WorkProductInstanceName.name). Mutually exclusive with alphaInstanceName."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable explanation of why these two instances are associated in this project or example."
+        },
+        "relationshipKind": {
+          "type": "string",
+          "enum": [
+            "dependency",
+            "production",
+            "guidance",
+            "information-flow",
+            "enabling",
+            "impact",
+            "consumption",
+            "mutual",
+            "containment",
+            "contribution",
+            "purpose"
+          ],
+          "description": "Optional machine-traversable classification of which type-level edge this instance row applies. Alpha kinds (dependency, production, guidance, information-flow, enabling, impact, consumption, mutual) apply Alpha.relatesTo. containment applies WorkProduct.partOf. contribution applies Alpha.contributesTo. purpose applies WorkProduct.contributesToAlphaNames (the artefact serves that concern instance). When absent, tooling falls back to direction-based traversal."
+        }
+      },
+      "additionalProperties": false
+    },
+    "StateContribution": {
+      "type": "object",
+      "description": "Maps a contributing alpha's state to a target baseline alpha's state. Used in cross-baseline alpha bindings where the contributing alpha cannot declare contributesToState directly because it was authored independently of the target baseline.",
+      "required": [
+        "fromState",
+        "toState"
+      ],
+      "properties": {
+        "fromState": {
+          "type": "string",
+          "description": "Name of a State on the contributing alpha (symbolic link; must match State.name within the contributing alpha)."
+        },
+        "toState": {
+          "type": "string",
+          "description": "Name of a State on the target baseline alpha (symbolic link; must match State.name within the target alpha)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "BaselineAlphaReference": {
+      "type": "object",
+      "description": "Qualified reference to an alpha within a named baseline. Used in method-level bindings to identify alphas across baseline boundaries.",
+      "required": [
+        "baselineName",
+        "alphaName"
+      ],
+      "properties": {
+        "baselineName": {
+          "type": "string",
+          "description": "Name of the PracticeBaseline containing the referenced alpha (symbolic link; must match a PracticeBaseline.name accessible to the method)."
+        },
+        "alphaName": {
+          "type": "string",
+          "description": "Name of an Alpha within the named baseline (symbolic link; must match Alpha.name in the specified baseline)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "BaselineWorkProductReference": {
+      "type": "object",
+      "description": "Qualified reference to a work product within a named baseline. Used in method-level bindings to identify work products across baseline boundaries.",
+      "required": [
+        "baselineName",
+        "workProductName"
+      ],
+      "properties": {
+        "baselineName": {
+          "type": "string",
+          "description": "Name of the PracticeBaseline containing the referenced work product (symbolic link; must match a PracticeBaseline.name accessible to the method)."
+        },
+        "workProductName": {
+          "type": "string",
+          "description": "Name of a WorkProduct within the named baseline (symbolic link; must match WorkProduct.name in the specified baseline)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContributingAlpha": {
+      "type": "object",
+      "description": "An alpha from one baseline that is bound to an alpha in another baseline, with optional state-level mappings. When stateContributions is present, it declares specific state correspondences; when omitted, the binding is declared at the alpha level only. State mappings are valid for both contribution and variant relationships — cross-baseline alphas may use different terminology or granularity.",
+      "required": [
+        "baselineName",
+        "alphaName"
+      ],
+      "properties": {
+        "baselineName": {
+          "type": "string",
+          "description": "Name of the PracticeBaseline containing the source alpha (symbolic link; must match a PracticeBaseline.name accessible to the method)."
+        },
+        "alphaName": {
+          "type": "string",
+          "description": "Name of the source Alpha within the named baseline (symbolic link; must match Alpha.name in the specified baseline)."
+        },
+        "stateContributions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StateContribution"
+          },
+          "description": "Optional state-level mappings from source alpha states to target alpha states. For contribution relationships, maps which source states advance which target states. For variant relationships, maps state equivalence across different terminology or granularity. Many-to-one mappings are valid (multiple source states mapping to one target state). Unmapped source states produce no signal to the target; unmapped target states are not addressed by this source."
+        }
+      },
+      "additionalProperties": false
+    },
+    "LodContribution": {
+      "type": "object",
+      "description": "Maps a source work product's level of detail to a target work product's level of detail. Used in cross-baseline work product bindings where the source and target may use different LOD terminology or granularity.",
+      "required": [
+        "fromLevelOfDetail",
+        "toLevelOfDetail"
+      ],
+      "properties": {
+        "fromLevelOfDetail": {
+          "type": "string",
+          "description": "Name of a LevelOfDetail on the source work product (symbolic link; must match LevelOfDetail.name within the source work product)."
+        },
+        "toLevelOfDetail": {
+          "type": "string",
+          "description": "Name of a LevelOfDetail on the target work product (symbolic link; must match LevelOfDetail.name within the target work product)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContributingWorkProduct": {
+      "type": "object",
+      "description": "A work product from one baseline that is bound to a work product in another baseline, with optional LOD-level mappings. When lodContributions is present, it declares specific LOD correspondences; when omitted, the binding is declared at the work product level only. LOD mappings are valid for both contribution and variant relationships — cross-baseline work products may use different terminology or granularity.",
+      "required": [
+        "baselineName",
+        "workProductName"
+      ],
+      "properties": {
+        "baselineName": {
+          "type": "string",
+          "description": "Name of the PracticeBaseline containing the source work product (symbolic link; must match a PracticeBaseline.name accessible to the method)."
+        },
+        "workProductName": {
+          "type": "string",
+          "description": "Name of the source WorkProduct within the named baseline (symbolic link; must match WorkProduct.name in the specified baseline)."
+        },
+        "lodContributions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LodContribution"
+          },
+          "description": "Optional LOD-level mappings from source work product levels to target work product levels. For contribution relationships, maps which source LODs advance which target LODs. For variant relationships, maps LOD equivalence across different terminology or granularity. Many-to-one mappings are valid. Unmapped source LODs produce no signal to the target; unmapped target LODs are not addressed by this source."
+        }
+      },
+      "additionalProperties": false
+    },
+    "AlphaBinding": {
+      "type": "object",
+      "description": "Declares a cross-baseline relationship between alphas. For 'contribution' relationships, source alphas contribute evidence toward the target alpha (cross-baseline contributesTo). For 'variant' relationships, source alphas are domain-specific versions of the target alpha (cross-baseline mapsTo). This relationship exists only at the method level — it emerges from the composition of practices from different baseline families.",
+      "required": [
+        "relationship",
+        "targetAlpha",
+        "sourceAlphas"
+      ],
+      "properties": {
+        "relationship": {
+          "type": "string",
+          "enum": [
+            "contribution",
+            "variant"
+          ],
+          "description": "The semantic relationship between source and target alphas. 'contribution': source alphas contribute evidence toward the target (cross-baseline contributesTo). 'variant': source alphas are domain-specific versions of the target (cross-baseline mapsTo — IS-A semantics)."
+        },
+        "targetAlpha": {
+          "$ref": "#/$defs/BaselineAlphaReference",
+          "description": "The target alpha in the binding. For contribution: receives evidence from source alphas. For variant: the parent concept that source alphas are variants of."
+        },
+        "sourceAlphas": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/ContributingAlpha"
+          },
+          "description": "One or more alphas from other baselines that are bound to the target alpha."
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkProductBinding": {
+      "type": "object",
+      "description": "Declares a cross-baseline relationship between work products. For 'contribution' relationships, source work products are components of the target (cross-baseline partOf). For 'variant' relationships, source work products are domain-specific versions of the target (cross-baseline mapsTo). This relationship exists only at the method level.",
+      "required": [
+        "relationship",
+        "targetWorkProduct",
+        "sourceWorkProducts"
+      ],
+      "properties": {
+        "relationship": {
+          "type": "string",
+          "enum": [
+            "contribution",
+            "variant"
+          ],
+          "description": "The semantic relationship between source and target work products. 'contribution': source work products are components of the target (cross-baseline partOf). 'variant': source work products are domain-specific versions of the target (cross-baseline mapsTo — IS-A semantics)."
+        },
+        "targetWorkProduct": {
+          "$ref": "#/$defs/BaselineWorkProductReference",
+          "description": "The target work product in the binding. For contribution: the parent that source work products are part of. For variant: the parent concept that source work products are variants of."
+        },
+        "sourceWorkProducts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/ContributingWorkProduct"
+          },
+          "description": "One or more work products from other baselines that are bound to the target work product."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Bindings": {
+      "type": "object",
+      "description": "Container for cross-baseline bindings declared at the method level. Bindings declare relationships between elements from different baseline families that emerge from practice composition. Each binding type supports both contribution (contributesTo/partOf) and variant (mapsTo) relationships.",
+      "properties": {
+        "alphaBindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AlphaBinding"
+          },
+          "description": "Cross-baseline alpha relationships. Each binding declares that source alphas from one baseline either contribute to or are variants of a target alpha in another baseline."
+        },
+        "workProductBindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkProductBinding"
+          },
+          "description": "Cross-baseline work product relationships. Each binding declares that source work products from one baseline either are components of or are variants of a target work product in another baseline."
+        }
+      },
+      "additionalProperties": false
+    },
+    "PracticeElementAlias": {
+      "type": "object",
+      "description": "Local name alias: aliasName is treated as an alternate string for (practiceElementType, practiceElementName) within the same document (language.mmd). Not a PracticeElement subclass; embedded under Practice.practiceElementAliases or PracticeBaseline.practiceElementAliases.",
+      "required": [
+        "practiceElementType",
+        "practiceElementName",
+        "aliasName"
+      ],
+      "properties": {
+        "practiceElementType": {
+          "type": "string",
+          "description": "Kind of element being aliased (e.g. Alpha, Activity, ActivitySpace, Focus, WorkProduct, Pattern, PatternView, AlphaInstanceName, WorkProductInstanceName, Competency, Persona, PersonaGroup, Narrative); must match how the target is stored in JSON."
+        },
+        "practiceElementName": {
+          "type": "string",
+          "description": "Canonical PracticeElement.name of the target within this practice aggregate."
+        },
+        "aliasName": {
+          "type": "string",
+          "description": "Alternate string equivalent to practiceElementName for resolution within this practice."
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkProductContribution": {
+      "type": "object",
+      "description": "Symbolic slice to a level of detail: STRING keys only; resolve (workProductName, levelOfDetailName) under the named WorkProduct; do not embed.",
+      "required": [
+        "workProductName",
+        "levelOfDetailName"
+      ],
+      "properties": {
+        "workProductName": {
+          "type": "string",
+          "description": "Name of a WorkProduct in the same aggregate (symbolic link; must match WorkProduct.name)."
+        },
+        "levelOfDetailName": {
+          "type": "string",
+          "description": "Name of a LevelOfDetail under that work product (symbolic link; must match LevelOfDetail.name)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "AlphaInstanceStateReference": {
+      "type": "object",
+      "description": "Symbolic reference to an alpha instance at a specific state. Used in Background to declare instance-level prerequisites.",
+      "required": [
+        "instanceName",
+        "stateName"
+      ],
+      "properties": {
+        "instanceName": {
+          "type": "string",
+          "description": "Name of an AlphaInstanceName in scope (symbolic link; must match AlphaInstanceName.name in the same pattern, practice, or project)."
+        },
+        "stateName": {
+          "type": "string",
+          "description": "Name of a State under the alpha tracked by that instance (symbolic link; must match State.name within the instance's alpha)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkProductInstanceLevelReference": {
+      "type": "object",
+      "description": "Symbolic reference to a work product instance at a specific level of detail. Used in Background to declare instance-level prerequisites.",
+      "required": [
+        "instanceName",
+        "levelOfDetailName"
+      ],
+      "properties": {
+        "instanceName": {
+          "type": "string",
+          "description": "Name of a WorkProductInstanceName in scope (symbolic link; must match WorkProductInstanceName.name in the same pattern, practice, or project)."
+        },
+        "levelOfDetailName": {
+          "type": "string",
+          "description": "Name of a LevelOfDetail under the work product tracked by that instance (symbolic link; must match LevelOfDetail.name within the instance's work product)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Background": {
+      "type": "object",
+      "description": "Shared prerequisites and context that must hold before any checklist item in the parent state, level of detail, or instance is relevant. Adapts the Gherkin Background concept for practitioner guidance. At the practice level, defines what SHOULD hold; at the instance level, records what APPLIES in a specific project context.",
+      "properties": {
+        "given": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Preconditions that must hold before any checklist item can be evaluated. Each string is a natural-language prerequisite (e.g., 'the deployment pipeline is operational'). Use 'but' prefix for negative conditions."
+        },
+        "alphaStates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AlphaContribution"
+          },
+          "description": "Alpha states (on other alphas) that must be achieved before this state's checklists become relevant. Complements sequential progression within the same alpha."
+        },
+        "workProductLevels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkProductContribution"
+          },
+          "description": "Work product levels of detail that must be achieved before this state's checklists become relevant. Expresses the prerequisite direction of the LOD-to-State relationship."
+        },
+        "alphaInstanceStates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AlphaInstanceStateReference"
+          },
+          "description": "Specific alpha instances that must have reached a named state before this state's checklists become relevant. Used when prerequisites are about concrete tracked instances rather than abstract alpha types."
+        },
+        "workProductInstanceLevels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkProductInstanceLevelReference"
+          },
+          "description": "Specific work product instances that must have reached a named level of detail before this state's checklists become relevant. Used when prerequisites are about concrete tracked instances rather than abstract work product types."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Alpha": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "states",
+            "focusName"
+          ],
+          "properties": {
+            "states": {
+              "type": "array",
+              "minItems": 3,
+              "items": {
+                "$ref": "#/$defs/State"
+              }
+            },
+            "focusName": {
+              "type": "string",
+              "description": "Name of a Focus in the same baseline (symbolic link; must match Focus.name; do not embed a Focus object)."
+            },
+            "contributesTo": {
+              "type": "string",
+              "description": "Optional name of another Alpha in the same baseline (0..1 specialization relationship). Used to create specialized alphas that contribute to/refine baseline alphas (e.g., 'Platform Capability' contributesTo 'Platform'). May coexist with mapsTo but must reference a different alpha. Do not embed an Alpha object."
+            },
+            "mapsTo": {
+              "type": "string",
+              "description": "Optional name of another Alpha that this alpha is a specialized variant of (0..1 variant mapping relationship). States MUST match the target alpha exactly. May coexist with contributesTo but must reference a different alpha. On merge, this alpha is added to the target alpha's variants array. Example: 'AI-Ready Enterprise' mapsTo 'Sales Play'."
+            },
+            "variants": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Alpha"
+              },
+              "description": "Alphas that have declared mapsTo this alpha, populated during merge. Each variant is a full Alpha with the same state progression but distinct name, description, and checklists. Do not set in source practice authoring."
+            },
+            "supportingAlphas": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Alpha"
+              },
+              "description": "Alphas that declare contributesTo this alpha, populated during merge. Full Alpha objects (same pattern as variants) providing a pre-computed inverse of the contributesTo relationship for hierarchical rendering and rollup. Do not set in source practice authoring."
+            },
+            "relatesTo": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AlphaRelationship"
+              },
+              "description": "Optional array of named semantic relationships to other alphas (0..*). Use for dependencies, influences, constraints, or other domain-specific relationships beyond specialization."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "AlphaInstanceName": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "alphaName"
+          ],
+          "properties": {
+            "alphaName": {
+              "type": "string",
+              "description": "Name of the Alpha this instance tracks (symbolic link; must match Alpha.name)."
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/ExternalLink"
+              },
+              "description": "External documents used to track this alpha instance (e.g., the primary board, register, or tracking tool)."
+            },
+            "relatesTo": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/InstanceRelationship"
+              },
+              "description": "Optional associations from this tracked concern instance to other concern or work-product instances. System of record for instance pairings; prefer declaring here rather than only on AlphaInstance assessment rows."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "AlphaInstance": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "alphaName",
+            "stateName"
+          ],
+          "properties": {
+            "reportingSource": {
+              "$ref": "project.schema.json#/$defs/ReportingSource"
+            },
+            "alphaName": {
+              "type": "string",
+              "description": "Name of the Alpha this instance tracks (symbolic link; must match Alpha.name)."
+            },
+            "stateName": {
+              "type": "string",
+              "description": "Name of a State under that Alpha (symbolic link; must match State.name within the named Alpha)."
+            },
+            "evidenceBy": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/WorkProductInstance"
+              },
+              "description": "Embedded work-product instance rows that evidence this AlphaInstance (same aggregate)."
+            },
+            "checklistStates": {
+              "type": "array",
+              "items": {
+                "$ref": "project.schema.json#/$defs/ChecklistState"
+              },
+              "description": "Optional checklist completion tracking for this alpha instance. Each entry records the state of a checklist item within the referenced Alpha State."
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/ExternalLink"
+              },
+              "description": "External documents specific to this state. Typically omitted when the parent AlphaInstanceName links apply; use only when this state is tracked in a different document."
+            },
+            "background": {
+              "$ref": "#/$defs/Background",
+              "description": "Project-specific prerequisites for this alpha instance. Supplements the practice-level background defined on the referenced State with instance-specific context."
+            },
+            "relatesTo": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/InstanceRelationship"
+              },
+              "description": "Optional associations from this concern instance to other concern or work-product instances. Prefer declaring pairings on AlphaInstanceName; this array may repeat the same rows for consumers that only load current/target/cycles."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "WorkProduct": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "levelsOfDetail"
+          ],
+          "properties": {
+            "levelsOfDetail": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "$ref": "#/$defs/LevelOfDetail"
+              }
+            },
+            "partOf": {
+              "type": "string",
+              "description": "Optional name of another WorkProduct that this work product is a component of (0..1 containment relationship). Used when a work product is logically contained within a larger work product (e.g., 'Done Criteria' partOf 'Definition of Done Specification'). May coexist with mapsTo but must reference a different work product. Symbolic link; must match WorkProduct.name in the same practice, a dependency practice, or the baseline."
+            },
+            "mapsTo": {
+              "type": "string",
+              "description": "Optional name of another WorkProduct that this work product is a specialized variant of (0..1 variant mapping relationship). Levels of detail MUST match the target work product exactly. May coexist with partOf but must reference a different work product. On merge, this work product is added to the target work product's variants array. When mapsTo is declared without partOf, merging inherits the partOf value from the mapsTo target work product. Example: 'Cloud Architecture' mapsTo 'Architecture'."
+            },
+            "variants": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/WorkProduct"
+              },
+              "description": "Work products that have declared mapsTo this work product, populated during merge. Each variant is a full WorkProduct with the same LOD progression but distinct name, description, and checklists. Do not set in source practice authoring."
+            },
+            "components": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/WorkProduct"
+              },
+              "description": "Work products that declare partOf this work product, populated during merge. Full WorkProduct objects (same pattern as variants) providing a pre-computed inverse of the partOf relationship for containment rendering. Do not set in source practice authoring."
+            },
+            "contributesToAlphaNames": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of Alpha.name symbolic links identifying the concerns this work product exists to serve. Optional in schema; validator errors if empty AND no LOD has contributesTo. Every LOD contributesTo.alphaName (when present) must appear in this array. Migration: stamp from union of levelsOfDetail[].contributesTo[].alphaName."
+            },
+            "expectedMetrics": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ExpectedMetric"
+              },
+              "description": "Named quantitative fields this work product's instances may carry. Outcome MetricContributions reference these names. Authoring aid for collection and validation — instance metrics are not required to be a subset, but names should match."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "WorkProductInstanceName": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "workProductName"
+          ],
+          "properties": {
+            "workProductName": {
+              "type": "string",
+              "description": "Name of a WorkProduct this instance grouping refers to (symbolic link; must match WorkProduct.name)."
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/ExternalLink"
+              },
+              "description": "External documents used to track this work product instance (e.g., the primary document, repository, or tracking tool)."
+            },
+            "relatesTo": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/InstanceRelationship"
+              },
+              "description": "Optional associations from this tracked work-product instance to other concern or work-product instances. System of record for instance pairings; prefer declaring here rather than only on WorkProductInstance assessment rows."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "WorkProductInstance": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "workProductName",
+            "levelOfDetailName"
+          ],
+          "properties": {
+            "reportingSource": {
+              "$ref": "project.schema.json#/$defs/ReportingSource"
+            },
+            "workProductName": {
+              "type": "string",
+              "description": "Name of the WorkProduct (symbolic link; must match WorkProduct.name)."
+            },
+            "levelOfDetailName": {
+              "type": "string",
+              "description": "Name of a LevelOfDetail under that work product (symbolic link; must match LevelOfDetail.name)."
+            },
+            "checklistStates": {
+              "type": "array",
+              "items": {
+                "$ref": "project.schema.json#/$defs/ChecklistState"
+              },
+              "description": "Optional checklist completion tracking for this work product instance. Each entry records the state of a checklist item within the referenced LevelOfDetail."
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/ExternalLink"
+              },
+              "description": "External documents specific to this level of detail. Typically omitted when the parent WorkProductInstanceName links apply; use only when this level of detail is tracked in a different document."
+            },
+            "background": {
+              "$ref": "#/$defs/Background",
+              "description": "Project-specific prerequisites for this work product instance. Supplements the practice-level background defined on the referenced LevelOfDetail with instance-specific context."
+            },
+            "metrics": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Metric"
+              },
+              "description": "Quantitative data extracted from this work product's external document for aggregation via outcome metric contributions. Work product instances are the proxy for external systems — metrics bring specific data points (deal values, user counts, financial targets) from those systems into the project JSON."
+            },
+            "relatesTo": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/InstanceRelationship"
+              },
+              "description": "Optional associations from this work-product instance to other concern or work-product instances. Prefer declaring pairings on WorkProductInstanceName; this array may repeat the same rows for consumers that only load current/target/cycles."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "LevelOfDetail": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "seq",
+            "checklist"
+          ],
+          "properties": {
+            "seq": {
+              "type": "integer"
+            },
+            "checklist": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Checklist"
+              }
+            },
+            "contributesTo": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AlphaContribution"
+              },
+              "description": "Optional array of alpha state contributions this LOD advances. When present, each alphaName must appear in the parent WorkProduct's contributesToAlphaNames array. At least one LOD per work product must have a non-empty contributesTo (unless the WP has contributesToAlphaNames)."
+            },
+            "background": {
+              "$ref": "#/$defs/Background",
+              "description": "Shared prerequisites and context for all checklist items at this level of detail. Establishes what must already be true before any checklist item can be evaluated."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ActivitySpaceCore": {
+      "description": "Symbolic swimlane slice shared by ActivitySpace rows and nested/flat Activity rows (contributions, focus, competencies, persona groups).",
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "contributesTo",
+            "focusName",
+            "requiredCompetencies"
+          ],
+          "properties": {
+            "contributesTo": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/AlphaContribution"
+              }
+            },
+            "focusName": {
+              "type": "string",
+              "description": "Name of a Focus in the same baseline (symbolic link; must match Focus.name; do not embed a Focus object)."
+            },
+            "requiredCompetencies": {
+              "type": "array",
+              "description": "Each item is a Competency.name in the same baseline (symbolic link; do not embed Competency objects).",
+              "items": {
+                "type": "string"
+              }
+            },
+            "involves": {
+              "type": "array",
+              "description": "PersonaGroup.name entries (symbolic links on the same Practice document or merged method scope; must match PersonaGroup.name, not Persona.name).",
+              "items": {
+                "type": "string"
+              }
+            },
+            "ledBy": {
+              "type": "string",
+              "description": "Persona.name (symbolic link in the same Practice document or merged method scope). Identifies the single persona accountable for leading this activity or activity space."
+            },
+            "background": {
+              "$ref": "#/$defs/Background",
+              "description": "Shared prerequisites and context for all activities in this space or for this specific activity. Establishes what must already be true before work can begin."
+            }
+          }
+        }
+      ]
+    },
+    "Activity": {
+      "description": "Swimlane activity; extends ActivitySpaceCore with work linkage and competency levels. Canonical JSON nests instances under ActivitySpace.activities; Practice.activities (flat) remains valid for legacy interchange.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/ActivitySpaceCore"
+        },
+        {
+          "type": "object",
+          "required": [
+            "worksOn",
+            "recommendedCompetencyLevels"
+          ],
+          "properties": {
+            "activitySpaceName": {
+              "type": "string",
+              "description": "Parent ActivitySpace.name; required in Practice.activities; optional when nested under ActivitySpace.activities (implicit parent)."
+            },
+            "seq": {
+              "type": "integer",
+              "description": "Optional sequence number for deterministic ordering of activities within an activity space. Used by external planning tools (e.g., Smartsheet predecessor/seq). When absent, activities are unordered within their space."
+            },
+            "worksOn": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/WorkProductContribution"
+              }
+            },
+            "recommendedCompetencyLevels": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/CompetencyLevelReference"
+              }
+            },
+            "test": {
+              "$ref": "#/$defs/Test",
+              "description": "The primary execution scenario for this activity. Captures preconditions, triggers, and expected outcomes using the Given/When/Then pattern."
+            },
+            "examples": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Test"
+              },
+              "description": "Parameterized variations illustrating how this activity plays out in different contexts (e.g., greenfield vs migration, small team vs large org)."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ActivitySpace": {
+      "description": "Coordinates work in a focus area; extends ActivitySpaceCore with nested Activity children.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/ActivitySpaceCore"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "activities": {
+              "type": "array",
+              "description": "Activities owned by this activity space (canonical shape, 0..*).",
+              "items": {
+                "$ref": "#/$defs/Activity"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Competency": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "levels"
+          ],
+          "properties": {
+            "levels": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/CompetencyLevel"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "CompetencyLevel": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "level",
+            "competencyName"
+          ],
+          "properties": {
+            "level": {
+              "type": "integer"
+            },
+            "competencyName": {
+              "type": "string",
+              "description": "Name of the parent Competency this level belongs to (symbolic link; must match Competency.name in the same baseline)."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "CompetencyLevelReference": {
+      "type": "object",
+      "description": "Symbolic reference to a competency level by two STRING keys; resolve under the named Competency; do not embed.",
+      "required": [
+        "competencyName",
+        "competencyLevelName"
+      ],
+      "properties": {
+        "competencyName": {
+          "type": "string",
+          "description": "Name of a Competency (symbolic link; must match Competency.name)."
+        },
+        "competencyLevelName": {
+          "type": "string",
+          "description": "Name of a CompetencyLevel under that competency (symbolic link; must match CompetencyLevel.name)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Pattern": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "patternViews"
+          ],
+          "properties": {
+            "patternViews": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/PatternView"
+              }
+            },
+            "narrativeTypeName": {
+              "type": "string",
+              "description": "Symbolic link to NarrativeType.name in the baseline (or practice overlay); patterns may hang a narrative spine (language.mmd)."
+            },
+            "alphaInstanceNames": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AlphaInstanceName"
+              },
+              "description": "Optional list of alpha instance declarations tracked by this pattern. Used in project plans to declare which alpha instances the pattern's views reference."
+            },
+            "workProductInstanceNames": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/WorkProductInstanceName"
+              },
+              "description": "Optional list of work product instance declarations tracked by this pattern. Used in project plans to declare which work product instances the pattern's views reference."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "PatternViewReference": {
+      "type": "object",
+      "description": "Symbolic reference to a pattern view by two STRING keys; resolve under the named Pattern; do not embed.",
+      "required": [
+        "patternName",
+        "patternViewName"
+      ],
+      "properties": {
+        "patternName": {
+          "type": "string",
+          "description": "Name of a Pattern (symbolic link; must match Pattern.name)."
+        },
+        "patternViewName": {
+          "type": "string",
+          "description": "Name of a PatternView under that pattern (symbolic link; must match PatternView.name)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Persona": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "competencies": {
+              "type": "array",
+              "description": "Symbolic competency level refs (same baseline or merged practice scope).",
+              "items": {
+                "$ref": "#/$defs/CompetencyLevelReference"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "PersonaGroup": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "personaNames"
+          ],
+          "properties": {
+            "personaNames": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "Persona.name entries (symbolic links in the same practice or merged method scope)."
+              }
+            },
+            "personaGroupNames": {
+              "type": "array",
+              "description": "PersonaGroup.name entries (symbolic links in the same practice or merged method scope). Creates a hierarchical aggregation — the referenced groups' members are transitively included. The resulting membership graph must be acyclic.",
+              "items": {
+                "type": "string",
+                "description": "PersonaGroup.name (symbolic link; must match another PersonaGroup.name, not Persona.name)."
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "PatternGroupEntry": {
+      "type": "object",
+      "deprecated": true,
+      "description": "DEPRECATED as of schema 2.21.0 in favour of PatternOrchestration, which sequences patterns with entry and exit criteria rather than only classifying them; grouping by source practice is already available through the merge-stamped sourcePracticeName. Still merged and still valid; scheduled for removal at the next major version. Ordered reference to a Pattern within a PatternGroup.",
+      "required": [
+        "patternName",
+        "seq"
+      ],
+      "properties": {
+        "patternName": {
+          "type": "string",
+          "description": "Pattern.name (symbolic link; must match a Pattern in the same practice or merged scope)."
+        },
+        "seq": {
+          "type": "integer",
+          "description": "Sort order of this pattern within its group (0-based)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "PatternOrchestration": {
+      "description": "Sequences whole patterns, and whole other orchestrations, into the shape of an endeavour. Where a Pattern coordinates work within one aspect — bootstrap, steady-state operation, release, decommissioning — an orchestration says which pattern applies when, and on what terms. A stage may name another orchestration instead of a pattern, which places a whole sub-endeavour under its own owner: a programme embedding a project. Distinct from PatternGroup, which classifies patterns for navigation; the ordering of each stage belongs to whoever authored it, and a practice extending an orchestration it inherits adds stages rather than re-placing the ones already there. A baseline may publish an orchestration with no stages, as a canonical endeavour shape for extension practices to populate.",
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "stages"
+          ],
+          "properties": {
+            "stages": {
+              "type": "array",
+              "minItems": 0,
+              "items": {
+                "$ref": "#/$defs/OrchestrationStage"
+              },
+              "description": "The constituent patterns and sub-orchestrations in the order they apply. Empty in a baseline-published shell, which establishes the name and the shape without committing to stages the baseline has no patterns to fill. Validation warns when the merged stage set is non-empty and has no sequential stage; an empty shell is silent."
+            },
+            "narrativeTypeName": {
+              "type": "string",
+              "description": "Symbolic link to a NarrativeType.name in scope. When present, the orchestration's design follows that narrative template and its stages reference the template's component parts through their narrativeContexts — the same relationship a Pattern has with its PatternViews."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "OrchestrationStage": {
+      "type": "object",
+      "description": "One constituent pattern or sub-orchestration within an orchestration, and how it is placed against the rest of the endeavour. Placement is not only sequential: a stage may run alongside another, repeat inside the phases of another, or be entered on recognition of need rather than at a fixed point. Exactly one of patternName or orchestrationName says what is being placed. A stage may advance zero, one or several outcomes through their existing objective contributions, each with independent weights and recognition. Explain its intended value through narrativeContexts or the enclosing orchestration description; purpose text adds no completion or recognition rule.",
+      "required": [
+        "seq",
+        "relationship"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "patternName": {
+          "type": "string",
+          "description": "Symbolic link to a Pattern.name in scope — the baseline chain, a declared dependency, or this document. Mutually exclusive with orchestrationName."
+        },
+        "orchestrationName": {
+          "type": "string",
+          "description": "Symbolic link to a PatternOrchestration.name in scope, placing that whole sub-endeavour at this point. Use this rather than restating the sub-endeavour's stages when it has its own owner, completes on its own terms, and is reusable by more than one host — a programme embedding a project. Mutually exclusive with patternName."
+        },
+        "seq": {
+          "type": "integer",
+          "description": "Where this stage sits in the orchestration. For a sequential stage this is its position in the order and must be unique among sequential stages. For every other relationship it is the point the stage is anchored to for presentation, and may be shared with other stages that start alongside it."
+        },
+        "relationship": {
+          "type": "string",
+          "enum": [
+            "sequential",
+            "concurrent",
+            "nested",
+            "onDemand"
+          ],
+          "description": "How this stage is placed. Always declared explicitly — there is no default, because how a stage is layered into an endeavour is a modelling decision and a reader should never have to infer it from silence. 'sequential' follows the preceding sequential stage, gated by criteria. 'concurrent' runs alongside the host named in relativeTo, as a parallel track at the same level. 'nested' runs inside that host, bounded by it, and is the shape for a sprint repeating within each phase of a milestone plan. 'onDemand' has no fixed position and is entered when its trigger is recognised."
+        },
+        "relativeTo": {
+          "type": "object",
+          "description": "The pattern or orchestration this stage is placed against. Required for 'concurrent' and 'nested'. Exactly one of patternName or orchestrationName names the host.",
+          "additionalProperties": false,
+          "properties": {
+            "patternName": {
+              "type": "string",
+              "description": "Symbolic link to the host Pattern.name — the pattern this stage runs alongside or inside. Mutually exclusive with orchestrationName."
+            },
+            "orchestrationName": {
+              "type": "string",
+              "description": "Symbolic link to the host PatternOrchestration.name — the sub-endeavour this stage runs alongside or inside. Mutually exclusive with patternName. viewNames does not apply to an orchestration host, which has stages rather than views."
+            },
+            "viewNames": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "PatternView.name entries of the host pattern this stage is scoped to. Omitted means the whole of the host. Valid only where the host is a pattern."
+            }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "patternName"
+              ]
+            },
+            {
+              "required": [
+                "orchestrationName"
+              ]
+            }
+          ]
+        },
+        "recurrence": {
+          "type": "string",
+          "enum": [
+            "once",
+            "perView"
+          ],
+          "default": "once",
+          "description": "Whether the stage runs once across the span it is placed in, or restarts for each host view in scope. 'perView' is what makes a sprint pattern repeat within every phase of a milestone plan rather than running once across all of them. Meaningful only with 'concurrent' or 'nested', and only where the host is a pattern — an orchestration host has stages, not views."
+        },
+        "trigger": {
+          "$ref": "#/$defs/Test",
+          "description": "What the team recognises that causes this stage to be entered, as a Given/When/Then scenario. Required for 'onDemand'. This is the difference between a phase that was planned and a pattern run because circumstances called for it."
+        },
+        "entryCriteria": {
+          "$ref": "#/$defs/Background",
+          "description": "What must hold before this stage applies. Reuses Background, so alpha-state and work-product-level prerequisites are expressed the same way as elsewhere and are covered by the existing acyclicity constraints."
+        },
+        "exitCriteria": {
+          "$ref": "#/$defs/Test",
+          "description": "What must be observably true for this stage to be complete, as a Given/When/Then scenario."
+        },
+        "narrativeContexts": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/NarrativeContext"
+          },
+          "description": "Narrative slices for this stage, keyed to narrative elements of the NarrativeType named by the enclosing PatternOrchestration. Mirrors PatternView.narrativeContexts."
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "patternName"
+          ]
+        },
+        {
+          "required": [
+            "orchestrationName"
+          ]
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "relationship": {
+                "enum": [
+                  "concurrent",
+                  "nested"
+                ]
+              }
+            },
+            "required": [
+              "relationship"
+            ]
+          },
+          "then": {
+            "required": [
+              "relativeTo"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "relationship": {
+                "const": "onDemand"
+              }
+            },
+            "required": [
+              "relationship"
+            ]
+          },
+          "then": {
+            "required": [
+              "trigger"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "relationship": {
+                "enum": [
+                  "sequential",
+                  "onDemand"
+                ]
+              }
+            },
+            "required": [
+              "relationship"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "relativeTo"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "StageRef": {
+      "type": "object",
+      "description": "Points at one stage of an orchestration. A stage carries no name of its own and its seq is unique only among sequential stages, so a stage is identified by what it places and what it is placed against — the same composite key the merge algorithm uses (merge.md 6.15a) and the same pair that makes two stages a duplicate (semantics 9.5.3). A reference is that key exactly: exactly one of patternName or orchestrationName names the target, and relativeTo names the host where, and only where, the stage declares one. Resolution is a lookup rather than a search, so a reference means the same stage to every consumer.",
+      "additionalProperties": false,
+      "properties": {
+        "patternName": {
+          "type": "string",
+          "description": "Symbolic link to the Pattern.name the stage places. Mutually exclusive with orchestrationName."
+        },
+        "orchestrationName": {
+          "type": "string",
+          "description": "Symbolic link to the PatternOrchestration.name the stage places. Mutually exclusive with patternName."
+        },
+        "relativeTo": {
+          "type": "object",
+          "description": "The host the stage is placed against, mirroring the stage's own relativeTo. Required where the stage declares a host — a concurrent or nested stage — and omitted where it does not, since sequential and onDemand stages have none. This is what tells two placements of one target apart: a sprint nested in a milestone plan and the same sprint available on demand are different stages that complete at different points.",
+          "additionalProperties": false,
+          "properties": {
+            "patternName": {
+              "type": "string",
+              "description": "Symbolic link to the host Pattern.name. Mutually exclusive with orchestrationName."
+            },
+            "orchestrationName": {
+              "type": "string",
+              "description": "Symbolic link to the host PatternOrchestration.name. Mutually exclusive with patternName."
+            }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "patternName"
+              ]
+            },
+            {
+              "required": [
+                "orchestrationName"
+              ]
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "patternName"
+          ]
+        },
+        {
+          "required": [
+            "orchestrationName"
+          ]
+        }
+      ]
+    },
+    "PatternGroup": {
+      "deprecated": true,
+      "description": "DEPRECATED as of schema 2.21.0 in favour of PatternOrchestration, which sequences patterns with entry and exit criteria rather than only classifying them; grouping by source practice is already available through the merge-stamped sourcePracticeName. Still merged and still valid; scheduled for removal at the next major version. A named, ordered collection of patterns, merged by canonical name when practices compose into a method.",
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "entries"
+          ],
+          "properties": {
+            "entries": {
+              "type": "array",
+              "minItems": 0,
+              "items": {
+                "$ref": "#/$defs/PatternGroupEntry"
+              },
+              "description": "Ordered list of patterns in this group. Baselines define groups with empty entries to establish canonical categories; extension practices populate them."
+            },
+            "seq": {
+              "type": "integer",
+              "description": "Presentation order among groups (0-based). When absent, groups sort alphabetically by name."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Focus": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "PatternView": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "seq",
+            "alphaStates"
+          ],
+          "properties": {
+            "seq": {
+              "type": "integer"
+            },
+            "alphaStates": {
+              "type": "array",
+              "description": "Alpha/state slices for this pattern view. Canonical: embedded AlphaContribution objects. Legacy interchange: STRING tokens (e.g. \"AlphaName→StateName\" or \"AlphaName->StateName\").",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/AlphaContribution"
+                  }
+                ]
+              }
+            },
+            "alphaInstances": {
+              "type": "array",
+              "description": "AlphaInstances that are expected outcomes for this pattern view.",
+              "items": {
+                "$ref": "#/$defs/AlphaInstance"
+              }
+            },
+            "activitySpaces": {
+              "type": "array",
+              "description": "ActivitySpace.name entries for pattern-matrix swimlanes (symbolic links in the same baseline or practice). Legacy interchange: Activity.name may appear here; prefer the `activities` array for activities.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "activities": {
+              "type": "array",
+              "description": "Activity.name entries for pattern-matrix swimlanes (symbolic links to nested Activity under ActivitySpace or to flat Practice.activities).",
+              "items": {
+                "type": "string"
+              }
+            },
+            "workProductLevels": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/WorkProductContribution"
+              },
+              "description": "Work product LOD objectives for this pattern view. Declares which work products should reach which levels of detail during this phase. Complements alphaStates (which declares alpha state objectives) with work product maturity objectives."
+            },
+            "narrativeContexts": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/NarrativeContext"
+              }
+            },
+            "loopsBackTo": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "patternViewName"
+              ],
+              "description": "Declares that this view returns to an earlier view of the same pattern, closing a cycle. A temporal edge, not a structural one: it takes no part in the acyclicity constraints and does not license a cycle in Background prerequisites. seq remains the ordering authority, so a consumer that ignores this property still renders a correct linear progression.",
+              "properties": {
+                "patternViewName": {
+                  "type": "string",
+                  "description": "An earlier view of the same pattern, by name. Its seq must be lower than this one's."
+                },
+                "condition": {
+                  "$ref": "#/$defs/Test",
+                  "description": "When the loop is taken rather than exited, as a Given/When/Then scenario."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "What the repetition achieves."
+                }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ExpectedMetric": {
+      "type": "object",
+      "description": "Declares a quantitative field that instances of a WorkProduct may carry. Unlike Metric (on WorkProductInstance), there is no value — this is a template for collection.",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Metric identifier matching Metric.name on instances and MetricContribution.metricName (e.g., 'acv', 'users', 'capacity')."
+        },
+        "description": {
+          "type": "string",
+          "description": "What the metric measures and how to collect it from the external document."
+        },
+        "unit": {
+          "type": "string",
+          "description": "Typical unit (e.g. 'GBP', 'USD', 'hours'). Instance metrics should use this unit. Omit when the metric is unitless."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Metric": {
+      "type": "object",
+      "description": "A named quantitative measurement on a work product instance. Captures structured data extracted from external documents (CRM records, financial reports, dashboards) for aggregation via outcome metric contributions.",
+      "required": [
+        "name",
+        "value"
+      ],
+      "properties": {
+        "reportingSource": {
+          "$ref": "project.schema.json#/$defs/ReportingSource"
+        },
+        "name": {
+          "type": "string",
+          "description": "Metric identifier (e.g., 'acv', 'users', 'capacity')."
+        },
+        "value": {
+          "type": "number",
+          "description": "Numeric value of the metric."
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unit of measurement (e.g., 'GBP', 'USD', 'hours'). Omit when the metric is unitless."
+        }
+      },
+      "additionalProperties": false
+    },
+    "StateForecastWeight": {
+      "type": "object",
+      "description": "Alpha state-level probability weight for metric outcome forecast calculation.",
+      "required": [
+        "stateName",
+        "weight"
+      ],
+      "properties": {
+        "stateName": {
+          "type": "string",
+          "description": "Alpha state name (symbolic link; must match State.name within the alpha)."
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Probability weight (0-1). E.g., Closed Won = 1.0, Committed = 0.8, Best Case = 0.4, Pipeline = 0.1."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ViewForecastWeight": {
+      "type": "object",
+      "description": "Pattern view-level weight for objective outcome progress calculation.",
+      "required": [
+        "patternViewName",
+        "weight"
+      ],
+      "properties": {
+        "patternViewName": {
+          "type": "string",
+          "description": "Pattern view name (symbolic link; must match PatternView.name)."
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Cumulative progress weight (0-1) when this view is completed. E.g., Assessment = 0.1, Foundation = 0.3, Build = 0.6, Operate = 0.9, Optimize = 1.0."
+        }
+      },
+      "additionalProperties": false
+    },
+    "StageForecastWeight": {
+      "type": "object",
+      "description": "Orchestration stage-level weight for objective outcome progress calculation. The same mechanism as ViewForecastWeight, one level up: where a pattern's phases are the milestones, the stages of an endeavour are.",
+      "required": [
+        "stage",
+        "weight"
+      ],
+      "properties": {
+        "stage": {
+          "$ref": "#/$defs/StageRef",
+          "description": "The stage of the named orchestration this weight applies to."
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Cumulative progress weight (0-1) when this stage is completed. Stages not listed have implicit weight 0."
+        }
+      },
+      "additionalProperties": false
+    },
+    "MetricContribution": {
+      "type": "object",
+      "description": "Declares how work product metrics contribute to outcome progress via the alpha evidence chain. A consuming system follows: current alpha instances of the named alpha (including mapsTo variants) → evidenceBy work product instances (joined by name to current.workProductInstances, including partOf children) → extract the named metric → apply recognition/weighting rules based on the alpha instance's state → sum (value × weight).",
+      "required": [
+        "alphaName",
+        "metricName"
+      ],
+      "properties": {
+        "alphaName": {
+          "type": "string",
+          "description": "Alpha whose instances contribute to this outcome (symbolic link; must match Alpha.name). mapsTo variants of this alpha also contribute."
+        },
+        "metricName": {
+          "type": "string",
+          "description": "Name of the metric to aggregate from work product instances in the evidence chain (must match Metric.name on contributing WorkProductInstance objects)."
+        },
+        "workProductName": {
+          "type": "string",
+          "description": "Optional WorkProduct.name filter. When set, only evidencing work product instances of this type contribute. When omitted, any evidencing work product with the named metric contributes."
+        },
+        "recognizedAtStateName": {
+          "type": "string",
+          "description": "Alpha state at which the metric value is fully recognized (weight 1.0). E.g., 'Closed Won'. Symbolic link; must match State.name within the named alpha."
+        },
+        "forecastWeights": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StateForecastWeight"
+          },
+          "description": "State-level weights for forecast calculation. Each weight represents the probability of conversion at that state. States not listed have implicit weight 0."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ObjectiveContribution": {
+      "type": "object",
+      "description": "Declares how completion contributes to outcome progress as a percentage, measured either against the views of one pattern or against the stages of one orchestration. A consuming system checks which pattern views have been completed (all alpha state and work product objectives met), then applies the forecast weight for the highest completed view — or, for an orchestration, the highest completed stage, where a stage completes when the pattern or sub-orchestration it places completes. Exactly one of patternName or orchestrationName says what progress is measured against, the same way an OrchestrationStage declares its own target. The orchestration arm exists because a practice may declare an endeavour's shape while holding none of its patterns, and is then the document with the best claim to the outcome.",
+      "properties": {
+        "patternName": {
+          "type": "string",
+          "description": "Pattern whose views are used to measure progress (symbolic link; must match Pattern.name in this document, its baseline chain or a declared dependency). Scopes all patternViewName references within this contribution. Analogous to alphaName on MetricContribution. Mutually exclusive with orchestrationName."
+        },
+        "recognizedAtPatternViewName": {
+          "type": "string",
+          "description": "Pattern view at which the outcome is fully achieved (weight 1.0). E.g., 'Operational Readiness'. Symbolic link; must match PatternView.name within the named pattern. Analogous to recognizedAtStateName on MetricContribution."
+        },
+        "forecastWeights": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ViewForecastWeight"
+          },
+          "description": "Pattern view-level weights for progress calculation. Each weight represents the cumulative progress when that view is completed. Views not listed have implicit weight 0."
+        },
+        "orchestrationName": {
+          "type": "string",
+          "description": "Orchestration whose stages are used to measure progress (symbolic link; must match PatternOrchestration.name in this document, its baseline chain or a declared dependency). Scopes all stage references within this contribution to the merged orchestration of that name, so stages contributed by a baseline or a dependency may be named. Mutually exclusive with patternName. Several outcomes may name the same orchestration, identifying the value it pursues without a reverse reference. Describe that purpose in the orchestration description; each outcome retains its own weights and recognition point, and linking outcomes is optional."
+        },
+        "recognizedAtStage": {
+          "$ref": "#/$defs/StageRef",
+          "description": "Stage at which the outcome is fully achieved (weight 1.0). Must resolve to a stage of the named orchestration, merged across scope. An onDemand stage is a poor recognised point, since the outcome would then reach full weight only when an exception is triggered."
+        },
+        "stageForecastWeights": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StageForecastWeight"
+          },
+          "description": "Stage-level weights for progress calculation. Each weight represents the cumulative progress when that stage is completed. Stages not listed have implicit weight 0."
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "patternName"
+          ],
+          "allOf": [
+            {
+              "not": {
+                "required": [
+                  "orchestrationName"
+                ]
+              }
+            },
+            {
+              "not": {
+                "required": [
+                  "recognizedAtStage"
+                ]
+              }
+            },
+            {
+              "not": {
+                "required": [
+                  "stageForecastWeights"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "required": [
+            "orchestrationName"
+          ],
+          "allOf": [
+            {
+              "not": {
+                "required": [
+                  "patternName"
+                ]
+              }
+            },
+            {
+              "not": {
+                "required": [
+                  "recognizedAtPatternViewName"
+                ]
+              }
+            },
+            {
+              "not": {
+                "required": [
+                  "forecastWeights"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "Outcome": {
+      "description": "Methodology-level definition of measurement. OutcomeInstance holds project actualValue, forecastValue and targetValue; OutcomeValueKind selects those values for cross-project reports. Target reports use explicit targets without forecast weighting and do not overwrite parent targets.",
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "measureDescription": {
+              "type": "string",
+              "description": "How success is measured — the type of metric and what constitutes achievement. E.g., 'Total ACV in target currency', 'Percentage of readiness milestones achieved'. Provides a template for project-level OutcomeInstances to set specific targets against."
+            },
+            "metricContributions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/MetricContribution"
+              },
+              "description": "How work product metrics from alpha evidence chains aggregate into this outcome's numerical progress. Each contribution follows: alpha instances → evidenceBy → work product instances → metrics, weighted by alpha state maturity."
+            },
+            "objectiveContributions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObjectiveContribution"
+              },
+              "description": "How completion contributes to this outcome's percentage progress. Each contribution measures against one pattern's views or one orchestration's stages, declaring which of them advance the outcome and at what weight."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "OutcomeInstance": {
+      "type": "object",
+      "description": "A project-level instantiation of a practice-defined Outcome. Sets a specific target and tracks achievement. OutcomeValueKind selects actualValue, forecastValue or targetValue for recorded reporting. Target reports use explicit targetValue without recognition or forecast weighting. Contribution rules remain on Outcome; derived values are never written back by reporting.",
+      "required": [
+        "name",
+        "outcomeName"
+      ],
+      "properties": {
+        "reportingSource": {
+          "$ref": "project.schema.json#/$defs/ReportingSource"
+        },
+        "name": {
+          "type": "string",
+          "description": "Project-specific name for this outcome instance (e.g., 'FY26 Cisco EMEA Revenue')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Project-specific context for this outcome instance."
+        },
+        "outcomeName": {
+          "type": "string",
+          "description": "Symbolic link to the practice-defined Outcome template (must match Outcome.name). Inherits measureDescription, metricContributions, and objectiveContributions."
+        },
+        "measure": {
+          "type": "string",
+          "description": "The specific target (e.g., '1.5M GBP ACV', 'MTTR under 4 hours'). Instantiates the practice's measureDescription with a concrete value."
+        },
+        "targetValue": {
+          "type": "number",
+          "description": "Explicit numeric target selected by OutcomeValueKind 'target'. Complements free-text measure, which is never parsed into a number. Target reporting applies no forecast weight and never rewrites a parent's independent target. Should use the same unit as contributing metrics."
+        },
+        "actualValue": {
+          "type": "number",
+          "description": "Current actual measured value. Updated as real data is collected. Compared against targetValue to assess achievement."
+        },
+        "forecastValue": {
+          "type": "number",
+          "description": "Projected value based on current trajectory and contributing metrics. Used for early-warning comparison against targetValue."
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unit of targetValue, actualValue, and forecastValue (e.g. 'GBP', 'USD'). Should match contributing metric units."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "not-started",
+            "in-progress",
+            "achieved",
+            "missed",
+            "deferred"
+          ],
+          "description": "Current achievement status."
+        },
+        "evidence": {
+          "$ref": "common.schema.json#/$defs/ExternalLink",
+          "description": "Reference to external evidence supporting the status."
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/Note"
+          },
+          "description": "Timestamped notes tracking outcome progress."
+        }
+      },
+      "additionalProperties": false
+    },
+    "PracticeBaselineShape": {
+      "description": "PracticeElement + baseline arrays and metadata (no document-level unevaluatedProperties; compose into PracticeBaseline or Practice).",
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "focuses",
+            "alphas",
+            "activitySpaces",
+            "competencies",
+            "authors",
+            "createdAt",
+            "updatedAt",
+            "version",
+            "keywords"
+          ],
+          "properties": {
+            "focuses": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Focus"
+              }
+            },
+            "alphas": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Alpha"
+              }
+            },
+            "alphaInstances": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AlphaInstanceName"
+              },
+              "description": "Optional list of AlphaInstance names used to allow baselines to identify instances of concepts or areas of concern within the baseline."
+            },
+            "activitySpaces": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivitySpace"
+              }
+            },
+            "competencies": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Competency"
+              }
+            },
+            "authors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "createdAt": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string",
+              "description": "Version of this document. Recommended format: semver (e.g. '1.0.0'). Shortened forms like '1.0' remain valid; tooling normalises to three-part semver for range comparison."
+            },
+            "schemaVersion": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "description": "Version of the Practice Language schema this document was authored against (e.g. '1.0.0'). Consumers use this to determine compatibility before parsing. Should match the schemaVersion declared in the schema's root $comment and in any PackageManifest that packages this document."
+            },
+            "keywords": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "narrativeTypes": {
+              "type": "array",
+              "description": "Narrative spine types defined in this baseline aggregate (language.mmd).",
+              "items": {
+                "$ref": "common.schema.json#/$defs/NarrativeType"
+              }
+            },
+            "citations": {
+              "type": "array",
+              "description": "Bibliographic references defined in this baseline.",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Citation"
+              }
+            },
+            "acknowledgements": {
+              "type": "array",
+              "description": "Acknowledgements of people or institutions that have supported this work",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Acknowledgement"
+              }
+            },
+            "assets": {
+              "type": "array",
+              "description": "Optional array of visual assets (diagrams, templates, icons) referenced by practice elements",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Asset"
+              }
+            },
+            "patternOrchestrations": {
+              "type": "array",
+              "description": "Orchestrations sequencing whole patterns into the shape of an endeavour: which constituent pattern applies when, and on what terms. Replaces patternGroups.",
+              "items": {
+                "$ref": "#/$defs/PatternOrchestration"
+              }
+            },
+            "patternGroups": {
+              "type": "array",
+              "deprecated": true,
+              "description": "Canonical pattern group categories for this baseline. Baselines define groups with empty entries to establish navigational structure; extension practices adopt these groups and populate them with patterns. DEPRECATED as of schema 2.21.0 in favour of patternOrchestrations: orchestration sequences patterns with entry and exit criteria, and grouping by source practice is already available through the merge-stamped sourcePracticeName. Still merged and still valid; scheduled for removal at the next major version.",
+              "items": {
+                "$ref": "#/$defs/PatternGroup"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "PracticeBaseline": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/PracticeBaselineShape"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "baselinePracticeNames": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "Name of another PracticeBaseline (symbolic link; must match another PracticeBaseline.name in the registry)."
+              },
+              "description": "Optional array of other PracticeBaseline names this baseline depends on (0..* symbolic links; do not embed baseline objects)."
+            },
+            "practiceElementAliases": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PracticeElementAlias"
+              },
+              "description": "Optional local aliases for named elements in this baseline (0..*; language.mmd)."
+            },
+            "dependencyVersions": {
+              "type": "array",
+              "items": {
+                "$ref": "manifest.schema.json#/$defs/DocumentVersionConstraint"
+              },
+              "description": "Optional version constraints for documents referenced by baselinePracticeNames. Each entry constrains the required version of a named baseline dependency. When omitted, any version is accepted."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Practice": {
+      "description": "A practice names its baseline and may optionally embed baseline-like content; baseline element arrays are not required (language.mmd 0..* on PracticeBaseline edges; Practice only requires baselinePracticeName).",
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "baselinePracticeName"
+          ],
+          "properties": {
+            "projectCreationTemplates": {
+              "type": "array",
+              "items": {
+                "$ref": "project.schema.json#/$defs/ProjectCreationTemplate"
+              }
+            },
+            "baselinePracticeName": {
+              "type": "string",
+              "description": "Name of the PracticeBaseline this practice depends on (symbolic link; must match PracticeBaseline.name in the method or registry; do not embed the baseline object in this field)."
+            },
+            "practiceDependencyNames": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "Name of another Practice (symbolic link; must match Practice.name)."
+              },
+              "description": "Zero or more other Practice documents by name (symbolic links only; do not embed Practice objects)."
+            },
+            "dependencyVersions": {
+              "type": "array",
+              "items": {
+                "$ref": "manifest.schema.json#/$defs/DocumentVersionConstraint"
+              },
+              "description": "Optional version constraints for documents referenced by baselinePracticeName and practiceDependencyNames. Each entry constrains the required version of a named dependency. When omitted, any version is accepted."
+            },
+            "practiceElementAliases": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PracticeElementAlias"
+              },
+              "description": "Optional local aliases for named elements in this practice (0..*; language.mmd)."
+            },
+            "focuses": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Focus"
+              }
+            },
+            "alphas": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Alpha"
+              }
+            },
+            "alphaInstances": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AlphaInstanceName"
+              },
+              "description": "Optional list of AlphaInstance names used to allow practices to identify instances of concepts or areas of concern within the practice."
+            },
+            "workProductInstances": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/WorkProductInstanceName"
+              },
+              "description": "Optional list of WorkProductInstance names used to allow practices to identify instances of work products within the practice."
+            },
+            "activitySpaces": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivitySpace"
+              }
+            },
+            "competencies": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Competency"
+              }
+            },
+            "authors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "createdAt": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string",
+              "description": "Version of this document. Recommended format: semver (e.g. '1.0.0'). Shortened forms like '1.0' remain valid; tooling normalises to three-part semver for range comparison."
+            },
+            "schemaVersion": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "description": "Version of the Practice Language schema this document was authored against (e.g. '1.0.0'). Consumers use this to determine compatibility before parsing."
+            },
+            "keywords": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "activities": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Activity"
+              },
+              "description": "Optional flat list of activities (legacy interchange). Canonical shape nests the same Activity objects under ActivitySpace.activities; loaders may fold this array into parents."
+            },
+            "workProducts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/WorkProduct"
+              },
+              "description": "Work products elaborated by this practice (language.mmd)."
+            },
+            "personas": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Persona"
+              },
+              "description": "Named personas for this practice (language.mmd)."
+            },
+            "personaGroups": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PersonaGroup"
+              },
+              "description": "Grouped persona refs (symbolic lists of Persona.name; language.mmd)."
+            },
+            "narrativeTypes": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/NarrativeType"
+              },
+              "description": "Optional baseline overlay: narrative spine types (unioned like focuses/alphas when merging)."
+            },
+            "patterns": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Pattern"
+              },
+              "description": "Patterns for this practice (language.mmd)."
+            },
+            "patternOrchestrations": {
+              "type": "array",
+              "description": "Orchestrations sequencing whole patterns into the shape of an endeavour: which constituent pattern applies when, and on what terms. Replaces patternGroups.",
+              "items": {
+                "$ref": "#/$defs/PatternOrchestration"
+              }
+            },
+            "patternGroups": {
+              "type": "array",
+              "deprecated": true,
+              "items": {
+                "$ref": "#/$defs/PatternGroup"
+              },
+              "description": "Named groups for organising patterns by theme or concern. Merged by canonical name when practices compose into a method. DEPRECATED as of schema 2.21.0 in favour of patternOrchestrations: orchestration sequences patterns with entry and exit criteria, and grouping by source practice is already available through the merge-stamped sourcePracticeName. Still merged and still valid; scheduled for removal at the next major version."
+            },
+            "outcomes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Outcome"
+              },
+              "description": "Measurable value outcomes this practice delivers. Each outcome defines what success looks like, how it's measured, and how alpha/work-product metrics or pattern view completion contribute to its progress. Projects instantiate these as OutcomeInstances with specific targets."
+            },
+            "references": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AlphaInstance"
+              },
+              "description": "Optional array of curated reference examples illustrating alphas at specific states with links to external content and evidencing work product instances. Used by consuming systems to present reusable resources, templates, and real-world examples to practitioners. Each entry is an AlphaInstance anchored to an alpha at a state; work product references are embedded as evidenceBy entries within each alpha reference."
+            },
+            "citations": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Citation"
+              },
+              "description": "Bibliographic references elaborated by this practice."
+            },
+            "acknowledgements": {
+              "type": "array",
+              "description": "Acknowledgements of people or institutions that have supported this work",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Acknowledgement"
+              }
+            },
+            "assets": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Asset"
+              },
+              "description": "Optional array of visual assets (diagrams, templates, icons) referenced by practice elements"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "PracticeInMethod": {
+      "description": "A practice embedded within a Method's practices array. The 'kind' property is optional since context (being in the practices array) implies it's a practice.",
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "baselinePracticeName"
+          ],
+          "properties": {
+            "baselinePracticeName": {
+              "type": "string",
+              "description": "Name of the PracticeBaseline this practice depends on (symbolic link; must match PracticeBaseline.name in the method or registry; do not embed the baseline object in this field)."
+            },
+            "practiceDependencyNames": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "Name of another Practice (symbolic link; must match Practice.name)."
+              },
+              "description": "Zero or more other Practice documents by name (symbolic links only; do not embed Practice objects)."
+            },
+            "dependencyVersions": {
+              "type": "array",
+              "items": {
+                "$ref": "manifest.schema.json#/$defs/DocumentVersionConstraint"
+              },
+              "description": "Optional version constraints for documents referenced by baselinePracticeName and practiceDependencyNames. Each entry constrains the required version of a named dependency. When omitted, any version is accepted."
+            },
+            "practiceElementAliases": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PracticeElementAlias"
+              },
+              "description": "Optional local aliases for named elements in this practice (0..*; language.mmd)."
+            },
+            "focuses": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Focus"
+              }
+            },
+            "alphas": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Alpha"
+              }
+            },
+            "alphaInstances": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AlphaInstanceName"
+              },
+              "description": "Optional list of AlphaInstance names used to allow practices to identify instances of concepts or areas of concern within the practice."
+            },
+            "workProductInstances": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/WorkProductInstanceName"
+              },
+              "description": "Optional list of WorkProductInstance names used to allow practices to identify instances of work products within the practice."
+            },
+            "activitySpaces": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivitySpace"
+              }
+            },
+            "competencies": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Competency"
+              }
+            },
+            "authors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "createdAt": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string",
+              "description": "Version of this document. Recommended format: semver (e.g. '1.0.0'). Shortened forms like '1.0' remain valid; tooling normalises to three-part semver for range comparison."
+            },
+            "schemaVersion": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "description": "Version of the Practice Language schema this document was authored against (e.g. '1.0.0'). Consumers use this to determine compatibility before parsing."
+            },
+            "keywords": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "activities": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Activity"
+              },
+              "description": "Optional flat list of activities (legacy interchange). Canonical shape nests the same Activity objects under ActivitySpace.activities; loaders may fold this array into parents."
+            },
+            "workProducts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/WorkProduct"
+              },
+              "description": "Work products elaborated by this practice (language.mmd)."
+            },
+            "personas": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Persona"
+              },
+              "description": "Named personas for this practice (language.mmd)."
+            },
+            "personaGroups": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PersonaGroup"
+              },
+              "description": "Grouped persona refs (symbolic lists of Persona.name; language.mmd)."
+            },
+            "narrativeTypes": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/NarrativeType"
+              },
+              "description": "Optional baseline overlay: narrative spine types (unioned like focuses/alphas when merging)."
+            },
+            "patterns": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Pattern"
+              },
+              "description": "Patterns for this practice (language.mmd)."
+            },
+            "patternOrchestrations": {
+              "type": "array",
+              "description": "Orchestrations sequencing whole patterns into the shape of an endeavour: which constituent pattern applies when, and on what terms. Replaces patternGroups.",
+              "items": {
+                "$ref": "#/$defs/PatternOrchestration"
+              }
+            },
+            "patternGroups": {
+              "type": "array",
+              "deprecated": true,
+              "items": {
+                "$ref": "#/$defs/PatternGroup"
+              },
+              "description": "Named groups for organising patterns by theme or concern. Merged by canonical name when practices compose into a method. DEPRECATED as of schema 2.21.0 in favour of patternOrchestrations: orchestration sequences patterns with entry and exit criteria, and grouping by source practice is already available through the merge-stamped sourcePracticeName. Still merged and still valid; scheduled for removal at the next major version."
+            },
+            "outcomes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Outcome"
+              },
+              "description": "Measurable value outcomes this practice delivers. Each outcome defines what success looks like, how it's measured, and how alpha/work-product metrics or pattern view completion contribute to its progress. Projects instantiate these as OutcomeInstances with specific targets."
+            },
+            "references": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AlphaInstance"
+              },
+              "description": "Optional array of curated reference examples illustrating alphas at specific states with links to external content and evidencing work product instances. Used by consuming systems to present reusable resources, templates, and real-world examples to practitioners. Each entry is an AlphaInstance anchored to an alpha at a state; work product references are embedded as evidenceBy entries within each alpha reference."
+            },
+            "citations": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Citation"
+              },
+              "description": "Bibliographic references elaborated by this practice."
+            },
+            "acknowledgements": {
+              "type": "array",
+              "description": "Acknowledgements of people or institutions that have supported this work",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Acknowledgement"
+              }
+            },
+            "assets": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Asset"
+              },
+              "description": "Optional array of visual assets (diagrams, templates, icons) referenced by practice elements"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Method": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "projectCreationTemplates": {
+              "type": "array",
+              "items": {
+                "$ref": "project.schema.json#/$defs/ProjectCreationTemplate"
+              }
+            },
+            "baselinePractice": {
+              "$ref": "#/$defs/PracticeBaseline",
+              "description": "Full baseline practice object. Use this OR baselinePracticeName (not both)."
+            },
+            "baselinePracticeName": {
+              "type": "string",
+              "description": "Symbolic link to baseline practice by name. Use this OR baselinePractice (not both)."
+            },
+            "practices": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/PracticeInMethod"
+              },
+              "description": "Array of full Practice objects. Use this OR practiceNames. Practice objects in this array don't require 'kind' property since context implies they are practices."
+            },
+            "practiceNames": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of symbolic practice name references. Use this OR practices."
+            },
+            "dependencyVersions": {
+              "type": "array",
+              "items": {
+                "$ref": "manifest.schema.json#/$defs/DocumentVersionConstraint"
+              },
+              "description": "Optional version constraints for documents referenced by baselinePracticeName (or baselinePractice.name) and practiceNames (or practices[].name). Each entry constrains the required version of a named dependency. When omitted, any version is accepted."
+            },
+            "citations": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Citation"
+              },
+              "description": "Bibliographic references defined in this method (merged from baseline and practices)."
+            },
+            "acknowledgements": {
+              "type": "array",
+              "description": "Acknowledgements of people or institutions that have supported this work",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Acknowledgement"
+              }
+            },
+            "assets": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Asset"
+              },
+              "description": "Optional array of visual assets for the entire method (shared across practices)"
+            },
+            "bindings": {
+              "$ref": "#/$defs/Bindings",
+              "description": "Optional cross-baseline bindings that emerge from composing practices from different baseline families. Contains alpha bindings (cross-baseline contributesTo/mapsTo for alphas) and work product bindings (cross-baseline partOf/mapsTo for work products)."
+            },
+            "outcomes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Outcome"
+              },
+              "description": "Method-level outcomes that span multiple practices. Complement practice-level outcomes with cross-cutting value measures that emerge from practice composition."
+            },
+            "version": {
+              "type": "string",
+              "description": "Version of this method document. Recommended format: semver (e.g. '1.0.0'). Shortened forms like '1.0' remain valid; tooling normalises to three-part semver for range comparison."
+            },
+            "schemaVersion": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "description": "Version of the Practice Language schema this document was authored against (e.g. '1.0.0'). Consumers use this to determine compatibility before parsing."
+            },
+            "authors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Authors or contributors of this method."
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "ISO 8601 date or datetime when this method was created."
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "ISO 8601 date or datetime when this method was last updated."
+            },
+            "keywords": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Searchable keyword tags for library discovery."
+            }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "baselinePractice"
+              ],
+              "not": {
+                "required": [
+                  "baselinePracticeName"
+                ]
+              }
+            },
+            {
+              "required": [
+                "baselinePracticeName"
+              ],
+              "not": {
+                "required": [
+                  "baselinePractice"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

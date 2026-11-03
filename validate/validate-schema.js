@@ -2,7 +2,7 @@
 
 /**
  * JSON Schema validator for Practice Language JSON
- * Usage: node validate/validate-schema.js <path-to-json-file>
+ * Usage: node validate/validate-schema.js <path-to-json-file> [--modular]
  */
 
 const fs = require('fs');
@@ -11,12 +11,16 @@ const Ajv = require('ajv/dist/2020');
 const addFormats = require('ajv-formats');
 
 const jsonFile = process.argv[2];
-if (!jsonFile) {
-  console.error('Usage: node validate/validate-schema.js <path-to-json-file>');
+const modular = process.argv[3] === '--modular';
+if (!jsonFile || (process.argv[3] && !modular) || process.argv[4]) {
+  console.error('Usage: node validate/validate-schema.js <path-to-json-file> [--modular]');
   process.exit(1);
 }
 
-const schemaPath = path.join(__dirname, '..', 'language.schema.json');
+const schemaDir = path.join(__dirname, '..', 'schemas');
+const schemaPath = modular
+  ? path.join(schemaDir, 'language.schema.json')
+  : path.join(__dirname, '..', 'language.schema.json');
 const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
 const data = JSON.parse(fs.readFileSync(jsonFile, 'utf8'));
 
@@ -26,6 +30,13 @@ const ajv = new Ajv({
   strict: false
 });
 addFormats(ajv);
+if (modular) {
+  for (const name of fs.readdirSync(schemaDir)) {
+    if (name.endsWith('.schema.json') && name !== 'language.schema.json') {
+      ajv.addSchema(JSON.parse(fs.readFileSync(path.join(schemaDir, name), 'utf8')));
+    }
+  }
+}
 
 function detectChainCycles(getParent, startNodes) {
   const cycles = [];

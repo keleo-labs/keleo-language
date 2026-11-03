@@ -1,0 +1,2346 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/keleo-studio/schemas/project.schema.json",
+  "$comment": "schemaVersion:4.0.1",
+  "$defs": {
+    "ProjectId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "OutcomeValueKind": {
+      "enum": [
+        "actual",
+        "forecast",
+        "target"
+      ]
+    },
+    "ProjectReference": {
+      "type": "object",
+      "required": [
+        "projectId"
+      ],
+      "properties": {
+        "projectId": {
+          "$ref": "#/$defs/ProjectId"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProjectItemLocator": {
+      "type": "object",
+      "required": [
+        "collection",
+        "instanceName"
+      ],
+      "properties": {
+        "collection": {
+          "enum": [
+            "plan.pattern.alphaInstanceNames",
+            "plan.pattern.workProductInstanceNames",
+            "current.alphaInstances",
+            "current.workProductInstances",
+            "target.alphaInstances",
+            "target.workProductInstances",
+            "outcomes",
+            "actions",
+            "cycles.alphaInstances",
+            "cycles.workProductInstances",
+            "cycles.outcomes",
+            "cycles.actions"
+          ]
+        },
+        "instanceName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cycleName": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "if": {
+        "properties": {
+          "collection": {
+            "pattern": "^cycles\\."
+          }
+        },
+        "required": [
+          "collection"
+        ]
+      },
+      "then": {
+        "required": [
+          "cycleName"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "cycleName"
+          ]
+        }
+      }
+    },
+    "LocalProjectItemReference": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ProjectItemLocator"
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ProjectItemReference": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ProjectItemLocator"
+        },
+        {
+          "type": "object",
+          "required": [
+            "projectId"
+          ],
+          "properties": {
+            "projectId": {
+              "$ref": "#/$defs/ProjectId"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ProjectReportReference": {
+      "type": "object",
+      "required": [
+        "projectId",
+        "reportName"
+      ],
+      "properties": {
+        "projectId": {
+          "$ref": "#/$defs/ProjectId"
+        },
+        "reportName": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReportingPeriod": {
+      "type": "object",
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReportingMetricDefinition": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "metricId",
+            "version"
+          ],
+          "properties": {
+            "kind": {
+              "const": "reportingMetricDefinition"
+            },
+            "metricId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ReportingContract": {
+      "type": "object",
+      "required": [
+        "metric",
+        "aggregation",
+        "unit",
+        "period"
+      ],
+      "properties": {
+        "metric": {
+          "$ref": "#/$defs/ReportingMetricDefinition"
+        },
+        "aggregation": {
+          "enum": [
+            "sum",
+            "attainmentCount"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Explicit unit; use '1' for unitless quantities and 'count' for attainment."
+        },
+        "period": {
+          "$ref": "#/$defs/ReportingPeriod"
+        },
+        "valueKind": {
+          "$ref": "#/$defs/OutcomeValueKind"
+        }
+      },
+      "if": {
+        "properties": {
+          "aggregation": {
+            "const": "sum"
+          }
+        },
+        "required": [
+          "aggregation"
+        ]
+      },
+      "then": {
+        "required": [
+          "valueKind"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "valueKind"
+          ]
+        }
+      }
+    },
+    "ReportBinding": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "sourceKind",
+            "source"
+          ],
+          "properties": {
+            "kind": {
+              "const": "reportBinding"
+            },
+            "sourceKind": {
+              "enum": [
+                "outcome",
+                "assessment",
+                "report"
+              ]
+            },
+            "source": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/ProjectItemReference"
+                },
+                {
+                  "$ref": "#/$defs/ProjectReportReference"
+                }
+              ]
+            },
+            "target": {
+              "$ref": "#/$defs/ProjectItemReference"
+            },
+            "valueSource": {
+              "enum": [
+                "recorded",
+                "derived"
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "sourceKind": {
+                    "const": "report"
+                  }
+                },
+                "required": [
+                  "sourceKind"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "source": {
+                    "$ref": "#/$defs/ProjectReportReference"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "source": {
+                    "$ref": "#/$defs/ProjectItemReference"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "sourceKind": {
+                    "const": "assessment"
+                  }
+                },
+                "required": [
+                  "sourceKind"
+                ]
+              },
+              "then": {
+                "required": [
+                  "target"
+                ]
+              },
+              "else": {
+                "not": {
+                  "required": [
+                    "target"
+                  ]
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "sourceKind": {
+                    "const": "outcome"
+                  }
+                },
+                "required": [
+                  "sourceKind"
+                ]
+              },
+              "then": {
+                "required": [
+                  "valueSource"
+                ]
+              },
+              "else": {
+                "not": {
+                  "required": [
+                    "valueSource"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ChildReportCoverage": {
+      "type": "object",
+      "required": [
+        "projectId"
+      ],
+      "properties": {
+        "projectId": {
+          "$ref": "#/$defs/ProjectId"
+        },
+        "bindingNames": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "exclusionReason": {
+          "type": "string",
+          "pattern": "\\S"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "bindingNames"
+          ],
+          "not": {
+            "required": [
+              "exclusionReason"
+            ]
+          }
+        },
+        {
+          "required": [
+            "exclusionReason"
+          ],
+          "not": {
+            "required": [
+              "bindingNames"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "ReportDefinition": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "$ref": "#/$defs/ReportingContract"
+        },
+        {
+          "type": "object",
+          "required": [
+            "bindings"
+          ],
+          "properties": {
+            "kind": {
+              "const": "reportDefinition"
+            },
+            "bindings": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReportBinding"
+              }
+            },
+            "childCoverage": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ChildReportCoverage"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "SourceIdentity": {
+      "type": "object",
+      "required": [
+        "namespace",
+        "key"
+      ],
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "minLength": 1,
+          "description": "External system and tenant namespace, or project:<canonical UUID>."
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReportingSource": {
+      "type": "object",
+      "required": [
+        "identity",
+        "metric",
+        "period"
+      ],
+      "properties": {
+        "identity": {
+          "$ref": "#/$defs/SourceIdentity"
+        },
+        "metric": {
+          "$ref": "#/$defs/ReportingMetricDefinition"
+        },
+        "period": {
+          "$ref": "#/$defs/ReportingPeriod"
+        },
+        "originalSource": {
+          "$ref": "#/$defs/ProjectItemReference"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "synchronizedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "integrationName": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReportContribution": {
+      "type": "object",
+      "required": [
+        "bindingName",
+        "origin",
+        "originalSource",
+        "source",
+        "metricId",
+        "metricVersion",
+        "unit",
+        "period",
+        "inputRevision",
+        "evidence"
+      ],
+      "properties": {
+        "bindingName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "origin": {
+          "$ref": "#/$defs/SourceIdentity"
+        },
+        "originalSource": {
+          "$ref": "#/$defs/ProjectItemReference"
+        },
+        "source": {
+          "$ref": "#/$defs/ProjectItemReference"
+        },
+        "metricId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metricVersion": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "period": {
+          "$ref": "#/$defs/ReportingPeriod"
+        },
+        "valueKind": {
+          "$ref": "#/$defs/OutcomeValueKind"
+        },
+        "inputRevision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "type": "number"
+        },
+        "attained": {
+          "type": "boolean"
+        },
+        "rawValue": {
+          "type": "number"
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/ExternalLink"
+          }
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "synchronizedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "integrationName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "via": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProjectReportReference"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "value",
+            "valueKind"
+          ],
+          "not": {
+            "required": [
+              "attained"
+            ]
+          }
+        },
+        {
+          "required": [
+            "attained"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "value"
+                ]
+              },
+              {
+                "required": [
+                  "valueKind"
+                ]
+              },
+              {
+                "required": [
+                  "weight"
+                ]
+              },
+              {
+                "required": [
+                  "rawValue"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "valueKind"
+            ],
+            "properties": {
+              "valueKind": {
+                "const": "target"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "weight"
+                  ]
+                },
+                {
+                  "required": [
+                    "rawValue"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "weight"
+            ]
+          },
+          "then": {
+            "required": [
+              "rawValue"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "rawValue"
+            ]
+          },
+          "then": {
+            "required": [
+              "weight"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "ReportingDiagnostic": {
+      "type": "object",
+      "required": [
+        "code",
+        "projectId",
+        "reportName",
+        "issue"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projectId": {
+          "$ref": "#/$defs/ProjectId"
+        },
+        "reportName": {
+          "type": "string"
+        },
+        "issue": {
+          "type": "string"
+        },
+        "requirementId": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "originatingProjectId": {
+          "$ref": "#/$defs/ProjectId"
+        },
+        "source": {
+          "type": "object"
+        },
+        "relatedReferences": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReportResult": {
+      "type": "object",
+      "required": [
+        "report",
+        "calculatedAt",
+        "complete",
+        "contributions",
+        "coverage",
+        "diagnostics"
+      ],
+      "properties": {
+        "report": {
+          "$ref": "#/$defs/ProjectReportReference"
+        },
+        "calculatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "contributions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReportContribution"
+          }
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChildReportCoverage"
+          }
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReportingDiagnostic"
+          }
+        },
+        "total": {
+          "type": "number"
+        }
+      },
+      "if": {
+        "properties": {
+          "complete": {
+            "const": true
+          }
+        },
+        "required": [
+          "complete"
+        ]
+      },
+      "then": {
+        "required": [
+          "total"
+        ],
+        "properties": {
+          "diagnostics": {
+            "maxItems": 0
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "total"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReportingRequirement": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "$ref": "#/$defs/ReportingContract"
+        },
+        {
+          "type": "object",
+          "required": [
+            "requirementId",
+            "version"
+          ],
+          "properties": {
+            "kind": {
+              "const": "reportingRequirement"
+            },
+            "requirementId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$"
+            },
+            "coverAllChildren": {
+              "type": "boolean",
+              "default": false
+            },
+            "allowExclusions": {
+              "type": "boolean",
+              "default": false
+            },
+            "maxSourceAgeSeconds": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ReportingRequirementBinding": {
+      "type": "object",
+      "required": [
+        "requirementId",
+        "version",
+        "reportName"
+      ],
+      "properties": {
+        "requirementId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "reportName": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProjectCatalogue": {
+      "type": "object",
+      "required": [
+        "projects"
+      ],
+      "properties": {
+        "projects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "document",
+              "revision"
+            ],
+            "properties": {
+              "document": {
+                "$ref": "#/$defs/Project"
+              },
+              "revision": {
+                "type": "string",
+                "minLength": 1
+              },
+              "containingProjectId": {
+                "$ref": "#/$defs/ProjectId"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "MethodologyReference": {
+      "type": "object",
+      "required": [
+        "documentType",
+        "documentName",
+        "version"
+      ],
+      "properties": {
+        "documentType": {
+          "enum": [
+            "practice",
+            "method"
+          ]
+        },
+        "documentName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProjectCreationTemplateReference": {
+      "type": "object",
+      "required": [
+        "methodology",
+        "templateName",
+        "version"
+      ],
+      "properties": {
+        "methodology": {
+          "$ref": "#/$defs/MethodologyReference"
+        },
+        "templateName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProjectScopeSelector": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "selection"
+          ],
+          "properties": {
+            "kind": {
+              "const": "projectScopeSelector"
+            },
+            "selection": {
+              "enum": [
+                "root",
+                "named",
+                "related"
+              ]
+            },
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/LocalProjectItemReference"
+              }
+            },
+            "relationshipKind": {
+              "$ref": "practice.schema.json#/$defs/InstanceRelationship/properties/relationshipKind"
+            },
+            "direction": {
+              "$ref": "practice.schema.json#/$defs/InstanceRelationship/properties/direction"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "selection": {
+                    "const": "named"
+                  }
+                },
+                "required": [
+                  "selection"
+                ]
+              },
+              "then": {
+                "required": [
+                  "items"
+                ]
+              },
+              "else": {
+                "not": {
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "selection": {
+                    "const": "related"
+                  }
+                },
+                "required": [
+                  "selection"
+                ]
+              },
+              "then": {
+                "required": [
+                  "relationshipKind",
+                  "direction"
+                ]
+              },
+              "else": {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "relationshipKind"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "direction"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ChecklistMapping": {
+      "type": "object",
+      "required": [
+        "fromStateOrLevel",
+        "fromChecklist",
+        "toStateOrLevel",
+        "toChecklist"
+      ],
+      "properties": {
+        "fromStateOrLevel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fromChecklist": {
+          "type": "string",
+          "minLength": 1
+        },
+        "toStateOrLevel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "toChecklist": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "TemplateInstanceMapping": {
+      "type": "object",
+      "required": [
+        "selectorName",
+        "instanceKind",
+        "sourceTypeName",
+        "targetTypeName"
+      ],
+      "properties": {
+        "selectorName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instanceKind": {
+          "enum": [
+            "alpha",
+            "workProduct"
+          ]
+        },
+        "sourceTypeName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetTypeName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stateMappings": {
+          "type": "array",
+          "items": {
+            "$ref": "practice.schema.json#/$defs/StateContribution"
+          }
+        },
+        "lodMappings": {
+          "type": "array",
+          "items": {
+            "$ref": "practice.schema.json#/$defs/LodContribution"
+          }
+        },
+        "checklistMappings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChecklistMapping"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "instanceKind": {
+            "const": "alpha"
+          }
+        },
+        "required": [
+          "instanceKind"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "lodMappings"
+          ]
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "stateMappings"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "AssigneeMapping": {
+      "type": "object",
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "TemplateActionMapping": {
+      "type": "object",
+      "required": [
+        "selectorName",
+        "assigneeMappings"
+      ],
+      "properties": {
+        "selectorName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetCycleName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assigneeMappings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AssigneeMapping"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "CreationReportingBinding": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "$ref": "#/$defs/ReportingContract"
+        },
+        {
+          "type": "object",
+          "required": [
+            "parentReportName",
+            "childReportName",
+            "source"
+          ],
+          "properties": {
+            "kind": {
+              "const": "creationReportingBinding"
+            },
+            "parentReportName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "childReportName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source": {
+              "$ref": "#/$defs/LocalProjectItemReference"
+            },
+            "target": {
+              "$ref": "#/$defs/LocalProjectItemReference"
+            },
+            "valueSource": {
+              "enum": [
+                "recorded",
+                "derived"
+              ]
+            }
+          },
+          "if": {
+            "properties": {
+              "aggregation": {
+                "const": "sum"
+              }
+            },
+            "required": [
+              "aggregation"
+            ]
+          },
+          "then": {
+            "required": [
+              "valueSource"
+            ],
+            "not": {
+              "required": [
+                "target"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "target"
+            ],
+            "not": {
+              "required": [
+                "valueSource"
+              ]
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ProjectCreationVariant": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "methodology",
+            "instanceMappings",
+            "actionMappings",
+            "reportingBindings"
+          ],
+          "properties": {
+            "kind": {
+              "const": "projectCreationVariant"
+            },
+            "methodology": {
+              "$ref": "#/$defs/MethodologyReference"
+            },
+            "instanceMappings": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TemplateInstanceMapping"
+              }
+            },
+            "actionMappings": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TemplateActionMapping"
+              }
+            },
+            "reportingBindings": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/CreationReportingBinding"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ProjectCreationTemplate": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "version",
+            "rootKind",
+            "rootTypeName",
+            "selectors",
+            "variants"
+          ],
+          "properties": {
+            "kind": {
+              "const": "projectCreationTemplate"
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$"
+            },
+            "rootKind": {
+              "enum": [
+                "alpha",
+                "workProduct"
+              ]
+            },
+            "rootTypeName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "selectors": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/ProjectScopeSelector"
+              }
+            },
+            "variants": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/ProjectCreationVariant"
+              }
+            },
+            "defaultVariantName": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "InputRevision": {
+      "type": "object",
+      "required": [
+        "revision"
+      ],
+      "properties": {
+        "projectId": {
+          "$ref": "#/$defs/ProjectId"
+        },
+        "methodology": {
+          "$ref": "#/$defs/ContextDocumentReference"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "projectId"
+          ],
+          "not": {
+            "required": [
+              "methodology"
+            ]
+          }
+        },
+        {
+          "required": [
+            "methodology"
+          ],
+          "not": {
+            "required": [
+              "projectId"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "InstanceTransfer": {
+      "type": "object",
+      "required": [
+        "source",
+        "target",
+        "assessmentTransfer",
+        "origin",
+        "originalSource"
+      ],
+      "properties": {
+        "origin": {
+          "$ref": "#/$defs/SourceIdentity"
+        },
+        "originalSource": {
+          "$ref": "#/$defs/ProjectItemReference"
+        },
+        "source": {
+          "$ref": "#/$defs/ProjectItemReference"
+        },
+        "target": {
+          "$ref": "#/$defs/ProjectItemReference"
+        },
+        "assessmentTransfer": {
+          "enum": [
+            "copy",
+            "mapped",
+            "unassessed"
+          ]
+        },
+        "stateMappings": {
+          "type": "array",
+          "items": {
+            "$ref": "practice.schema.json#/$defs/StateContribution"
+          }
+        },
+        "lodMappings": {
+          "type": "array",
+          "items": {
+            "$ref": "practice.schema.json#/$defs/LodContribution"
+          }
+        },
+        "checklistMappings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChecklistMapping"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ActionTransfer": {
+      "type": "object",
+      "required": [
+        "source",
+        "target",
+        "assigneeMappings"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/ProjectItemReference"
+        },
+        "target": {
+          "$ref": "#/$defs/ProjectItemReference"
+        },
+        "assigneeMappings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AssigneeMapping"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "CreationReportMapping": {
+      "type": "object",
+      "required": [
+        "parentReportName",
+        "childReport",
+        "parentBinding"
+      ],
+      "properties": {
+        "parentReportName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "childReport": {
+          "$ref": "#/$defs/ReportDefinition"
+        },
+        "parentBinding": {
+          "$ref": "#/$defs/ReportBinding"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProjectCreationPreview": {
+      "type": "object",
+      "required": [
+        "operationId",
+        "template",
+        "parentProjectId",
+        "source",
+        "variantName",
+        "sourceRevisions",
+        "sourceSnapshots",
+        "selectedItems",
+        "child",
+        "instanceMappings",
+        "actionMappings",
+        "reportingBindings"
+      ],
+      "properties": {
+        "sourceSnapshots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DelegationHistory"
+          }
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "template": {
+          "$ref": "#/$defs/ProjectCreationTemplateReference"
+        },
+        "parentProjectId": {
+          "$ref": "#/$defs/ProjectId"
+        },
+        "source": {
+          "$ref": "#/$defs/ProjectItemReference"
+        },
+        "variantName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceRevisions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/InputRevision"
+          }
+        },
+        "selectedItems": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ProjectItemReference"
+          }
+        },
+        "child": {
+          "$ref": "#/$defs/Project"
+        },
+        "instanceMappings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InstanceTransfer"
+          }
+        },
+        "actionMappings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ActionTransfer"
+          }
+        },
+        "reportingBindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CreationReportMapping"
+          }
+        },
+        "confirmedBy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "policyName": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "dependentRequired": {
+        "confirmedBy": [
+          "confirmedAt"
+        ],
+        "confirmedAt": [
+          "confirmedBy"
+        ]
+      },
+      "additionalProperties": false
+    },
+    "DelegationHistory": {
+      "type": "object",
+      "required": [
+        "source",
+        "recordedAt",
+        "attributedTo",
+        "snapshot"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/ProjectItemReference"
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "attributedTo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshot": {
+          "oneOf": [
+            {
+              "$ref": "practice.schema.json#/$defs/AlphaInstance"
+            },
+            {
+              "$ref": "practice.schema.json#/$defs/WorkProductInstance"
+            },
+            {
+              "$ref": "#/$defs/Action"
+            },
+            {
+              "$ref": "practice.schema.json#/$defs/OutcomeInstance"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProjectDelegation": {
+      "type": "object",
+      "required": [
+        "preview",
+        "status",
+        "history"
+      ],
+      "properties": {
+        "preview": {
+          "$ref": "#/$defs/ProjectCreationPreview"
+        },
+        "status": {
+          "enum": [
+            "prepared",
+            "failed",
+            "committed"
+          ]
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DelegationHistory"
+          }
+        },
+        "committedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "error": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summaryReportName": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "committed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "committedAt",
+              "summaryReportName"
+            ],
+            "not": {
+              "required": [
+                "error"
+              ]
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "committedAt"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "failed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "error"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "error"
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "LocalDelegationRecommendation": {
+      "type": "object",
+      "required": [
+        "source",
+        "createdAt",
+        "rationale",
+        "advice",
+        "proposal"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/ProjectItemReference"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "advice": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proposal": {
+          "$ref": "#/$defs/ProjectCreationPreview"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContextDocumentReference": {
+      "type": "object",
+      "required": [
+        "documentType",
+        "documentName",
+        "version"
+      ],
+      "properties": {
+        "documentType": {
+          "enum": [
+            "practiceBaseline",
+            "practice",
+            "method"
+          ]
+        },
+        "documentName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChecklistState": {
+      "type": "object",
+      "description": "Tracks the completion status of an individual checklist item within a project context. Co-located on AlphaInstance or WorkProductInstance; the parent instance provides the alpha/state or workProduct/levelOfDetail context.",
+      "required": [
+        "checklistName",
+        "state"
+      ],
+      "properties": {
+        "checklistName": {
+          "type": "string",
+          "description": "Name of the specific Checklist item (must match a Checklist.name within the parent instance's referenced State or LevelOfDetail)."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "not complete",
+            "not required"
+          ],
+          "description": "Completion status. In current section: records actual completion. In target section: indicates whether the checklist item is required for this project's goals."
+        },
+        "evidence": {
+          "$ref": "common.schema.json#/$defs/ExternalLink",
+          "description": "Optional reference to external evidence supporting the checklist item's state (e.g. a document, test result, approval record, or audit artifact)."
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/Note"
+          },
+          "description": "Optional notes recording observations or rationale for the checklist item's state."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Action": {
+      "type": "object",
+      "description": "A concrete task within a project. When placed in a cycle's actions array, it is assigned and time-bound operational work. When placed in the project-level actions array (the backlog), it represents a candidate task awaiting cycle assignment. Optionally traces back to a practice-defined Activity for methodology context.",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Action title, unique within its containing array (the parent cycle's actions or the project-level backlog)."
+        },
+        "description": {
+          "type": "string",
+          "description": "What needs to be done."
+        },
+        "activityName": {
+          "type": "string",
+          "description": "Symbolic link to an Activity.name in the resolved practice or method scope. Provides methodology traceability without requiring a full template-instance pattern."
+        },
+        "assignedTo": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Symbolic links to TeamMember.name values in the project's team. Identifies the people responsible for this action."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "not-started",
+            "in-progress",
+            "done",
+            "blocked",
+            "deferred",
+            "discarded"
+          ],
+          "description": "Current status of the action."
+        },
+        "dueAt": {
+          "type": "string",
+          "description": "ISO timestamp target completion date."
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "ISO timestamp recording when this action was completed. Absent while the action is still open."
+        },
+        "advancesAlphaInstances": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Symbolic links to AlphaInstance.name values — the alpha-state objectives this action advances."
+        },
+        "developsWorkProductInstances": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Symbolic links to WorkProductInstance.name values — the work product objectives this action develops."
+        },
+        "outcomeInstanceNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Symbolic links to OutcomeInstance.name values at the project or cycle level — direct outcome linkage."
+        },
+        "evidence": {
+          "$ref": "common.schema.json#/$defs/ExternalLink",
+          "description": "Optional reference to the deliverable or supporting evidence for this action."
+        },
+        "test": {
+          "$ref": "practice.schema.json#/$defs/Test",
+          "description": "Acceptance criterion for this action — a structured Given/When/Then scenario defining how to verify the action is complete. Complements 'evidence' (what was produced) by defining the evaluation standard (how we know it's done)."
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/Note"
+          },
+          "description": "Timestamped commentary, updates, or blocker descriptions."
+        }
+      },
+      "additionalProperties": false
+    },
+    "CommunicationChannel": {
+      "type": "object",
+      "description": "A team's preferred interaction point — the place other people should go to find or reach the team.",
+      "required": [
+        "name",
+        "address"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable label for the channel (e.g. 'Slack', 'Team Email', 'Weekly Sync', 'Backlog')."
+        },
+        "address": {
+          "type": "string",
+          "description": "The channel's address or location (e.g. '#platform-eng', 'platform@example.com', 'Tuesdays 10:00 UTC')."
+        }
+      },
+      "additionalProperties": false
+    },
+    "TeamMember": {
+      "type": "object",
+      "description": "Identifies a person on the project team, their role within the methodology, and how to contact them.",
+      "required": [
+        "name",
+        "personaName",
+        "contact"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The individual's name."
+        },
+        "personaName": {
+          "type": "string",
+          "description": "Symbolic link to a Persona defined in the resolved practice/method scope, identifying their role."
+        },
+        "contact": {
+          "type": "string",
+          "description": "A contact address (e.g. email, chat handle, phone). Format is not constrained."
+        },
+        "started": {
+          "type": "string",
+          "description": "Optional ISO timestamp recording when this member joined the project."
+        },
+        "finished": {
+          "type": "string",
+          "description": "Optional ISO timestamp recording when this member left the project."
+        },
+        "role": {
+          "type": "string",
+          "description": "Optional free-text description of this member's specific role or responsibility on this project, complementing the generic personaName (e.g. 'Sponsor / escalation path' alongside personaName 'ESA Manager')."
+        }
+      },
+      "additionalProperties": false
+    },
+    "TeamEntry": {
+      "type": "object",
+      "description": "Describes the project team. Inspired by the Team API concept from Team Topologies, making the team's purpose, membership, and communication preferences discoverable.",
+      "required": [
+        "name",
+        "description",
+        "members"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The team's name (e.g. 'Platform Engineering', 'Security Governance')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Brief statement of the team's focus and purpose within this project."
+        },
+        "communicationChannels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CommunicationChannel"
+          },
+          "description": "Optional array of communication channels describing how to interact with this team."
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TeamMember"
+          },
+          "description": "Array of team members with their roles and contact details."
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/Note"
+          },
+          "description": "Optional notes for team-level observations, decisions, and changes over time."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProjectPlan": {
+      "type": "object",
+      "description": "The plan section of a Project. Contains an embedded Pattern defining the project's lifecycle plan, and a notes array for plan-level commentary.",
+      "required": [
+        "pattern"
+      ],
+      "properties": {
+        "pattern": {
+          "$ref": "practice.schema.json#/$defs/Pattern",
+          "description": "Embedded Pattern object defining the project's lifecycle plan. This is a new instance owned by the project, not a symbolic link. The Pattern's alphaInstanceNames and workProductInstanceNames declare tracked instances; its PatternViews define phased objectives."
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/Note"
+          },
+          "description": "Optional notes for plan-level commentary, decisions, and rationale about the planning process itself."
+        },
+        "sync": {
+          "type": "object",
+          "description": "Remembered sync configuration for mirroring this plan to an external planning tool (e.g. Smartsheet, Jira). Tool-agnostic: the linked tool's own sync contract (e.g. specifications/project-plan.md for Smartsheet) defines vocabulary such as 'layout'.",
+          "required": [
+            "tool",
+            "link"
+          ],
+          "properties": {
+            "tool": {
+              "type": "string",
+              "description": "Name of the external planning tool this plan syncs with (e.g. 'Smartsheet')."
+            },
+            "layout": {
+              "type": "string",
+              "description": "Tool-specific layout/view identifier for the active sync (e.g. Smartsheet's 'traditional' or 'agile'). Meaning is defined by the tool's own sync contract, not this schema."
+            },
+            "link": {
+              "$ref": "common.schema.json#/$defs/ExternalLink",
+              "description": "Link to the live external plan (e.g. the active Smartsheet sheet) that this project's plan syncs with — the single source of truth for the active sync target."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProjectStateSection": {
+      "type": "object",
+      "description": "Shared structure for the current, target, and completed sections of a Project. Contains arrays of AlphaInstance and WorkProductInstance objects (which carry their own ChecklistState arrays) plus notes. Left open (no additionalProperties/unevaluatedProperties) to allow composition via allOf — consuming schemas close the object at point of use.",
+      "properties": {
+        "alphaInstances": {
+          "type": "array",
+          "items": {
+            "$ref": "practice.schema.json#/$defs/AlphaInstance"
+          },
+          "description": "Alpha instances recording state (current assessment or target goal). Each instance may carry checklistStates for granular tracking."
+        },
+        "workProductInstances": {
+          "type": "array",
+          "items": {
+            "$ref": "practice.schema.json#/$defs/WorkProductInstance"
+          },
+          "description": "Work product instances recording level of detail (current assessment or target goal). Each instance may carry checklistStates for granular tracking."
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/Note"
+          },
+          "description": "Optional notes providing timestamped observations and commentary."
+        }
+      }
+    },
+    "ProjectCycle": {
+      "description": "A bounded period of work within a project, tracking the objectives and tasks undertaken during that period. Methodology-agnostic container for sprint/iteration/increment. The active cycle (completedAt absent) tracks current work; closed cycles (completedAt set) provide historical record.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/ProjectStateSection"
+        },
+        {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name identifying this cycle (e.g. 'Sprint 1', 'Q3 Cycle', 'August'). Must be unique within the project's cycles array."
+            },
+            "description": {
+              "type": "string",
+              "description": "Brief description of what this cycle covered or its objectives."
+            },
+            "startedAt": {
+              "type": "string",
+              "description": "ISO timestamp recording when this cycle started."
+            },
+            "completedAt": {
+              "type": "string",
+              "description": "ISO timestamp recording when this cycle was completed. Absent while the cycle is still active."
+            },
+            "patternViewName": {
+              "type": "string",
+              "description": "Symbolic link to a PatternView.name within the project plan's Pattern. Identifies which phase of the overarching plan this cycle is contributing to."
+            },
+            "priorityThreshold": {
+              "type": "string",
+              "enum": [
+                "must",
+                "should",
+                "could"
+              ],
+              "description": "Minimum checklist priority to include in scope for this cycle. Items below this threshold are implicitly not required unless explicitly overridden via ChecklistState. Overrides the project-level priorityThreshold for this cycle. When omitted, inherits the project-level threshold."
+            },
+            "outcomes": {
+              "type": "array",
+              "items": {
+                "$ref": "practice.schema.json#/$defs/OutcomeInstance"
+              },
+              "description": "Cycle-level value targets. May decompose project-level outcome instances into sprint-sized targets."
+            },
+            "actions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Action"
+              },
+              "description": "Concrete tasks team members perform during this cycle. Each action may trace to objectives, outcomes, and practice-defined activities."
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Project": {
+      "description": "An execution instance of a Practice or Method with persistent UUID identity and editable name and description. Contains team, plan, current and target state, with optional ownership, reporting and delegation contracts.",
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/PracticeElement"
+        },
+        {
+          "type": "object",
+          "required": [
+            "projectId",
+            "plan",
+            "current",
+            "target"
+          ],
+          "properties": {
+            "projectId": {
+              "$ref": "#/$defs/ProjectId"
+            },
+            "parentProject": {
+              "$ref": "#/$defs/ProjectReference"
+            },
+            "projectReferences": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ProjectReference"
+              }
+            },
+            "reports": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReportDefinition"
+              }
+            },
+            "reportingRequirements": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReportingRequirement"
+              }
+            },
+            "reportingRequirementBindings": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ReportingRequirementBinding"
+              }
+            },
+            "delegations": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ProjectDelegation"
+              }
+            },
+            "practiceName": {
+              "type": "string",
+              "description": "Symbolic link to a Practice by name. Exactly one of practiceName or methodName must be present."
+            },
+            "methodName": {
+              "type": "string",
+              "description": "Symbolic link to a Method by name. Exactly one of practiceName or methodName must be present."
+            },
+            "dependencyVersions": {
+              "type": "array",
+              "items": {
+                "$ref": "manifest.schema.json#/$defs/DocumentVersionConstraint"
+              },
+              "description": "Optional version constraints for the document referenced by practiceName or methodName. Each entry constrains the required version of a named dependency. When omitted, any version is accepted."
+            },
+            "team": {
+              "$ref": "#/$defs/TeamEntry",
+              "description": "The project team — who is involved, what they do, and how to reach them."
+            },
+            "plan": {
+              "$ref": "#/$defs/ProjectPlan",
+              "description": "The project plan containing an embedded Pattern and plan-level notes."
+            },
+            "current": {
+              "$ref": "#/$defs/ProjectStateSection",
+              "unevaluatedProperties": false,
+              "description": "Currently assessed state of tracked alphas and work products."
+            },
+            "target": {
+              "$ref": "#/$defs/ProjectStateSection",
+              "unevaluatedProperties": false,
+              "description": "Desired/goal state for tracked alphas and work products."
+            },
+            "cycles": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ProjectCycle"
+              },
+              "description": "Active and historical cycles of work. Each cycle tracks the objectives and tasks undertaken during a bounded period. The active cycle (identified by currentCycleName) tracks current work; closed cycles provide historical record."
+            },
+            "currentCycleName": {
+              "type": "string",
+              "description": "Name of the currently active cycle within the cycles array. Identifies which cycle is tracking current work. Absent when no cycle is active."
+            },
+            "priorityThreshold": {
+              "type": "string",
+              "enum": [
+                "must",
+                "should",
+                "could"
+              ],
+              "description": "Minimum checklist priority to include in project scope. Items below this threshold are implicitly not required unless explicitly overridden via ChecklistState. Individual cycles can override this with their own priorityThreshold. When omitted, defaults to \"could\" (all items in scope)."
+            },
+            "outcomes": {
+              "type": "array",
+              "items": {
+                "$ref": "practice.schema.json#/$defs/OutcomeInstance"
+              },
+              "description": "Project-level value targets instantiating practice-defined Outcomes."
+            },
+            "notes": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Note"
+              },
+              "description": "Project-wide notes for observations, decisions, and commentary not specific to plan, current, target, or team."
+            },
+            "actions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Action"
+              },
+              "description": "Project-level backlog of candidate actions not yet assigned to a cycle. Actions here represent proposed work that the team reviews during cycle planning. Accepted items are copied to a cycle's actions array; rejected items may be marked with status 'discarded' to preserve a record of what was considered."
+            },
+            "keywords": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "citations": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Citation"
+              },
+              "description": "Bibliographic references relevant to this project."
+            },
+            "acknowledgements": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Acknowledgement"
+              },
+              "description": "Acknowledgements of people or institutions that have supported this project."
+            },
+            "assets": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Asset"
+              },
+              "description": "Optional array of visual assets for this project."
+            },
+            "authors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "createdAt": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string",
+              "description": "Version of this project document. Recommended format: semver (e.g. '1.0.0'). Shortened forms like '1.0' remain valid; tooling normalises to three-part semver for range comparison."
+            },
+            "schemaVersion": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "description": "Version of the Practice Language schema this document was authored against (e.g. '1.0.0'). Consumers use this to determine compatibility before parsing."
+            },
+            "links": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/ExternalLink"
+              },
+              "description": "Optional project-wide external links not specific to a tracked alpha/work-product instance (e.g. remembered Smartsheet workspace/folder/plan URLs, team charter, way-of-working document)."
+            },
+            "recommendations": {
+              "type": "array",
+              "items": {
+                "$ref": "integrations-signals.schema.json#/$defs/RecommendationCard"
+              },
+              "description": "Project-owned workflow cards referencing shared signal journal recommendations."
+            },
+            "recommendationPolicies": {
+              "type": "array",
+              "items": {
+                "$ref": "integrations-signals.schema.json#/$defs/RecommendationPolicy"
+              },
+              "description": "Explicit opt-in grants for automatic project changes from named, versioned signal rules. Omission grants no authority."
+            },
+            "integrations": {
+              "type": "array",
+              "items": {
+                "$ref": "integrations-signals.schema.json#/$defs/IntegrationInstance"
+              },
+              "description": "Active integration connections to external services. Each entry connects a specific service instance to an IntegrationMapping that defines how external entities map to this project's practice elements. Multiple integrations can cover different systems or different aspects of the same system."
+            }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "practiceName"
+              ],
+              "not": {
+                "required": [
+                  "methodName"
+                ]
+              }
+            },
+            {
+              "required": [
+                "methodName"
+              ],
+              "not": {
+                "required": [
+                  "practiceName"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

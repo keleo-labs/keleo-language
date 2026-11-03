@@ -18,7 +18,7 @@ enforces it.
 
 | Layer | What it can express |
 |---|---|
-| Schema (`language.schema.json`) | Structure, types, required properties, cardinality, enumerated values |
+| Schema ([modular entry point](../../schemas/language.schema.json) or generated `language.schema.json`) | Structure, types, required properties, cardinality, enumerated values |
 | Semantics (this guidance) | Meaning, relationships between properties, rules that span elements |
 | Validators (`validate/`) | Everything the schema cannot express but a program can check |
 
@@ -238,7 +238,7 @@ Recorded here although the release is MINOR, because it changed merge behaviour 
 
 ### 16.9 Conformance
 
-A document conforms when it validates against `language.schema.json` **and** passes the
+A document conforms when it validates against either schema entry point **and** passes the
 validator for its kind with zero errors. Warnings are advisory: they report things that
 are usually wrong but legitimately may not be, and a conforming document may carry them.
 

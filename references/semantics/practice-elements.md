@@ -2,6 +2,8 @@
 
 ## 5 PracticeElement Foundations
 
+PracticeElement and its shared narrative and asset references are in the [common schema module](../../schemas/common.schema.json). Checklist, Test and other practice-specific elements are in the [practice module](../../schemas/practice.schema.json).
+
 Foundation elements provide the baseline from which all other methodology constructs inherit. They establish the universal properties required for identification, metadata classification, and sequential verification.
 
 ### 5.1 PracticeElement, Tagging Taxonomy, and Narrative Anchors
@@ -615,4 +617,3 @@ The following guidance applies to all uses of Background, Test, and Examples —
 - When `given` and `when` would both be empty — empty preconditions and triggers signal that the test is not grounded in a meaningful evaluation scenario
 - When the only `test.description` you can write is "Definition of done." — this indicates the test has no specific verification purpose
 - Baseline checklists should remain minimal — the practice layer is the natural place for detailed Gherkin structure
-

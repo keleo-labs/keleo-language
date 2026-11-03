@@ -2,6 +2,8 @@
 
 ## 13 Change Requests
 
+The structural definitions for ChangeRequest, ChangeSet and their operations are in the [changes schema module](../../schemas/changes.schema.json).
+
 The ChangeRequest type provides a pull-request-like mechanism for proposing, reviewing, and applying changes to Practice Language documents (baselines, practices, and methods). It enables structured change management across the practice lifecycle — from initial proposal through review to acceptance or rejection.
 
 ### 13.1 Purpose and Scope
