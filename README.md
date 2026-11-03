@@ -4,9 +4,11 @@ The Practice Language JSON Schema is a meta-model for describing practices, meth
 
 ## Schema
 
-The schema is defined in [`language.schema.json`](language.schema.json) using JSON Schema Draft 2020-12. Semantic guidance and operational architecture are documented in [`references/semantics.md`](references/semantics.md).
+The Practice Language is authored in the [modular schema](schemas/language.schema.json) using JSON Schema Draft 2020-12. New tools should load that entry point and register the six schemas beside it. The generated [`language.schema.json`](language.schema.json) remains a self-contained compatibility schema for existing tools and `$defs` links. It is deprecated as an authoring source, with no removal date. Both entry points apply the same rules. Semantic guidance and operational architecture are documented in [`references/semantics.md`](references/semantics.md).
 
-Schema **4.0.0** requires persistent UUID project identity and adds explicit project
+The modules group shared definitions in `common`, methodology definitions in `practice`, service mappings and signals in `integrations-signals`, execution and reporting in `project`, package metadata in `manifest` and change documents in `changes`. Each module exposes definitions under `$defs`; validate language documents through the entry point and manifests through `manifest.schema.json#/$defs/PackageManifest`. Edit a module, then run `npm run schema:build`; do not edit the generated file. `npm run schema:check` checks the bundle and validates the same fixtures through both entry points.
+
+Schema **4.0.1** changes schema packaging without changing document validation. Schema **4.0.0** introduced persistent UUID project identity, explicit project
 ownership, reporting, delegation templates and inherited reporting requirements.
 Read the [migration guide](references/semantics/project-hierarchy.md#migration-from-schema-3)
 before upgrading consumers. The project validator accepts catalogue snapshots,
@@ -14,10 +16,14 @@ report results and creation previews without applying writes.
 
 ### Additional metadata
 
-Two separate `1.0.0` schemas describe local authoring catalogs:
-[`source-catalog.schema.json`](source-catalog.schema.json) stores reusable source
-sections and [`practice-catalog.schema.json`](practice-catalog.schema.json) indexes
-one practice or baseline and its links to source sections. These catalogs are local
+Four `1.0.0` schemas describe local authoring catalogs:
+[`source-catalog.schema.json`](schemas/catalogs/source-catalog.schema.json) stores reusable source
+sections and [`practice-catalog.schema.json`](schemas/catalogs/practice-catalog.schema.json) indexes
+one practice or baseline and its links to source sections.
+[`methodology-catalog.schema.json`](schemas/catalogs/methodology-catalog.schema.json)
+keeps versioned Method or Practice variants in a named shared file, while
+[`project-catalog.schema.json`](schemas/catalogs/project-catalog.schema.json) records one Project's
+elements, sources and verified section links. Catalogs are local
 metadata, not Practice Language documents or bundle contents. Practice citations
 and references keep their existing role. See [catalog semantics](references/semantics/catalogs.md)
 and `validate/validate-catalog.py` for their meaning and checks.
@@ -26,6 +32,8 @@ The section lookup design is informed by [Kumar et al., *STAIR: STructure Aware
 Information Retriever* (2026)](https://arxiv.org/html/2609.03874v1). That paper
 evaluates a fine-tuned retriever; these catalog schemas make no claim to reproduce
 its model or measured accuracy.
+
+Package **5.0.0** moves the four catalog schema files from the repository root to `schemas/catalogs/`. Update any file paths that load those schemas; catalog JSON documents and their `1.0.0` schema versions do not change.
 
 ## What the language is
 
@@ -70,7 +78,7 @@ If you are generating practice content with an agent, check it in two layers. Va
 
 ## Tooling
 
-- **[keleo-pgen-llm](https://github.com/keleo-labs/keleo-pgen-llm)** — Generate new practices using LLM-driven Claude skills
+- **[keleo-pgen-llm](https://github.com/keleo-labs/keleo-pgen-llm)** — Generate new practices using LLM-driven skills
 - **[keleo-studio](https://github.com/keleo-labs/keleo-studio)** — Manage, update and visualise practices
 
 ## Validation
@@ -80,6 +88,7 @@ If you are generating practice content with an agent, check it in two layers. Va
 ```bash
 npm install
 node validate/validate-schema.js <file.json>
+node validate/validate-schema.js <file.json> --modular
 ```
 
 ### Practice and baseline validation (Python)

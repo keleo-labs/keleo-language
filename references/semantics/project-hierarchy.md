@@ -2,6 +2,8 @@
 
 ## Project hierarchy and reporting
 
+Project hierarchy, reporting and delegation structures are in the [project schema module](../../schemas/project.schema.json).
+
 Schema **4.0.0** separates persistent project identity, ownership, reporting and
 delegation. These contracts let consumers connect independent projects without
 changing their methods or interpreting relationship prose. The executable

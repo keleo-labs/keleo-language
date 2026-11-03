@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "schemaVersion:1.0.0",
+  "title": "Local Project catalog",
+  "type": "object",
+  "required": ["schemaVersion", "project", "elements", "methodologyCatalogs", "sources", "sourceSections"],
+  "properties": {
+    "schemaVersion": {"const": "1.0.0"},
+    "project": {
+      "type": "object", "required": ["name", "sha256", "path"],
+      "properties": {
+        "projectId": {"type": ["string", "null"]},
+        "name": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "path": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "elements": {"type": "array", "items": {"$ref": "#/$defs/element"}},
+    "methodologyCatalogs": {"type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}},
+    "sources": {"type": "array", "items": {
+      "type": "object", "required": ["pointer", "uri", "name", "sourceId", "status"],
+      "properties": {
+        "pointer": {"type": "string", "pattern": "^/"},
+        "uri": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "sourceId": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
+        "status": {"enum": ["fresh", "stale", "unavailable"]}
+      }, "additionalProperties": false
+    }},
+    "sourceSections": {"type": "object", "additionalProperties": {
+      "type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}
+    }}
+  },
+  "$defs": {"element": {
+    "type": "object", "required": ["pointer", "kind", "name", "text"],
+    "properties": {
+      "pointer": {"type": "string", "pattern": "^/"},
+      "kind": {"type": "string", "minLength": 1},
+      "name": {"type": "string", "minLength": 1},
+      "text": {"type": "string"}
+    }, "additionalProperties": false
+  }},
+  "additionalProperties": false
+}

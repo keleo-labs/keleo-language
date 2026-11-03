@@ -2,6 +2,8 @@
 
 ## 10 Narrative Management
 
+The shared structural definitions for narratives, citations, acknowledgements and assets are in the [common schema module](../../schemas/common.schema.json). Their meaning and use in a practice remain described here.
+
 Narratives provide a way for practices to include additional information and context about any PracticeElement. When used the narrative content **MUST** be kept succinct, providing information in a minimal outlined style. It should **NOT** replicate sections of the source content, instead it should provide a summary of that content, with **Citations** being used to direct the user to further reading.
 
 **Narrative Naming:**
@@ -282,7 +284,7 @@ Assets support multiple distribution models:
 
 Practice Language documents with file-based assets are distributed as `.keleo` packages — ZIP archives (MIME type `application/vnd.keleo.package+zip`) with a defined internal structure and a `manifest.json` describing the package contents. A package can contain any root type (practices, baselines, methods, projects) and supports externalised practice distribution where the merge algorithm resolves symbolic name references from the package's document inventory.
 
-For the complete specification — including manifest schema, directory layout, validation rules, and package resolution — see [specifications/packaging.md](../specifications/packaging.md). The manifest schema is defined as `$defs/PackageManifest` in `language.schema.json`.
+For the complete specification — including manifest schema, directory layout, validation rules, and package resolution — see [specifications/packaging.md](../../specifications/packaging.md). The manifest definition is in the [manifest schema module](../../schemas/manifest.schema.json), and remains available at `$defs/PackageManifest` in the compatibility schema. Schema module bundling does not change `.keleo` package contents.
 
 **Package as Library:**
 

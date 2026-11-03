@@ -563,22 +563,71 @@ Forecast weights enable systems to compute weighted projections before full reco
 
 #### Example: An Outcome on a Composition Practice
 
-A practice that holds no patterns, declares one orchestration over patterns its dependencies own, and measures the endeavour it composes:
+A practice can hold no patterns, compose patterns its dependencies own and pursue several outcomes through that orchestration. This fragment uses a `STAR` narrative type with an `Action` element in scope; the named patterns are supplied by dependencies:
 
 ```json
 {
+  "patternOrchestrations": [
+    {
+      "name": "Service Introduction",
+      "description": "Plan the milestones, build the shared foundation and establish operation to pursue Service Ready and Sustainable Operation. Planning identifies the readiness prerequisites and the operating responsibilities needed for both outcomes.",
+      "narrativeTypeName": "STAR",
+      "stages": [
+        {
+          "patternName": "Milestone Plan",
+          "seq": 1,
+          "relationship": "sequential",
+          "narrativeContexts": [
+            { "seq": 1, "narrativeElementName": "Action", "context": "Identify readiness prerequisites for Service Ready and operating responsibilities for Sustainable Operation." }
+          ]
+        },
+        {
+          "patternName": "Bootstrap the Platform",
+          "seq": 2,
+          "relationship": "sequential",
+          "narrativeContexts": [
+            { "seq": 1, "narrativeElementName": "Action", "context": "Build and prove the foundation to reach Service Ready and provide the starting point for Sustainable Operation." }
+          ]
+        },
+        {
+          "patternName": "Run the Platform",
+          "seq": 3,
+          "relationship": "sequential",
+          "narrativeContexts": [
+            { "seq": 1, "narrativeElementName": "Action", "context": "Establish the operating routine that Sustainable Operation calls for." }
+          ]
+        }
+      ]
+    }
+  ],
   "outcomes": [
     {
-      "name": "Programme Benefits Realised",
-      "description": "The benefits the programme was chartered to deliver.",
-      "measureDescription": "Percentage of the programme shape completed, weighted by tranche.",
+      "name": "Service Ready",
+      "description": "The shared foundation is ready for use.",
+      "measureDescription": "Readiness progress measured through planning and bootstrap completion.",
       "objectiveContributions": [
         {
-          "orchestrationName": "Programme Endeavour",
-          "recognizedAtStage": { "orchestrationName": "Project Endeavour" },
+          "orchestrationName": "Service Introduction",
+          "recognizedAtStage": { "patternName": "Bootstrap the Platform" },
           "stageForecastWeights": [
-            { "stage": { "patternName": "Tranche Plan" }, "weight": 0.3 },
-            { "stage": { "orchestrationName": "Project Endeavour" }, "weight": 1.0 }
+            { "stage": { "patternName": "Milestone Plan" }, "weight": 0.3 },
+            { "stage": { "patternName": "Bootstrap the Platform" }, "weight": 1.0 }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Sustainable Operation",
+      "description": "The service has an established operating routine.",
+      "measureDescription": "Operating progress measured through planning, bootstrap and operation completion.",
+      "objectiveContributions": [
+        {
+          "orchestrationName": "Service Introduction",
+          "recognizedAtStage": { "patternName": "Run the Platform" },
+          "stageForecastWeights": [
+            { "stage": { "patternName": "Milestone Plan" }, "weight": 0.2 },
+            { "stage": { "patternName": "Bootstrap the Platform" }, "weight": 0.6 },
+            { "stage": { "patternName": "Run the Platform" }, "weight": 1.0 }
           ]
         }
       ]
@@ -587,7 +636,9 @@ A practice that holds no patterns, declares one orchestration over patterns its 
 }
 ```
 
-The second stage is an embedded sub-endeavour, and naming it as the recognised point says the programme is realised when the project endeavour run inside it is. Resolving that stage goes one level down into the project's own stages and then into pattern views, which is where the project data lives.
+Both outcomes reference the same orchestration. Completion of the bootstrap stage recognises Service Ready at weight 1.0, while Sustainable Operation reaches weight 0.6 and is recognised at the later operating stage. The planning stage also advances both outcomes, with a separate weight for each. The operating stage has no declared contribution to Service Ready; its omission adds no further progress to that outcome.
+
+The descriptions explain intended value. Achievement still follows the existing contribution and stage-completion rules; the prose neither proves readiness nor introduces a completion gate.
 
 Where the same orchestration places `Sprint` twice — nested in a milestone plan and again on demand — the two are different stages, and a weight entry names the host to say which it means. The nested placement:
 
@@ -619,6 +670,16 @@ The on-demand one, which declares no host, carries no `relativeTo` either:
 ### 9.5 Pattern Orchestration: Layering Patterns Across an Endeavour
 
 Most patterns address one aspect of an endeavour — initial bootstrap, steady-state operation, cyclical change, release management, decommissioning. A `PatternOrchestration` expresses the level above: the shape of the whole, and how its constituent patterns are layered against one another. Some follow one another, some run alongside, some repeat inside the phases of a larger plan, and some are reached for when the team recognises the need.
+
+#### Outcome-based purpose and direction
+
+Find the outcomes whose `objectiveContributions.orchestrationName` names the orchestration. Those existing relationships identify the value it pursues: use its `description` to explain how the chosen shape serves that value and why progressing towards completion matters. An orchestration may pursue zero, one or several outcomes; no reverse outcome reference is needed.
+
+A stage may likewise advance zero, one or several outcomes. Read each outcome's stage references independently: `stageForecastWeights` declares progress and `recognizedAtStage` identifies full recognition. A stage does not automatically contribute to every outcome linked to its orchestration, and an omitted weight retains the existing implicit value of zero. Weights are cumulative progress for each outcome, not shares to divide between outcomes or combine into a new score.
+
+Use a stage's `narrativeContexts[].context` to explain how its work advances the relevant outcomes, under the orchestration's declared narrative type. If there is no narrative binding, explain that stage's rationale in the orchestration description. Neither a narrative binding nor an outcome link is required; stages have no separate `description` field.
+
+Purpose gives direction, while the existing measurement rules determine achievement. Purpose text does not change stage completion, require all linked outcomes before an orchestration can finish or add a new recognition rule. See the [composition example](#example-an-outcome-on-a-composition-practice) for two outcomes sharing stages with independent weights and recognition points.
 
 ```json
 {

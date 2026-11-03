@@ -2,6 +2,8 @@
 
 ## 4 Adapting and Composing Practices
 
+Practice, PracticeBaseline and Method definitions are in the [practice schema module](../../schemas/practice.schema.json). Cross-module references to shared elements do not change the composition rules below.
+
 The schema is built for modularity, allowing practices to be adapted and combined.
 
 ### 4.1 Practice Dependencies

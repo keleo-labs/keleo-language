@@ -4,7 +4,7 @@ Guiding principles specific to the Practice Language schema and its evolution. T
 
 ## Specifications and Documentation
 
-- **Three-layer coverage.** Every language concept requires coverage in three layers: schema definition (`language.schema.json`), semantic guidance (`references/semantics.md`), and validator support (`validate/`). A change that touches only one layer is incomplete.
+- **Three-layer coverage.** Every language concept requires coverage in three layers: schema definition (`schemas/`), semantic guidance (`references/semantics.md`), and validator support (`validate/`). A change that touches only one layer is incomplete.
 - **Semantics document the why, schema encodes the what.** The schema defines structural constraints; `semantics.md` explains operational meaning, authoring guidance, and decision frameworks. Neither is sufficient alone.
 - **Merge spec tracks composition behaviour.** Any schema change that affects how elements compose across practices or baselines must be reflected in `references/merge.md`. The merge algorithm is the consumer of the schema — if the merge spec doesn't know about a new type or relationship, it won't be processed during composition.
 
@@ -19,7 +19,9 @@ Guiding principles specific to the Practice Language schema and its evolution. T
 
 ## Versioning
 
-The `$comment` field in `language.schema.json` contains the authoritative version string in the format `schemaVersion:X.Y.Z`. Document-level `schemaVersion` fields in practices, baselines, methods, and projects reference this version for compatibility checking.
+The `$comment` field in `schemas/language.schema.json` contains the authoritative version string in the format `schemaVersion:X.Y.Z`. The generated `language.schema.json` copies that version for existing consumers. Document-level `schemaVersion` fields in practices, baselines, methods, and projects reference this version for compatibility checking.
+
+The six schema modules are the editing source. After changing one, regenerate `language.schema.json` with `npm run schema:build` and run `npm run schema:check`. Keep its root `$id`, document dispatch and `$defs` pointers compatible with existing consumers.
 
 Version component examples specific to this schema:
 - **MAJOR** — removing or renaming a field, restricting an optional field to required (rejects previously valid documents), altering existing enum values, restructuring type hierarchies.

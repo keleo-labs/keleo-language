@@ -117,6 +117,48 @@ class CompositionDiagnostics(unittest.TestCase):
         validator.validate_orchestrations()
         self.assertFalse(any('no sequential stage' in w['issue'] for w in validator.warnings))
 
+    def test_documented_orchestration_outcome_purpose(self):
+        """RFE #25: optional, independent outcome links in the authoring example."""
+        text = (ROOT / 'references/semantics/execution-and-patterns.md').read_text()
+        section = text.split('#### Example: An Outcome on a Composition Practice', 1)[1]
+        example = json.loads(re.search(r'```json\n(.*?)\n```', section, re.S).group(1))
+        validator = PracticeValidator(FIXTURES / 'fixture-practice-composition-outcome.json',
+                                      FIXTURES / 'fixture-baseline.json', SCHEMA,
+                                      [FIXTURES / 'fixture-practice-orchestration.json'])
+        validator.practice.update(example)
+        self.assertTrue(validator.validate_schema(), validator.errors)
+        self.assertTrue(validator.validate_orchestrations(), validator.errors)
+        self.assertFalse(validator.validate_outcomes(), validator.errors)
+        contributions = [o['objectiveContributions'][0] for o in example['outcomes']]
+        self.assertEqual({c['orchestrationName'] for c in contributions}, {'Service Introduction'})
+        self.assertEqual(contributions[0]['stageForecastWeights'][0]['stage'],
+                         contributions[1]['stageForecastWeights'][0]['stage'])
+        self.assertEqual([c['stageForecastWeights'][0]['weight'] for c in contributions], [0.3, 0.2])
+        self.assertNotEqual(contributions[0]['recognizedAtStage'], contributions[1]['recognizedAtStage'])
+
+        # The unweighted stage remains valid even when neither outcome names it.
+        for contribution in contributions:
+            contribution['stageForecastWeights'].pop(0)
+        self.assertFalse(validator.validate_outcomes(), validator.errors)
+
+        # Purpose text cannot substitute for a resolvable recognition reference.
+        original = deepcopy(contributions[0]['recognizedAtStage'])
+        contributions[0]['recognizedAtStage'] = {'patternName': 'Missing Stage'}
+        self.assertTrue(validator.validate_outcomes())
+        self.assertTrue(any('Missing Stage' in error['issue'] for error in validator.errors))
+        contributions[0]['recognizedAtStage'] = original
+        validator.errors = []
+
+        # An orchestration needs neither outcome links nor narrative binding.
+        validator.practice.pop('outcomes')
+        orchestration = validator.practice['patternOrchestrations'][0]
+        orchestration.pop('narrativeTypeName')
+        for stage in orchestration['stages']:
+            stage.pop('narrativeContexts')
+        self.assertTrue(validator.validate_schema(), validator.errors)
+        self.assertTrue(validator.validate_orchestrations(), validator.errors)
+        self.assertFalse(validator.validate_outcomes(), validator.errors)
+
 
 class ExternalSignals(unittest.TestCase):
     """Examples trace to specifications/external-signals.feature (RFE #23)."""

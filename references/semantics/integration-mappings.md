@@ -2,6 +2,8 @@
 
 ## 15 Integration Mappings
 
+IntegrationMapping and its supporting definitions are in the [integrations and signals schema module](../../schemas/integrations-signals.schema.json).
+
 The IntegrationMapping system bridges external services -- CRM platforms, project management tools, document stores, data warehouses, and other enterprise systems -- to Practice Language project elements. Rather than embedding ad-hoc mapping instructions in skill code or agent prompts, the Practice Language provides a structured, validatable document type for declaring how external entities correspond to alphas, work products, outcomes, and actions.
 
 ### 15.1 Purpose and Design Rationale

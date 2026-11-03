@@ -13,7 +13,8 @@ This project is consumed by other keleo projects via symlinks:
 
 ```
 keleo-language/
-├── language.schema.json          # The JSON Schema (Draft 2020-12)
+├── language.schema.json          # Generated compatibility schema (Draft 2020-12)
+├── schemas/                      # Modular source, entry point and catalog schemas
 ├── references/
 │   ├── semantics.md              # Semantic guidance hub (summaries + links to sub-documents)
 │   ├── semantics/                # Detailed semantic guidance sub-documents
@@ -45,7 +46,10 @@ keleo-language/
 
 | File | Purpose |
 |------|---------|
-| `language.schema.json` | JSON Schema (Draft 2020-12) defining Practice, PracticeBaseline, Method, and Project structures |
+| `schemas/language.schema.json` | Modular JSON Schema entry point for new tools |
+| `schemas/*.schema.json` | Source definitions grouped by language responsibility |
+| `schemas/catalogs/` | Independent local authoring catalog schemas |
+| `language.schema.json` | Generated compatibility schema for existing consumers |
 | `references/semantics.md` | Semantic guidance hub — summaries and links to detailed sub-documents in `references/semantics/` |
 | `references/semantics/` | Detailed semantic guidance, split by topic (composition, alphas, work products, patterns, etc.) |
 | `references/design-principles.md` | Project-specific design principles for schema evolution (supplements global coding standards) |
@@ -96,11 +100,11 @@ See [`references/design-principles.md`](references/design-principles.md) — rea
 
 ## Schema Evolution
 
-When modifying `language.schema.json`:
+When modifying the Practice Language schema:
 
-1. Update the schema
+1. Update the relevant module under `schemas/`, then run `npm run schema:build`
 2. Update the relevant sub-document in `references/semantics/` if the change affects operational semantics (and update the summary in `references/semantics.md` if a new section is added)
-3. Run validators against existing practices to check for regressions
+3. Run `npm run schema:check` and validators against existing practices to check for regressions
 4. Consuming projects pick up changes automatically via symlinks
 
 ## Consuming Projects

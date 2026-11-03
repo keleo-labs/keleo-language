@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/keleo-studio/schemas/language.schema.json",
+  "$comment": "schemaVersion:4.0.1",
+  "title": "Practice language (from language.mmd)",
+  "description": "Practice Language definitions, UUID-identified projects, integration mappings, signal journals and change documents. Methodology identity is by name; project identity is a persistent UUID. Methods support embedded documents, named references or a mix.",
+  "if": {
+    "type": "object",
+    "required": [
+      "changeSetId"
+    ]
+  },
+  "then": {
+    "$ref": "changes.schema.json#/$defs/ChangeSet"
+  },
+  "else": {
+    "if": {
+      "type": "object",
+      "required": [
+        "journalKind"
+      ]
+    },
+    "then": {
+      "$ref": "integrations-signals.schema.json#/$defs/SignalJournal"
+    },
+    "else": {
+      "if": {
+        "type": "object",
+        "required": [
+          "changeId"
+        ]
+      },
+      "then": {
+        "$ref": "changes.schema.json#/$defs/ChangeRequest"
+      },
+      "else": {
+        "if": {
+          "type": "object",
+          "required": [
+            "serviceKind"
+          ]
+        },
+        "then": {
+          "$ref": "integrations-signals.schema.json#/$defs/IntegrationMapping"
+        },
+        "else": {
+          "if": {
+            "type": "object",
+            "anyOf": [
+              {
+                "required": [
+                  "practiceName"
+                ]
+              },
+              {
+                "required": [
+                  "methodName"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "$ref": "project.schema.json#/$defs/Project"
+          },
+          "else": {
+            "if": {
+              "type": "object",
+              "anyOf": [
+                {
+                  "required": [
+                    "practices"
+                  ]
+                },
+                {
+                  "required": [
+                    "practiceNames"
+                  ]
+                },
+                {
+                  "required": [
+                    "baselinePractice"
+                  ]
+                }
+              ]
+            },
+            "then": {
+              "$ref": "practice.schema.json#/$defs/Method"
+            },
+            "else": {
+              "if": {
+                "type": "object",
+                "required": [
+                  "baselinePracticeName"
+                ]
+              },
+              "then": {
+                "$ref": "practice.schema.json#/$defs/Practice"
+              },
+              "else": {
+                "$ref": "practice.schema.json#/$defs/PracticeBaseline"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
