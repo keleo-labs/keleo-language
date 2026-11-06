@@ -77,4 +77,23 @@ delete invalid.alphas[0].name;
 assert.equal(validateLegacy(invalid), false);
 assert.equal(validateModular(invalid), false);
 
-console.log(`Schema parity: ${names.size} definitions, ${checked} fixtures, one invalid mutation`);
+const baseline = { kind: 'practiceBaseline', name: 'Sparse baseline', description: 'A sparse baseline.',
+  baselinePracticeNames: ['Parent baseline'],
+  outcomes: [{ name: 'Value', description: 'A measured result.' }],
+  projectCreationTemplates: [JSON.parse(fs.readFileSync(path.join(fixtures, 'fixture-project-template.json'), 'utf8'))] };
+const extension = { kind: 'practice', name: 'Extension', description: 'An extension.',
+  baselinePracticeName: 'Sparse baseline' };
+const embedded = { name: 'Method', description: 'A method.',
+  baselinePractice: { name: 'Embedded baseline', description: 'A baseline.' }, practices: [] };
+for (const [document, valid] of [
+  [baseline, true], [extension, true], [embedded, true],
+  [{ ...baseline, kind: undefined }, false],
+  [{ ...extension, baselinePracticeName: undefined }, false],
+  [{ ...baseline, baselinePracticeName: 'Parent baseline' }, false],
+  [{ ...baseline, practiceDependencyNames: ['Extension'] }, false],
+]) {
+  assert.equal(!!validateLegacy(document), valid, JSON.stringify(document));
+  assert.equal(!!validateModular(document), valid, JSON.stringify(document));
+}
+
+console.log(`Schema parity: ${names.size} definitions, ${checked} fixtures, eight behavior checks`);

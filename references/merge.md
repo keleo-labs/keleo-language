@@ -91,7 +91,7 @@ Before any element-level merging occurs, the system must determine the complete 
 
 ### 2.1 Baseline Dependencies
 
-A PracticeBaseline may declare `baselinePracticeNames` — an array of other baseline names it builds upon. Resolution uses **post-order depth-first search**: dependencies are fully resolved before the dependent baseline, ensuring the foundational kernel is always the first layer in the merge.
+A Practice with `kind: "practiceBaseline"` may declare `baselinePracticeNames` — an array of other baseline names it builds upon. Resolution uses **post-order depth-first search**: dependencies are fully resolved before the dependent baseline, ensuring the foundational kernel is always the first layer in the merge.
 
 **Cycle detection**: If a baseline's dependency chain references itself (directly or transitively), resolution throws an error. Missing library entries are silently skipped.
 
@@ -130,9 +130,9 @@ The merge begins by seeding an accumulator document from the resolved baseline:
 - **Alpha instances, work product instances, aliases, acknowledgements, references**: Initialized if present on the baseline.
 - **Metadata fields**: `authors`, `keywords`, `createdAt`, `updatedAt`, `version` are seeded from the baseline.
 - **Method-level fields**: The Method's own `name`, `description`, `tags`, `narratives`, `citations`, and `assets` are applied at initialization, with the Method's description taking precedence.
-- **Project creation templates**: Seed from the Method's own declarations; add
-  templates from practices and dependencies using the atomic versioned rules in
-  Section 6.17.
+- **Project creation templates**: Seed from the primary baseline and Method; add
+  templates from secondary baselines, practices and dependencies using the atomic
+  versioned rules in Section 6.17.
 
 A `mergesBaselinePracticeName` provenance field records which baseline was used, enabling tooling to distinguish merged composites from raw baselines. Notably, the merged output does **not** carry a `baselinePracticeName` field — it is structurally shaped as a kernel (with direct `alphas`, `focuses`, etc.) so that library resolution and enrichment stubs (Section 7.5) are not re-applied if the merged document is loaded again.
 
@@ -456,7 +456,7 @@ Orchestrations merge by canonical name. Within an orchestration, `stages` merge 
 Schema-4 report bindings do not change Outcome contribution merging. Reports
 belong to independent projects; they are not methodology merge targets.
 
-**Outcomes** merge by canonical name using the standard named-element merge (Section 5.1). When two practices define an Outcome with the same canonical name:
+**Outcomes** from baseline Practices, extension Practices and Methods merge by canonical name using the standard named-element merge (Section 5.1). When two layers define an Outcome with the same canonical name:
 
 - **Description**: follows the baseline-preservation rule (Section 4.2).
 - **Tags**: union within each dimension (Section 4.4).
@@ -473,7 +473,7 @@ Outcomes with unique names from either the base or overlay are preserved as-is.
 
 ### 6.17 Project creation templates
 
-`projectCreationTemplates` may appear on a Practice or Method. Include them from
+`projectCreationTemplates` may appear on a baseline Practice, extension Practice or Method. Include them from
 declared dependencies, embedded practices and the Method's own declarations.
 These templates are discoverable PracticeElements; preserve their descriptions,
 tags, narratives and asset references with their defining methodology context.
@@ -810,7 +810,7 @@ Elements not in the closure are removed from the merged output, producing a focu
 
 ### 10.3 Baseline Resolution
 
-When resolving a PracticeBaseline with `baselinePracticeNames`, the system creates a synthetic Method from the dependency chain and composes it. The result is a fully resolved baseline with all parent baseline content merged in.
+When resolving a Practice with `kind: "practiceBaseline"` and `baselinePracticeNames`, the system creates a synthetic Method from the dependency chain and composes it. The result is a fully resolved baseline with all parent baseline content merged in.
 
 ---
 

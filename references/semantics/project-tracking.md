@@ -19,9 +19,9 @@ The Practice Language defines practices, methods, and baselines as methodology s
 
 ### 12.1 Project Purpose and Root Discrimination
 
-A Project is distinct from Practice, Method, and PracticeBaseline. While those types define methodology constructs, a Project tracks real-world progress against a selected methodology. It is identified at the root level by the presence of `practiceName` or `methodName` — properties unique to the Project type.
+A Project is distinct from Practice and Method. While those types define methodology constructs, a Project tracks real-world progress against a selected methodology. It is identified at the root level by the presence of `practiceName` or `methodName` — properties unique to the Project type.
 
-**Root Discrimination:** The schema's if/then/else chain evaluates Project discrimination *before* the existing Method/Practice/PracticeBaseline checks. A document containing `practiceName` or `methodName` is validated as a Project; documents without these properties fall through to the existing discrimination logic.
+**Root Discrimination:** The schema's if/then/else chain evaluates Project discrimination *before* Method and Practice checks. A document containing `practiceName` or `methodName` is validated as a Project; documents without these properties fall through to the existing discrimination logic.
 
 **Practice/Method Reference:** A Project MUST name exactly one Practice or Method via an exclusive-or constraint:
 
@@ -30,7 +30,7 @@ A Project is distinct from Practice, Method, and PracticeBaseline. While those t
 
 Any system managing a Project would need to resolve all of the referenced Practice or Method's dependencies (including baseline and dependent practices) so the user operates against a single merged virtual practice. The resolution mechanism is a tooling concern, not a schema concern.
 
-**Metadata:** Projects carry the same provenance metadata as Practice and PracticeBaseline: `authors`, `createdAt`, `updatedAt`, `version`, and `keywords`. Projects may also include `citations`, `acknowledgements`, and `assets`.
+**Metadata:** Projects carry provenance metadata also available on Practice: `authors`, `createdAt`, `updatedAt`, `version`, and `keywords`. Projects may also include `citations`, `acknowledgements`, and `assets`.
 
 **Project-wide links:** The optional `links` array (ExternalLink objects) holds external references that describe the project as a whole rather than a specific tracked alpha/work-product instance — for example a remembered Smartsheet workspace/folder/plan URL, a team charter document, or a way-of-working document. Instance-specific links belong on that AlphaInstance/WorkProductInstance's own `links` instead.
 

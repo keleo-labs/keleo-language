@@ -4,7 +4,7 @@
   "description": "Account-team response to public investment signals.",
   "practiceName": "Fixture Account Planning",
   "version": "1.0.0",
-  "schemaVersion": "4.0.0",
+  "schemaVersion": "5.0.0",
   "plan": { "pattern": { "name": "Account plan", "description": "Investigate account priorities.", "patternViews": [{ "name": "Investigate", "description": "Review account signals.", "seq": 1, "alphaStates": [] }], "alphaInstanceNames": [] } },
   "current": {},
   "target": {},

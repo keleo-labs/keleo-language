@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/schemas/manifest.schema.json",
-  "$comment": "schemaVersion:4.0.1",
+  "$comment": "schemaVersion:5.0.0",
   "$defs": {
     "DocumentVersionConstraint": {
       "type": "object",

@@ -79,7 +79,7 @@ The schema provides native support for bibliographic references through the Cita
 
 Use `pages` when the citation refers to a specific portion of a larger work — a chapter in an edited book, an article spanning specific pages in a journal, or a section within a standard.
 
-**Citation Scope and Aggregation**: Citations can be defined at multiple levels of the methodology hierarchy. PracticeBaseline documents may declare foundational citations for core concepts. Practice documents can add domain-specific citations relevant to the practice domain. Method documents aggregate citations from their baseline and constituent practices, providing a unified bibliography for the complete methodology composition.
+**Citation Scope and Aggregation**: Citations can be defined at multiple levels of the methodology hierarchy. Baseline Practices may declare foundational citations for core concepts. Extension Practices can add domain-specific citations relevant to the practice domain. Method documents aggregate citations from their baseline and constituent practices, providing a unified bibliography for the complete methodology composition.
 
 **Narrative Integration**: The Narrative object supports an optional citationNames array, enabling authors to explicitly link narrative contexts to their supporting literature. Each entry in citationNames must match the name property of a Citation object within the same practice or method scope. This symbolic linking allows operational tooling to generate properly formatted reference lists, validate citation integrity, and support advanced knowledge retrieval patterns.
 
@@ -111,7 +111,7 @@ Each Acknowledgement extends PracticeElement (requiring `name` and `description`
 
 Acknowledgements can be declared at multiple levels of the methodology hierarchy:
 
-- **PracticeBaseline**: Acknowledge contributors to the foundational baseline (e.g., original framework authors, domain experts who shaped the core ontology)
+- **Baseline Practice**: Acknowledge contributors to the foundational baseline (e.g., original framework authors, domain experts who shaped the core ontology)
 - **Practice**: Acknowledge contributors to the specific practice extension (e.g., practitioners who provided domain expertise, reviewers, or pilot teams)
 - **Method**: Acknowledge contributors at the method composition level, aggregating recognition across the baseline and constituent practices
 
@@ -161,7 +161,7 @@ Visual assets (diagrams, templates, icons) enhance practice comprehension and ad
 
 ### 11.1 Asset Declaration
 
-Assets are declared in a top-level `assets` array on Practice, PracticeBaseline, or Method objects. Each asset has:
+Assets are declared in a top-level `assets` array on Practice or Method objects. Each asset has:
 
 - **`name`** (required): Unique identifier for symbolic referencing
 - **`type`** (required): Asset category - `image`, `diagram`, `template`, `icon`, or `font-character`

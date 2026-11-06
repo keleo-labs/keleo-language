@@ -41,6 +41,31 @@ FIXTURES = ROOT / 'validate' / 'fixtures'
 
 
 class CompositionDiagnostics(unittest.TestCase):
+    def test_baseline_outcome_can_use_practice_contributions(self):
+        validator = BaselineValidator(FIXTURES / 'fixture-baseline.json', None, SCHEMA)
+        validator.baseline['outcomes'] = [{
+            'name': 'Value', 'description': 'Measured value.',
+            'metricContributions': [{'alphaName': 'Platform', 'metricName': 'Throughput'}],
+        }]
+        self.assertTrue(validator.validate_schema(), validator.errors)
+        validator.validate_outcomes()
+        self.assertEqual(validator.errors, [])
+
+    def test_baseline_project_template_uses_shared_validation(self):
+        validator = BaselineValidator(FIXTURES / 'fixture-baseline.json',
+                                      FIXTURES / 'fixture-baseline.json', SCHEMA)
+        template = json.loads((FIXTURES / 'fixture-project-template.json').read_text())
+        template['rootTypeName'] = 'Platform'
+        validator.baseline = {'kind': 'practiceBaseline', 'name': 'Child',
+                              'description': 'A sparse child baseline.',
+                              'baselinePracticeNames': ['Fixture Essentials'],
+                              'projectCreationTemplates': [template]}
+        self.assertTrue(validator.validate_project_creation_templates(), validator.errors)
+        template['rootTypeName'] = 'Missing alpha'
+        validator.errors = []
+        self.assertFalse(validator.validate_project_creation_templates())
+        self.assertTrue(any(e.get('code') == 'TEMPLATE_ROOT_UNRESOLVED' for e in validator.errors))
+
     def test_baseline_group_deprecation(self):
         validator = BaselineValidator(FIXTURES / 'fixture-baseline.json', None, SCHEMA)
         for groups, count in (([], 0), ([{'name': 'Template', 'entries': []}], 1)):
@@ -162,6 +187,9 @@ class CompositionDiagnostics(unittest.TestCase):
 
 class ExternalSignals(unittest.TestCase):
     """Examples trace to specifications/external-signals.feature (RFE #23)."""
+
+    def test_sparse_baseline_kind_is_authoritative(self):
+        self.assertEqual(document_type({'kind': 'practiceBaseline', 'name': 'Sparse'}), 'practiceBaseline')
 
     def setUp(self):
         self.schema = json.loads(SCHEMA.read_text())
@@ -618,7 +646,7 @@ class ProjectHierarchy(unittest.TestCase):
         legacy['schemaVersion'] = '3.3.0'
         original = deepcopy(legacy)
         migrated = deepcopy(legacy)
-        migrated.update(projectId=self.parent['projectId'], schemaVersion='4.0.0')
+        migrated.update(projectId=self.parent['projectId'], schemaVersion='5.0.0')
         validator = ProjectValidator(FIXTURES / 'fixture-signal-project.json', SCHEMA, project=migrated)
         self.assertTrue(validator.validate_local(), validator.errors)
         self.assertEqual(legacy, original)
@@ -1088,7 +1116,7 @@ class ProjectHierarchy(unittest.TestCase):
 
     def test_package_inventory_uuid_matches_document_and_rejects_duplicates(self):
         entry = {'path': 'documents/project.json', 'documentType': 'project', 'documentName': self.parent['name'], 'projectId': self.parent['projectId']}
-        manifest = {'schemaVersion': '4.0.0', 'package': {'name': 'example', 'description': 'Synthetic project snapshot.', 'version': '1.0.0'}, 'documents': [entry]}
+        manifest = {'schemaVersion': '5.0.0', 'package': {'name': 'example', 'description': 'Synthetic project snapshot.', 'version': '1.0.0'}, 'documents': [entry]}
         context = self.context()
         self.assertTrue(context.validate_project_inventory(manifest, {entry['path']: self.parent}), context.errors)
         entry['projectId'] = self.first['projectId']

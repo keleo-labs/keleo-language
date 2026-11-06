@@ -37,6 +37,8 @@ def document_type(document):
         return 'project'
     if any(key in document for key in ('practices', 'practiceNames', 'baselinePractice')):
         return 'method'
+    if document.get('kind') in ('practice', 'practiceBaseline'):
+        return document['kind']
     if 'baselinePracticeName' in document:
         return 'practice'
     return 'practiceBaseline'
@@ -132,6 +134,10 @@ class SignalValidator:
                 dependency = self.resolve('practice', name, path)
                 if dependency:
                     result.extend(self.elements(dependency, path, seen))
+        for name in document.get('baselinePracticeNames', []):
+            dependency = self.resolve('practiceBaseline', name, path)
+            if dependency:
+                result.extend(self.elements(dependency, path, seen))
         return result
 
     def check_elements(self, scope, references, path):
