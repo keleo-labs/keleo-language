@@ -2,7 +2,7 @@
 
 ## 4 Adapting and Composing Practices
 
-Practice, PracticeBaseline and Method definitions are in the [practice schema module](../../schemas/practice.schema.json). Cross-module references to shared elements do not change the composition rules below.
+Practice and Method definitions are in the [practice schema module](../../schemas/practice.schema.json). The Practice `kind` identifies baselines and extensions. Cross-module references to shared elements do not change the composition rules below.
 
 The schema is built for modularity, allowing practices to be adapted and combined.
 
@@ -465,7 +465,7 @@ Practices can now adapt PracticeElements from dependent practices or the baselin
 - Source methodology uses alternative term to mean the same thing
 - Providing an alias will allow users to better understand the methodology
 - Can be used with Redeclaration
-- Available on both Practice and PracticeBaseline — baselines adapting a parent baseline for a domain use aliases to remap terminology (e.g., "Platform" → "Automation Platform")
+- Available on both baseline and extension Practices — baselines adapting a parent baseline for a domain use aliases to remap terminology (e.g., "Platform" → "Automation Platform")
 
 **Decision Matrix:**
 

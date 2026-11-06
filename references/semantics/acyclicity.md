@@ -159,9 +159,9 @@ These follow the same acyclicity rules as their abstract counterparts (14.2.1 an
 
 Document-level references create dependency graphs that must be acyclic to support resolution ordering.
 
-#### 14.3.1 Baseline Dependencies (`PracticeBaseline.baselinePracticeNames`)
+#### 14.3.1 Baseline Dependencies (`baselinePracticeNames`)
 
-**Property:** `PracticeBaseline.baselinePracticeNames` — array of baseline names this baseline depends on.
+**Property:** `baselinePracticeNames` on a Practice with `kind: "practiceBaseline"` — array of baseline names this baseline depends on.
 
 **Constraint:** The directed graph formed by baseline dependency edges must be a DAG. Baseline A cannot depend on Baseline B if B (directly or transitively) depends on A.
 
@@ -198,7 +198,7 @@ Practices also reference baselines via `baselinePracticeName`. While a practice 
 | `Background.alphaInstanceStates` | AlphaInstance, WorkProductInstance | Instance prerequisites | All instances in project |
 | `Background.workProductInstanceLevels` | AlphaInstance, WorkProductInstance | Instance prerequisites | All instances in project |
 | `contributesToState` | State | State-level contribution | States across alpha hierarchy |
-| `baselinePracticeNames` | PracticeBaseline | Document dependencies | All baselines in registry |
+| `baselinePracticeNames` | Baseline Practice | Document dependencies | All baselines in registry |
 | `practiceDependencyNames` | Practice | Document dependencies | All practices in registry |
 | `supersedes` | ChangeRequest | Revision chain | All change requests for target document |
 | `personaGroupNames` | PersonaGroup | Membership hierarchy | All persona groups in baseline + practice + dependencies |

@@ -142,17 +142,17 @@ Before examining specific language elements, it is necessary to establish the ov
 
 ## 3 Method, Practice, and Baseline Architecture
 
-At the highest structural level, the schema utilizes a root-level if/then/else validation block to programmatically discriminate between operational entities. This ensures that extension practices are not erroneously validated as full baselines.
+At the highest structural level, the schema distinguishes methods, projects and other document families. Standalone practice documents require `kind`: `practiceBaseline` identifies a baseline and `practice` identifies an extension.
 
 ### 3.1 Method Root Type and Discrimination Logic
 
-- **PracticeBaseline**: A domain-agnostic, version-controlled registry of core constructs.  
-- **Practice**: An applied methodology extension, identified by the presence of a baselinePracticeName.  
+- **Practice with `kind: "practiceBaseline"`**: A baseline whose elements seed a method. It may name parent baselines with `baselinePracticeNames` and may use every practice collection, including outcomes, patterns and project creation templates. Foundational arrays and metadata are optional.
+- **Practice with `kind: "practice"`**: An extension requiring `baselinePracticeName`. It may name other extension dependencies with `practiceDependencyNames`.
 - **Method**: The highest-level container, orchestrating a core baselinePractice alongside an array of supplementary practices.
 
 ### 3.2 Metadata and Provenance
 
-Both Practice and PracticeBaselineShape mandate explicit metadata properties: authors, createdAt, updatedAt, version, and keywords. Operational tooling must enforce strict version control and standardized ISO timestamp formats for these fields to ensure auditability, intellectual property tracking, and proper lifecycle management of the methodology itself.
+Practice metadata properties `authors`, `createdAt`, `updatedAt`, `version` and `keywords` are optional for both kinds. Authors should provide them when provenance and version comparison matter. The baseline validator checks the elements that are present without requiring foundational arrays.
 
 ### 3.3 Schema Versioning and Document Compatibility
 
@@ -162,7 +162,7 @@ The Practice Language schema declares its own version via a `$comment` keyword a
 - **Minor** version bump: additive, non-breaking changes (new optional fields, new `$defs` types, expanded enums). Documents authored against a prior minor version still validate.
 - **Patch** version bump: non-structural changes (description corrections, documentation updates).
 
-Individual documents declare which schema version they target via an optional `schemaVersion` property (pattern `^\d+\.\d+\.\d+$`). This field is available on Practice, PracticeBaseline, Method, Project, ChangeRequest, and ChangeSet. When present, consuming systems should check compatibility before parsing:
+Individual documents declare which schema version they target via an optional `schemaVersion` property (pattern `^\d+\.\d+\.\d+$`). This field is available on Practice, Method, Project, ChangeRequest, and ChangeSet. When present, consuming systems should check compatibility before parsing:
 
 - If the document's major version exceeds the tool's supported major version, reject the document.
 - If the document's minor version exceeds the tool's, emit a warning (some features may not be understood).
@@ -172,11 +172,36 @@ When a document is packaged in a `.keleo` file, its `schemaVersion` should be co
 
 ### 3.4 Document Version Format
 
-The `version` field on Practice, PracticeBaseline, Method, and Project represents the version of that document. The recommended format is semver (e.g. `1.0.0`), but shortened forms like `1.0` remain valid for backwards compatibility. Tooling that performs version range comparison should normalise non-semver versions to three-part form: `1.0` becomes `1.0.0`, `2` becomes `2.0.0`.
+The `version` field on Practice, Method, and Project represents the version of that document. The recommended format is semver (e.g. `1.0.0`), but shortened forms like `1.0` remain valid for backwards compatibility. Tooling that performs version range comparison should normalise non-semver versions to three-part form: `1.0` becomes `1.0.0`, `2` becomes `2.0.0`.
 
 ### 3.5 Schema Modules and Compatibility
 
 The [modular entry point](../schemas/language.schema.json) keeps the same root document discrimination as the generated [compatibility schema](../language.schema.json). The compatibility file is deprecated as an editing source but remains available to existing consumers. Both entry points validate the same Practice Language documents; splitting definitions across files does not change document structure or meaning.
+
+### 3.6 Migration from schema 4.x
+
+Replace references to the `PracticeBaseline` schema definition with `Practice`. A standalone baseline keeps `kind: "practiceBaseline"`, its existing fields and any `baselinePracticeNames`. Change the historical validator-only value `kind: "baseline"` to `practiceBaseline`. A standalone extension keeps `kind: "practice"` and `baselinePracticeName`. Add `kind` to older standalone documents that omitted it. The Method fields `baselinePractice` and `baselinePracticeName`, and package inventory value `documentType: "practiceBaseline"`, retain their names. An embedded baseline may omit `kind` because the Method field supplies its role.
+
+When republishing a migrated document, set its `schemaVersion` and the package manifest's schema version to `5.0.0`. Consumers must use `kind` to classify standalone documents; populated arrays are no longer evidence that a document is a baseline. A baseline may omit all foundational arrays and metadata, but a consumer that needs populated content should report that requirement at its own boundary.
+
+```gherkin
+Scenario: Existing baseline retains its parent chain
+  Given a schema 4.x baseline with kind "practiceBaseline" and baselinePracticeNames
+  When its schemaVersion is updated to "5.0.0"
+  Then the document validates as Practice
+  And its parent baselines resolve before its own content
+
+Scenario: Sparse baseline is still identifiable
+  Given a standalone Practice with kind "practiceBaseline", name and description
+  When it is validated and loaded into a library
+  Then it is accepted as a baseline
+  And the library classifies it by kind
+
+Scenario: Extension still names a baseline
+  Given a standalone Practice with kind "practice" and no baselinePracticeName
+  When it is validated
+  Then validation fails
+```
 
 Definitions are grouped by responsibility: [common](../schemas/common.schema.json) holds shared elements, assets, citations and narratives; [practice](../schemas/practice.schema.json) holds baselines, practices, methods and their elements; [integrations-signals](../schemas/integrations-signals.schema.json) holds service mappings and signal workflows; [project](../schemas/project.schema.json) holds execution, reporting and delegation; [manifest](../schemas/manifest.schema.json) holds package metadata; and [changes](../schemas/changes.schema.json) holds change documents. References between modules resolve by schema `$id`. New tools must register the local modules before validating through the modular entry point.
 

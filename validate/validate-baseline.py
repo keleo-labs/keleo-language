@@ -152,32 +152,17 @@ class BaselineValidator:
 
         # Check discriminator
         kind = self.baseline.get('kind')
-        if kind not in ['baseline', 'practiceBaseline']:
+        if kind != 'practiceBaseline':
             self.errors.append({
                 "category": "baseline",
                 "severity": "error",
                 "path": "kind",
-                "issue": f"Baseline must have kind='baseline' or 'practiceBaseline', found: {kind}",
-                "expected": "baseline or practiceBaseline",
+                "issue": f"Baseline must have kind='practiceBaseline', found: {kind}",
+                "expected": "practiceBaseline",
                 "actual": kind,
                 "suggestion": "Set kind property to 'practiceBaseline'"
             })
             has_errors = True
-
-        # Check required top-level arrays
-        required_arrays = ['focuses', 'narrativeTypes', 'alphas', 'activitySpaces', 'competencies']
-        for arr_name in required_arrays:
-            if arr_name not in self.baseline or not isinstance(self.baseline.get(arr_name), list):
-                self.errors.append({
-                    "category": "baseline",
-                    "severity": "error",
-                    "path": arr_name,
-                    "issue": f"Baseline must define {arr_name} array",
-                    "expected": f"Array of {arr_name}",
-                    "actual": type(self.baseline.get(arr_name)).__name__ if arr_name in self.baseline else "missing",
-                    "suggestion": f"Add {arr_name} array with foundational elements"
-                })
-                has_errors = True
 
         # Check focuses
         focuses = self.baseline.get('focuses', [])
@@ -1125,7 +1110,7 @@ class BaselineValidator:
                             break
 
     def validate_outcomes(self) -> None:
-        """Validate baseline outcomes: count, measureDescription, no contribution arrays."""
+        """Advise on baseline outcome authoring without restricting Practice fields."""
         outcomes = self.baseline.get('outcomes', [])
 
         if not outcomes:
@@ -1134,7 +1119,7 @@ class BaselineValidator:
                 "severity": "warning",
                 "path": "outcomes",
                 "issue": "Baseline has no outcomes — baselines should have 1-3 high-level value propositions",
-                "suggestion": "Add 1-3 outcomes with measureDescription (no metricContributions or objectiveContributions)"
+                "suggestion": "Add outcomes with measureDescription when the baseline defines value measures"
             })
             return
 
@@ -1160,27 +1145,19 @@ class BaselineValidator:
                     "suggestion": "Add measureDescription explaining how success is measured at the domain level"
                 })
 
-            if outcome.get('metricContributions'):
-                self.errors.append({
-                    "category": "outcomes",
-                    "severity": "error",
-                    "path": f"{opath}.metricContributions",
-                    "issue": f"Baseline outcome '{oname}' has metricContributions — baselines use measureDescription only",
-                    "expected": "No metricContributions (extension practices add these)",
-                    "actual": f"{len(outcome['metricContributions'])} entries",
-                    "suggestion": "Remove metricContributions — baseline outcomes define measurement frameworks, extension practices bind to specific alphas"
-                })
+    def validate_project_creation_templates(self) -> bool:
+        if not self.baseline.get('projectCreationTemplates'):
+            return True
+        from delegation_validation import validate_templates
+        from project_catalogue import ProjectCatalogue
 
-            if outcome.get('objectiveContributions'):
-                self.errors.append({
-                    "category": "outcomes",
-                    "severity": "error",
-                    "path": f"{opath}.objectiveContributions",
-                    "issue": f"Baseline outcome '{oname}' has objectiveContributions — baselines use measureDescription only",
-                    "expected": "No objectiveContributions (extension practices add these)",
-                    "actual": f"{len(outcome['objectiveContributions'])} entries",
-                    "suggestion": "Remove objectiveContributions — baseline outcomes define measurement frameworks, extension practices bind to specific patterns"
-                })
+        documents = [self.baseline] + ([self.parent_baseline] if self.parent_baseline else [])
+        context = ProjectCatalogue(self.schema, documents=documents)
+        if context.check(self.baseline, 'Practice'):
+            validate_templates(context, self.baseline, context.methodology_scope(self.baseline))
+        self.errors.extend(context.errors)
+        self.warnings.extend(context.warnings)
+        return not context.errors
 
     def validate_universality(self) -> None:
         """Check for overly specific terminology (warnings only)"""
@@ -1233,6 +1210,7 @@ class BaselineValidator:
         # PatternGroup governance, outcomes, universality, and checklist quality are warnings only
         self.validate_pattern_groups()
         self.validate_outcomes()
+        templates_valid = self.validate_project_creation_templates() if schema_valid else False
         self.validate_universality()
         self.validate_checklist_quality()
 
@@ -1244,6 +1222,7 @@ class BaselineValidator:
         # Overall validity
         is_valid = (
             orchestration_shells_valid and
+            templates_valid and
             schema_valid and
             redeclaration_valid and
             structure_valid and

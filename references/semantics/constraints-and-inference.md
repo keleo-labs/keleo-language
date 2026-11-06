@@ -33,7 +33,7 @@ Validator entry points:
 | Document kind | Validator |
 |---|---|
 | Practice, Method | [`validate-practice.py`](../../validate/validate-practice.py) |
-| PracticeBaseline | [`validate-baseline.py`](../../validate/validate-baseline.py) |
+| Baseline Practice (`kind: "practiceBaseline"`) | [`validate-baseline.py`](../../validate/validate-baseline.py) |
 | Project | [`validate-project.py`](../../validate/validate-project.py) |
 | IntegrationMapping | [`validate-integration-mapping.py`](../../validate/validate-integration-mapping.py) |
 | SignalJournal | [`validate-signal-journal.py`](../../validate/validate-signal-journal.py) |
@@ -113,7 +113,7 @@ errors in all of the following:
 - `Background.alphaStates`, `Background.workProductLevels` and their instance-level
   counterparts
 - `State.contributesToState`
-- `PracticeBaseline.baselinePracticeNames` and `Practice.practiceDependencyNames`
+- `baselinePracticeNames` on baseline Practices and `practiceDependencyNames` on extension Practices
 - `ChangeRequest.supersedes`
 - `OrchestrationStage.orchestrationName` — the orchestration embedding graph
   ([§14.1.8](acyclicity.md#1418-patternorchestration-embedding-hierarchy-orchestrationstageorchestrationname))

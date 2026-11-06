@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/language.schema.json",
-  "$comment": "schemaVersion:4.0.1",
+  "$comment": "schemaVersion:5.0.0",
   "title": "Practice language (from language.mmd)",
   "description": "Practice Language definitions, UUID-identified projects, integration mappings, signal journals and change documents. Methodology identity is by name; project identity is a persistent UUID. Methods support embedded documents, named references or a mix.",
   "if": {
@@ -87,18 +87,16 @@
               "$ref": "#/$defs/Method"
             },
             "else": {
-              "if": {
-                "type": "object",
-                "required": [
-                  "baselinePracticeName"
-                ]
-              },
-              "then": {
-                "$ref": "#/$defs/Practice"
-              },
-              "else": {
-                "$ref": "#/$defs/PracticeBaseline"
-              }
+              "allOf": [
+                {
+                  "required": [
+                    "kind"
+                  ]
+                },
+                {
+                  "$ref": "#/$defs/Practice"
+                }
+              ]
             }
           }
         }
@@ -3225,7 +3223,7 @@
       "properties": {
         "baselineName": {
           "type": "string",
-          "description": "Name of the PracticeBaseline containing the referenced alpha (symbolic link; must match a PracticeBaseline.name accessible to the method)."
+          "description": "Name of the baseline Practice containing the referenced alpha (symbolic link; must match an accessible baseline Practice.name)."
         },
         "alphaName": {
           "type": "string",
@@ -3244,7 +3242,7 @@
       "properties": {
         "baselineName": {
           "type": "string",
-          "description": "Name of the PracticeBaseline containing the referenced work product (symbolic link; must match a PracticeBaseline.name accessible to the method)."
+          "description": "Name of the baseline Practice containing the referenced work product (symbolic link; must match an accessible baseline Practice.name)."
         },
         "workProductName": {
           "type": "string",
@@ -3263,7 +3261,7 @@
       "properties": {
         "baselineName": {
           "type": "string",
-          "description": "Name of the PracticeBaseline containing the source alpha (symbolic link; must match a PracticeBaseline.name accessible to the method)."
+          "description": "Name of the baseline Practice containing the source alpha (symbolic link; must match an accessible baseline Practice.name)."
         },
         "alphaName": {
           "type": "string",
@@ -3308,7 +3306,7 @@
       "properties": {
         "baselineName": {
           "type": "string",
-          "description": "Name of the PracticeBaseline containing the source work product (symbolic link; must match a PracticeBaseline.name accessible to the method)."
+          "description": "Name of the baseline Practice containing the source work product (symbolic link; must match an accessible baseline Practice.name)."
         },
         "workProductName": {
           "type": "string",
@@ -3411,7 +3409,7 @@
     },
     "PracticeElementAlias": {
       "type": "object",
-      "description": "Local name alias: aliasName is treated as an alternate string for (practiceElementType, practiceElementName) within the same document (language.mmd). Not a PracticeElement subclass; embedded under Practice.practiceElementAliases or PracticeBaseline.practiceElementAliases.",
+      "description": "Local name alias: aliasName is treated as an alternate string for (practiceElementType, practiceElementName) within the same document (language.mmd). Not a PracticeElement subclass; embedded under Practice.practiceElementAliases.",
       "required": [
         "practiceElementType",
         "practiceElementName",
@@ -4910,178 +4908,28 @@
       },
       "additionalProperties": false
     },
-    "PracticeBaselineShape": {
-      "description": "PracticeElement + baseline arrays and metadata (no document-level unevaluatedProperties; compose into PracticeBaseline or Practice).",
+    "Practice": {
+      "description": "A practice document. kind identifies a baseline or an extension; baselines may use the same element collections and metadata as extensions.",
       "allOf": [
         {
           "$ref": "#/$defs/PracticeElement"
         },
         {
           "type": "object",
-          "required": [
-            "focuses",
-            "alphas",
-            "activitySpaces",
-            "competencies",
-            "authors",
-            "createdAt",
-            "updatedAt",
-            "version",
-            "keywords"
-          ],
           "properties": {
-            "focuses": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/Focus"
-              }
+            "kind": {
+              "enum": [
+                "practice",
+                "practiceBaseline"
+              ]
             },
-            "alphas": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/Alpha"
-              }
-            },
-            "alphaInstances": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/AlphaInstanceName"
-              },
-              "description": "Optional list of AlphaInstance names used to allow baselines to identify instances of concepts or areas of concern within the baseline."
-            },
-            "activitySpaces": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/ActivitySpace"
-              }
-            },
-            "competencies": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/Competency"
-              }
-            },
-            "authors": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "createdAt": {
-              "type": "string"
-            },
-            "updatedAt": {
-              "type": "string"
-            },
-            "version": {
-              "type": "string",
-              "description": "Version of this document. Recommended format: semver (e.g. '1.0.0'). Shortened forms like '1.0' remain valid; tooling normalises to three-part semver for range comparison."
-            },
-            "schemaVersion": {
-              "type": "string",
-              "pattern": "^\\d+\\.\\d+\\.\\d+$",
-              "description": "Version of the Practice Language schema this document was authored against (e.g. '1.0.0'). Consumers use this to determine compatibility before parsing. Should match the schemaVersion declared in the schema's root $comment and in any PackageManifest that packages this document."
-            },
-            "keywords": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "narrativeTypes": {
-              "type": "array",
-              "description": "Narrative spine types defined in this baseline aggregate (language.mmd).",
-              "items": {
-                "$ref": "#/$defs/NarrativeType"
-              }
-            },
-            "citations": {
-              "type": "array",
-              "description": "Bibliographic references defined in this baseline.",
-              "items": {
-                "$ref": "#/$defs/Citation"
-              }
-            },
-            "acknowledgements": {
-              "type": "array",
-              "description": "Acknowledgements of people or institutions that have supported this work",
-              "items": {
-                "$ref": "#/$defs/Acknowledgement"
-              }
-            },
-            "assets": {
-              "type": "array",
-              "description": "Optional array of visual assets (diagrams, templates, icons) referenced by practice elements",
-              "items": {
-                "$ref": "#/$defs/Asset"
-              }
-            },
-            "patternOrchestrations": {
-              "type": "array",
-              "description": "Orchestrations sequencing whole patterns into the shape of an endeavour: which constituent pattern applies when, and on what terms. Replaces patternGroups.",
-              "items": {
-                "$ref": "#/$defs/PatternOrchestration"
-              }
-            },
-            "patternGroups": {
-              "type": "array",
-              "deprecated": true,
-              "description": "Canonical pattern group categories for this baseline. Baselines define groups with empty entries to establish navigational structure; extension practices adopt these groups and populate them with patterns. DEPRECATED as of schema 2.21.0 in favour of patternOrchestrations: orchestration sequences patterns with entry and exit criteria, and grouping by source practice is already available through the merge-stamped sourcePracticeName. Still merged and still valid; scheduled for removal at the next major version.",
-              "items": {
-                "$ref": "#/$defs/PatternGroup"
-              }
-            }
-          }
-        }
-      ]
-    },
-    "PracticeBaseline": {
-      "allOf": [
-        {
-          "$ref": "#/$defs/PracticeBaselineShape"
-        },
-        {
-          "type": "object",
-          "properties": {
             "baselinePracticeNames": {
               "type": "array",
               "items": {
-                "type": "string",
-                "description": "Name of another PracticeBaseline (symbolic link; must match another PracticeBaseline.name in the registry)."
+                "type": "string"
               },
-              "description": "Optional array of other PracticeBaseline names this baseline depends on (0..* symbolic links; do not embed baseline objects)."
+              "description": "Names of parent baselines, resolved before this baseline."
             },
-            "practiceElementAliases": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/PracticeElementAlias"
-              },
-              "description": "Optional local aliases for named elements in this baseline (0..*; language.mmd)."
-            },
-            "dependencyVersions": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/DocumentVersionConstraint"
-              },
-              "description": "Optional version constraints for documents referenced by baselinePracticeNames. Each entry constrains the required version of a named baseline dependency. When omitted, any version is accepted."
-            }
-          }
-        }
-      ],
-      "unevaluatedProperties": false
-    },
-    "Practice": {
-      "description": "A practice names its baseline and may optionally embed baseline-like content; baseline element arrays are not required (language.mmd 0..* on PracticeBaseline edges; Practice only requires baselinePracticeName).",
-      "allOf": [
-        {
-          "$ref": "#/$defs/PracticeElement"
-        },
-        {
-          "type": "object",
-          "required": [
-            "baselinePracticeName"
-          ],
-          "properties": {
             "projectCreationTemplates": {
               "type": "array",
               "items": {
@@ -5090,7 +4938,7 @@
             },
             "baselinePracticeName": {
               "type": "string",
-              "description": "Name of the PracticeBaseline this practice depends on (symbolic link; must match PracticeBaseline.name in the method or registry; do not embed the baseline object in this field)."
+              "description": "Name of the baseline Practice this extension depends on (symbolic link; must match the baseline's name in the method or registry)."
             },
             "practiceDependencyNames": {
               "type": "array",
@@ -5271,6 +5119,42 @@
               },
               "description": "Optional array of visual assets (diagrams, templates, icons) referenced by practice elements"
             }
+          },
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "practice"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "baselinePracticeName"
+            ],
+            "not": {
+              "required": [
+                "baselinePracticeNames"
+              ]
+            }
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "baselinePracticeName"
+                  ]
+                },
+                {
+                  "required": [
+                    "practiceDependencyNames"
+                  ]
+                }
+              ]
+            }
           }
         }
       ],
@@ -5290,7 +5174,7 @@
           "properties": {
             "baselinePracticeName": {
               "type": "string",
-              "description": "Name of the PracticeBaseline this practice depends on (symbolic link; must match PracticeBaseline.name in the method or registry; do not embed the baseline object in this field)."
+              "description": "Name of the baseline Practice this extension depends on (symbolic link; must match the baseline's name in the method or registry)."
             },
             "practiceDependencyNames": {
               "type": "array",
@@ -5491,7 +5375,18 @@
               }
             },
             "baselinePractice": {
-              "$ref": "#/$defs/PracticeBaseline",
+              "allOf": [
+                {
+                  "$ref": "#/$defs/Practice"
+                },
+                {
+                  "properties": {
+                    "kind": {
+                      "const": "practiceBaseline"
+                    }
+                  }
+                }
+              ],
               "description": "Full baseline practice object. Use this OR baselinePracticeName (not both)."
             },
             "baselinePracticeName": {
