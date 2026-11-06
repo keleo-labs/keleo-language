@@ -8,7 +8,7 @@ Validates Baseline Practice JSON files against:
 3. Internal cross-reference integrity
 
 Key differences from practice validation:
-- Disables "floating alpha" check (baseline alphas are root-level)
+- Disables "floating alpha" check (baseline alphas may be roots or contribute within a declared baseline family)
 - Validates relatesTo completeness (all alphas should have relationships)
 - Validates focus/competency/activitySpace definitions (not references)
 - Ensures universality (warnings for overly specific terminology)
@@ -184,25 +184,65 @@ class BaselineValidator:
         has_errors = False
         alphas = self.baseline.get('alphas', [])
 
-        # Build alpha index for relatesTo validation
+        # Build alpha index for relationship validation
         alpha_names = {alpha['name'] for alpha in alphas}
+        parent_declared = bool(
+            self.parent_baseline
+            and self.parent_baseline.get('name') in self.baseline.get('baselinePracticeNames', [])
+        )
+        hierarchy = {
+            alpha['name']: alpha.get('contributesTo')
+            for alpha in (self.parent_baseline or {}).get('alphas', [])
+            if alpha.get('name')
+        }
+        hierarchy.update({
+            alpha['name']: alpha.get('contributesTo')
+            for alpha in alphas if alpha.get('name')
+        })
 
         for idx, alpha in enumerate(alphas):
             alpha_name = alpha.get('name', f'<unnamed-{idx}>')
             prefix = f"alphas[{idx}]"
 
-            # Check for contributesTo (should NOT exist in baseline alphas)
-            if 'contributesTo' in alpha:
+            target = alpha.get('contributesTo')
+            if target and (
+                target == alpha_name
+                or target not in alpha_names and not (parent_declared and target in self.parent_alphas)
+            ):
                 self.errors.append({
                     "category": "baseline",
                     "severity": "error",
                     "path": f"{prefix}.contributesTo",
-                    "issue": f"Baseline alpha '{alpha_name}' has contributesTo property - baseline alphas are root-level",
-                    "expected": "No contributesTo property",
-                    "actual": alpha.get('contributesTo'),
-                    "suggestion": "Remove contributesTo property (baseline alphas are foundational, not specialized)"
+                    "issue": f"Baseline alpha '{alpha_name}' contributesTo an unknown or self alpha: {target}",
+                    "expected": "Another alpha in this baseline or a declared parent baseline",
+                    "actual": target,
+                    "suggestion": "Declare the parent baseline and supply it to validation, or correct the target"
                 })
                 has_errors = True
+            if alpha.get('inheritedStatePolicy') == 'replace' and not (
+                parent_declared and alpha_name in self.parent_alphas
+            ):
+                self.errors.append({
+                    "category": "baseline",
+                    "severity": "error",
+                    "path": f"{prefix}.inheritedStatePolicy",
+                    "issue": "State replacement requires redeclaring an alpha from a declared parent baseline",
+                    "expected": "Inherited alpha in a declared parent baseline",
+                    "actual": alpha_name,
+                })
+                has_errors = True
+            if alpha.get('inheritedStatePolicy') == 'replace':
+                states = alpha.get('states', [])
+                names = [state.get('name') for state in states]
+                sequences = [state.get('seq') for state in states]
+                if len(names) != len(set(names)) or len(sequences) != len(set(sequences)):
+                    self.errors.append({
+                        "category": "baseline",
+                        "severity": "error",
+                        "path": f"{prefix}.states",
+                        "issue": "Replacement progression has duplicate state names or sequence numbers",
+                    })
+                    has_errors = True
 
             # Check for mapsTo (should NOT exist in baseline alphas)
             if 'mapsTo' in alpha:
@@ -327,13 +367,30 @@ class BaselineValidator:
                     "suggestion": "Consider consolidating states for clarity"
                 })
 
+        for alpha_name in alpha_names:
+            seen = set()
+            current = alpha_name
+            while current in hierarchy and hierarchy[current]:
+                if current in seen:
+                    self.errors.append({
+                        "category": "baseline",
+                        "severity": "error",
+                        "path": "alphas",
+                        "issue": f"Alpha contributesTo cycle includes '{current}'",
+                    })
+                    has_errors = True
+                    break
+                seen.add(current)
+                current = hierarchy[current]
+
         return not has_errors
 
     def validate_redeclaration_compliance(self) -> bool:
         """Check that redeclared alphas preserve parent baseline structure.
 
         When a child baseline re-uses an alpha name from its parent, it must
-        preserve structural elements: state names, state sequence, and focusName.
+        preserve structural elements: state names, state sequence, and focusName,
+        unless the child explicitly replaces the inherited state progression.
         Descriptions and checklists may be enriched with domain-specific content
         (this is the purpose of redeclaration). Domain-specific state/alpha names
         should use practiceElementAliases instead of renaming.
@@ -380,6 +437,8 @@ class BaselineValidator:
             parent_states = [s.get("name") for s in parent_alpha.get("states", [])]
             child_states = [s.get("name") for s in child_alpha.get("states", [])]
 
+            if child_alpha.get('inheritedStatePolicy') == 'replace':
+                continue
             if child_states != parent_states:
                 self.errors.append({
                     "category": "redeclaration",
