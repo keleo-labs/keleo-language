@@ -283,8 +283,6 @@ Alphas merge by canonical name. When two alphas share the same name:
 
 This allows extension practices to add new checklist items to existing baseline states without altering the baseline's original items.
 
-A derived baseline may explicitly set `inheritedStatePolicy: "replace"` on an alpha it redeclares from a declared parent baseline. Its complete `states` array, including state and checklist descriptions, then replaces the inherited array for resolution through that derived baseline. The parent baseline remains unchanged, and a missing policy retains the name-based merge above. Extension practices cannot use this policy. References to states removed by replacement must be migrated in dependent documents.
-
 ### 6.3 Activity Space and Activity Merging
 
 Activity spaces use a **slot map** representation during merging. Each activity space is a slot containing the space metadata and a map of activities keyed by canonical name.
@@ -700,7 +698,7 @@ The sentinel is applied only during finalization, never during intermediate merg
 
 ### 7.4 Baseline Description Re-stamping
 
-A final pass walks every element type (focuses, alphas, states, checklist items, activity spaces, activities, competencies, competency levels, narrative types, narrative elements, patterns, pattern views, work products, levels of detail, LOD checklist items, personas, and persona groups) and re-stamps the `description` from the original kernel baseline document onto any same-named element in the merged output. For a derived baseline alpha with `inheritedStatePolicy: "replace"`, the derived baseline owns descriptions within its replacement state array, including checklists; the kernel still owns the alpha's description.
+A final pass walks every element type (focuses, alphas, states, checklist items, activity spaces, activities, competencies, competency levels, narrative types, narrative elements, patterns, pattern views, work products, levels of detail, LOD checklist items, personas, and persona groups) and re-stamps the `description` from the original kernel baseline document onto any same-named element in the merged output.
 
 This pass runs last to guarantee that no intermediate operation (cloning, spreading, focus placeholder insertion) can leave extension-layer prose on elements that are structurally defined by the baseline. It is the authoritative enforcement of Section 4.2 (Description Preservation).
 

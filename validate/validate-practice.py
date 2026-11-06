@@ -412,17 +412,6 @@ class PracticeValidator:
             contributes_to = alpha.get('contributesTo')
             maps_to = alpha.get('mapsTo')
 
-            if 'inheritedStatePolicy' in alpha:
-                self.errors.append({
-                    "category": "baseline",
-                    "severity": "error",
-                    "path": f"{path}.inheritedStatePolicy",
-                    "issue": "Only a derived baseline may replace inherited alpha states",
-                    "expected": "No inheritedStatePolicy on an extension practice alpha",
-                    "actual": alpha.get('inheritedStatePolicy'),
-                })
-                has_errors = True
-
             # If not a baseline or dependency practice alpha, must have contributesTo or mapsTo
             if alpha_name not in self.baseline_alphas and alpha_name not in self.dep_alphas:
                 if not contributes_to and not maps_to:

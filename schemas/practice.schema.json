@@ -630,11 +630,6 @@
               "type": "string",
               "description": "Optional name of another Alpha in this baseline or a declared parent baseline (0..1 specialization relationship). Used to create specialized alphas that contribute to/refine baseline alphas (e.g., 'Platform Capability' contributesTo 'Platform'). May coexist with mapsTo but must reference a different alpha. Do not embed an Alpha object."
             },
-            "inheritedStatePolicy": {
-              "type": "string",
-              "const": "replace",
-              "description": "On a baseline alpha that redeclares an alpha from a declared parent baseline, replace the inherited state progression with this alpha's states during baseline resolution. Absent means merge states by name. Invalid on new baseline alphas and extension practices."
-            },
             "mapsTo": {
               "type": "string",
               "description": "Optional name of another Alpha that this alpha is a specialized variant of (0..1 variant mapping relationship). States MUST match the target alpha exactly. May coexist with contributesTo but must reference a different alpha. On merge, this alpha is added to the target alpha's variants array. Example: 'AI-Ready Enterprise' mapsTo 'Sales Play'."

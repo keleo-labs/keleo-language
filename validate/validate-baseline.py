@@ -219,31 +219,6 @@ class BaselineValidator:
                     "suggestion": "Declare the parent baseline and supply it to validation, or correct the target"
                 })
                 has_errors = True
-            if alpha.get('inheritedStatePolicy') == 'replace' and not (
-                parent_declared and alpha_name in self.parent_alphas
-            ):
-                self.errors.append({
-                    "category": "baseline",
-                    "severity": "error",
-                    "path": f"{prefix}.inheritedStatePolicy",
-                    "issue": "State replacement requires redeclaring an alpha from a declared parent baseline",
-                    "expected": "Inherited alpha in a declared parent baseline",
-                    "actual": alpha_name,
-                })
-                has_errors = True
-            if alpha.get('inheritedStatePolicy') == 'replace':
-                states = alpha.get('states', [])
-                names = [state.get('name') for state in states]
-                sequences = [state.get('seq') for state in states]
-                if len(names) != len(set(names)) or len(sequences) != len(set(sequences)):
-                    self.errors.append({
-                        "category": "baseline",
-                        "severity": "error",
-                        "path": f"{prefix}.states",
-                        "issue": "Replacement progression has duplicate state names or sequence numbers",
-                    })
-                    has_errors = True
-
             # Check for mapsTo (should NOT exist in baseline alphas)
             if 'mapsTo' in alpha:
                 self.errors.append({
@@ -389,8 +364,7 @@ class BaselineValidator:
         """Check that redeclared alphas preserve parent baseline structure.
 
         When a child baseline re-uses an alpha name from its parent, it must
-        preserve structural elements: state names, state sequence, and focusName,
-        unless the child explicitly replaces the inherited state progression.
+        preserve structural elements: state names, state sequence, and focusName.
         Descriptions and checklists may be enriched with domain-specific content
         (this is the purpose of redeclaration). Domain-specific state/alpha names
         should use practiceElementAliases instead of renaming.
@@ -437,8 +411,6 @@ class BaselineValidator:
             parent_states = [s.get("name") for s in parent_alpha.get("states", [])]
             child_states = [s.get("name") for s in child_alpha.get("states", [])]
 
-            if child_alpha.get('inheritedStatePolicy') == 'replace':
-                continue
             if child_states != parent_states:
                 self.errors.append({
                     "category": "redeclaration",
