@@ -41,6 +41,39 @@ FIXTURES = ROOT / 'validate' / 'fixtures'
 
 
 class CompositionDiagnostics(unittest.TestCase):
+    def test_derived_baseline_contribution_targets_and_cycles(self):
+        validator = BaselineValidator(FIXTURES / 'fixture-baseline.json',
+                                      FIXTURES / 'fixture-baseline.json', SCHEMA)
+        parent = deepcopy(validator.parent_baseline)
+        child_alpha = deepcopy(parent['alphas'][0])
+        child_alpha['name'] = 'Derived Platform'
+        child_alpha['contributesTo'] = 'Platform'
+        validator.baseline = {
+            'kind': 'practiceBaseline', 'name': 'Derived Essentials',
+            'baselinePracticeNames': [parent['name']], 'alphas': [child_alpha],
+        }
+        self.assertTrue(validator.validate_alphas(), validator.errors)
+
+        validator.baseline['baselinePracticeNames'] = []
+        validator.errors = []
+        self.assertFalse(validator.validate_alphas())
+        self.assertTrue(any('unknown or self' in e['issue'] for e in validator.errors))
+        validator.baseline['baselinePracticeNames'] = [parent['name']]
+
+        validator.errors = []
+        child_alpha['contributesTo'] = 'Missing'
+        self.assertFalse(validator.validate_alphas())
+        self.assertTrue(any('unknown or self' in e['issue'] for e in validator.errors))
+
+        validator.errors = []
+        child_alpha['contributesTo'] = 'Second'
+        second = deepcopy(child_alpha)
+        second['name'] = 'Second'
+        second['contributesTo'] = 'Derived Platform'
+        validator.baseline['alphas'].append(second)
+        self.assertFalse(validator.validate_alphas())
+        self.assertTrue(any('cycle' in e['issue'] for e in validator.errors))
+
     def test_baseline_outcome_can_use_practice_contributions(self):
         validator = BaselineValidator(FIXTURES / 'fixture-baseline.json', None, SCHEMA)
         validator.baseline['outcomes'] = [{

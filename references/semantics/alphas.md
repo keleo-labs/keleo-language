@@ -6,6 +6,8 @@ The Alpha (Abstract-Level Progress Health Attribute) defines the essential eleme
 
 ### 6.1 Defining Core Alphas and Baseline Isolation
 
+A derived baseline may declare `contributesTo` on an alpha when the target alpha is defined in the same baseline or a declared parent baseline. The target must resolve and the contribution hierarchy must remain acyclic. A redeclared alpha retains the inherited state progression and may enrich its states by name.
+
 Every Alpha contains a mandatory array of states (minimum of 3) and is categorized under a focusName. The operational guidance emphasizes the strict separation of the conceptual entity from its documentation. A "Requirements" Alpha represents actual stakeholder needs, not the requirements document itself.
 
 #### **Baseline Isolation Rules: The Floating Alpha Prohibition**

@@ -911,7 +911,7 @@ Here the AI baseline uses 4 states with different names while Sales Essentials u
 
 State and LOD mapping operates at two levels:
 
-1. **Within-baseline** — When an alpha declares `contributesTo` or `mapsTo` within its own baseline or practice, individual states can declare `contributesToState` directly on the State object. Similarly, work products use `partOf` or `mapsTo` within their baseline. The practice author declares mappings at authoring time because the elements know each other. See [Section 6.2](alphas.md#62-state-progression-and-the-guidance-function) and [Section 7.4](work-products.md#74-work-product-instance-metrics).
+1. **Within a declared baseline family** — A derived baseline may declare an alpha's `contributesTo` against an alpha in its declared parent baseline. Extension practices may declare `contributesTo` or `mapsTo` against their baseline or dependencies. Their states can declare `contributesToState` directly because the target is known at authoring time. Work products follow their own `partOf` and `mapsTo` rules. See [Section 6.2](alphas.md#62-state-progression-and-the-guidance-function) and [Section 7.4](work-products.md#74-work-product-instance-metrics).
 
 2. **Cross-baseline** — When the relationship is declared via a binding, the source element was authored independently of the target. Its states/LODs cannot declare direct mappings because they didn't know about the target. Instead, the method author declares mappings in the binding itself via `stateContributions` (for alphas) or `lodContributions` (for work products).
 
@@ -962,7 +962,7 @@ Target:  Selected  →           Built     →             Accepted
 
 | Scenario | Mechanism |
 |----------|-----------|
-| Alpha specialization within a baseline | `Alpha.contributesTo` (string naming parent alpha) |
+| Alpha specialization within a baseline or its declared parent chain | `Alpha.contributesTo` (string naming parent alpha) |
 | Alpha variant within a baseline | `Alpha.mapsTo` (string naming parent alpha) |
 | State mapping within a baseline | `State.contributesToState` (string naming parent state) |
 | Work product containment within a baseline | `WorkProduct.partOf` (string naming parent work product) |
