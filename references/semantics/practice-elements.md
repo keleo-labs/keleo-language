@@ -380,7 +380,7 @@ The optional `priority` property on Checklist uses a MoSCoW-derived three-level 
 - **Default to omitting priority.** If every item in a state is essential, leave `priority` absent on all of them — the default of `"must"` communicates this without cluttering the schema.
 - **Use `"should"` for items that are important but context-dependent.** If a task is critical in regulated environments but less so in early-stage startups, mark it `"should"` — teams can include or exclude it based on their context.
 - **Use `"could"` sparingly.** Reserve it for genuinely supplementary tasks — items that add confidence or rigour but whose absence does not meaningfully compromise the state. If most items in a state are `"could"`, the state's checklist may be over-specified.
-- **Priority is stable across projects.** It reflects the practice author's assessment of importance, not a per-project scoping decision. Project-level scoping is handled by the `priorityThreshold` on Project and ProjectCycle (see [Section 12.5.1](project-tracking.md#1251-priority-threshold)).
+- **Priority is stable across projects.** It reflects the practice author's assessment of importance. Set `assessmentPolicy.priorityThreshold` on a project or cycle to [scope its checklist items](project-tracking.md#1251-priority-threshold).
 
 **Example with Priority:**
 

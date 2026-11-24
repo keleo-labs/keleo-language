@@ -679,7 +679,7 @@ class ProjectHierarchy(unittest.TestCase):
         legacy['schemaVersion'] = '3.3.0'
         original = deepcopy(legacy)
         migrated = deepcopy(legacy)
-        migrated.update(projectId=self.parent['projectId'], schemaVersion='5.0.0')
+        migrated.update(projectId=self.parent['projectId'], schemaVersion='6.0.0')
         validator = ProjectValidator(FIXTURES / 'fixture-signal-project.json', SCHEMA, project=migrated)
         self.assertTrue(validator.validate_local(), validator.errors)
         self.assertEqual(legacy, original)
@@ -1038,7 +1038,7 @@ class ProjectHierarchy(unittest.TestCase):
         self.parent['current']['alphaInstances'].append(other)
         self.assertIn('REPORT_LINEAGE_CONFLICT', self.codes(*self.reporting()))
 
-    def test_attainment_requires_own_method_target_and_evidence(self):
+    def configure_attainment(self):
         report = self.parent['reports'][0]
         report.update(aggregation='attainmentCount', unit='count')
         report.pop('valueKind')
@@ -1051,20 +1051,89 @@ class ProjectHierarchy(unittest.TestCase):
         current = self.parent['current']['alphaInstances'][0]
         current.update(stateName='Addressed', checklistStates=[{'checklistName': 'Approval', 'state': 'complete',
                                                              'evidence': {'name': 'Approval record', 'uri': 'https://example.org/approval'}}])
+        return current
+
+    def test_attainment_requires_own_method_target_and_evidence(self):
+        current = self.configure_attainment()
+        self.parent['assessmentPolicy'] = {'priorityThreshold': 'should'}
         original = deepcopy(self.parent['current'])
         context, checker = self.reporting()
         self.assertEqual(context.errors, [], context.errors)
-        self.assertTrue(checker.facts[(project_key(self.parent['projectId']), 'Targets')][0]['attained'])
+        fact = checker.facts[(project_key(self.parent['projectId']), 'Targets')][0]
+        self.assertTrue(fact['attained'])
+        self.assertNotIn('assessmentRigour', fact)
         self.assertEqual(self.parent['current'], original)
         current['checklistStates'][0].pop('evidence')
         self.assertFalse(self.reporting()[1].facts[(project_key(self.parent['projectId']), 'Targets')][0]['attained'])
         current['stateName'] = 'A state from another method'
         self.assertIn('REPORT_ASSESSMENT_UNRESOLVED', self.codes(*self.reporting()))
 
+    def test_attainment_follows_each_explicit_policy(self):
+        current = self.configure_attainment()
+        item = current['checklistStates'][0]
+        evidence = {**item['evidence'], 'description': 'The receiving team accepted ownership.'}
+        confirmation = {'confirmedBy': 'Receiving team lead', 'confirmedAt': '2026-10-26T09:30:00Z'}
+        for rigour, record, field, value in (
+            ('team-reported', current, 'assessmentConfirmation', confirmation),
+            ('source-supported', current, 'assessmentEvidence', evidence),
+            ('evidence-per-item', item, 'evidence', evidence),
+            ('evidence-and-sign-off', item, 'confirmation', {**confirmation, 'reviewedEvidence': evidence}),
+        ):
+            with self.subTest(rigour=rigour):
+                self.parent['assessmentPolicy'] = {'rigour': rigour}
+                for attained in (False, True):
+                    if attained:
+                        record[field] = value
+                    context, checker = self.reporting()
+                    self.assertEqual(context.errors, [], context.errors)
+                    fact = checker.facts[(project_key(self.parent['projectId']), 'Targets')][0]
+                    self.assertEqual(fact['assessmentRigour'], rigour)
+                    self.assertEqual(fact['attained'], attained)
+                    self.assertTrue(self.definition('ReportContribution').is_valid(fact), fact)
+        item['evidence'] = {**evidence, 'uri': 'https://example.org/replacement'}
+        fact = self.reporting()[1].facts[(project_key(self.parent['projectId']), 'Targets')][0]
+        self.assertFalse(fact['attained'])
+        validator = ProjectValidator(FIXTURES / 'fixture-signal-project.json', SCHEMA, project=self.parent)
+        self.assertTrue(validator.validate_local(), validator.errors)
+        item['confirmation'] = {**confirmation, 'reviewedEvidence': item['evidence']}
+        self.assertTrue(self.reporting()[1].facts[(project_key(self.parent['projectId']), 'Targets')][0]['attained'])
+
+    def test_item_policy_falls_back_only_when_no_items_apply(self):
+        current = self.configure_attainment()
+        current['assessmentEvidence'] = {'name': 'Handover minutes', 'description': 'Ownership accepted.'}
+        goal = self.practice['alphas'][0]['states'][-1]
+        goal['checklist'][0]['priority'] = 'should'
+        self.parent['assessmentPolicy'] = {'rigour': 'evidence-per-item', 'priorityThreshold': 'must'}
+        report_target = self.parent['reports'][0]['bindings'][0]['target']
+        objective = deepcopy(self.parent['target']['alphaInstances'][0])
+        self.parent['cycles'] = [{'name': 'Review', 'description': 'Verify the handover.',
+                                  'assessmentPolicy': {'priorityThreshold': 'should'}, 'alphaInstances': [objective]}]
+        report_target.update(collection='cycles.alphaInstances', cycleName='Review')
+        key = (project_key(self.parent['projectId']), 'Targets')
+        self.assertFalse(self.reporting()[1].facts[key][0]['attained'])
+        self.parent['cycles'][0]['assessmentPolicy'] = {}
+        self.assertTrue(self.reporting()[1].facts[key][0]['attained'])
+        objective['checklistStates'] = [{'checklistName': 'Approval', 'state': 'complete'}]
+        self.assertFalse(self.reporting()[1].facts[key][0]['attained'])
+        objective['checklistStates'][0]['state'] = 'not required'
+        self.assertTrue(self.reporting()[1].facts[key][0]['attained'])
+        goal['checklist'] = []
+        objective.pop('checklistStates')
+        self.assertTrue(self.reporting()[1].facts[key][0]['attained'])
+        current['stateName'] = 'Unresolved state'
+        context, checker = self.reporting()
+        self.assertIn('REPORT_ASSESSMENT_UNRESOLVED', self.codes(context, checker))
+        self.assertFalse(checker.facts[key][0]['attained'])
+
     def test_cross_method_mapping_preserves_evidence_and_rejects_missing_checklist_maps(self):
         self.practice['alphas'][0]['states'][1]['checklist'] = [{'name': 'Approval', 'description': 'Approved.', 'seq': 1}]
         self.parent['current']['alphaInstances'][0]['checklistStates'] = [{'checklistName': 'Approval', 'state': 'complete',
                                                                         'evidence': {'name': 'Approval', 'uri': 'https://example.org/approval'}}]
+        original = self.parent['current']['alphaInstances'][0]
+        confirmation = {'confirmedBy': 'Reviewer', 'confirmedAt': '2026-10-26T09:30:00Z'}
+        original['assessmentConfirmation'] = confirmation
+        original['checklistStates'][0]['confirmation'] = {
+            **confirmation, 'reviewedEvidence': deepcopy(original['checklistStates'][0]['evidence'])}
         alternate = self.documents[1]
         alternate['alphas'][0]['states'][1].update(name='Ready', checklist=[{'name': 'Verified', 'description': 'Verified.', 'seq': 1}])
         variant = self.template['variants'][0]
@@ -1079,6 +1148,9 @@ class ProjectHierarchy(unittest.TestCase):
         transfer = preview['instanceMappings'][0]
         transfer.update(assessmentTransfer='mapped', stateMappings=deepcopy(rule['stateMappings']), checklistMappings=deepcopy(rule['checklistMappings']))
         preview['sourceRevisions'].append({'methodology': {'documentType': 'practice', 'documentName': alternate['name'], 'version': '1.0.0'}, 'revision': document_revision(alternate)})
+        self.assertIn('DELEGATION_ASSESSMENT_CHANGED', self.codes(self.delegation(preview)[0]))
+        target.pop('assessmentConfirmation')
+        target['checklistStates'][0].pop('confirmation')
         context, _ = self.delegation(preview)
         self.assertEqual(context.errors, [], context.errors)
         self.assertEqual(target['checklistStates'][0]['evidence'], self.parent['current']['alphaInstances'][0]['checklistStates'][0]['evidence'])
@@ -1172,6 +1244,41 @@ class ProjectHierarchy(unittest.TestCase):
         self.assertEqual(self.reporting([result])[0].errors, [])
         result['contributions'][0]['via'][0]['reportName'] = 'Unrelated report'
         self.assertIn('REPORT_LINEAGE_PATH_INVALID', self.codes(*self.reporting([result])))
+
+
+class AssessmentMigration(unittest.TestCase):
+    def test_thresholds_migrate_without_selecting_rigour(self):
+        project = json.loads((FIXTURES / 'fixture-signal-project.json').read_text())
+        project.update(schemaVersion='5.2.0', priorityThreshold='should')
+        project['cycles'] = [{'name': 'One', 'description': 'A scoped cycle.', 'priorityThreshold': 'could'}]
+        command = [sys.executable, str(ROOT / 'utils' / 'migrate-project-v6.py')]
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / 'project.json'
+            original = json.dumps(project)
+            source.write_text(original)
+            migrated = subprocess.run([*command, str(source)], capture_output=True, text=True)
+            self.assertEqual(migrated.returncode, 0, migrated.stderr)
+            self.assertEqual(source.read_text(), original)
+            result = json.loads(migrated.stdout)
+            self.assertEqual(result['schemaVersion'], '6.0.0')
+            self.assertEqual(result['assessmentPolicy'], {'priorityThreshold': 'should'})
+            self.assertEqual(result['cycles'][0]['assessmentPolicy'], {'priorityThreshold': 'could'})
+            checker = ProjectValidator(source, SCHEMA, project=result)
+            self.assertTrue(checker.validate_local(), checker.errors)
+            self.assertIn('cycles[0].assessmentPolicy.priorityThreshold', [w['path'] for w in checker.warnings])
+            for record in (result, result['cycles'][0]):
+                record['priorityThreshold'] = 'must'
+                checker = ProjectValidator(source, SCHEMA, project=result)
+                self.assertFalse(checker.validate_schema())
+                del record['priorityThreshold']
+            result['cycles'][0]['assessmentPolicy']['rigour'] = 'team-reported'
+            self.assertFalse(ProjectValidator(source, SCHEMA, project=result).validate_schema())
+            project['assessmentPolicy'] = {'priorityThreshold': 'must'}
+            source.write_text(json.dumps(project))
+            rejected = subprocess.run([*command, str(source)], capture_output=True, text=True)
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertEqual(rejected.stdout, '')
+            self.assertIn('conflicting priorityThreshold', rejected.stderr)
 
 
 if __name__ == '__main__':

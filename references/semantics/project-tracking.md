@@ -106,6 +106,7 @@ ChecklistState tracks the completion status of individual checklist items within
 - `checklistName` — must match a `Checklist.name` within the parent instance's referenced State or LevelOfDetail
 - `state` — enum: `"complete"`, `"not complete"`, `"not required"`
 - `evidence` (optional) — an ExternalLink referencing external evidence supporting the item's state (e.g. a document, test result, approval record, or audit artifact)
+- `confirmation` (optional) — the reviewer's name, confirmation time and the evidence they reviewed
 - `notes` (optional) — array of Note objects for recording observations or rationale
 
 **Dual-Use Semantics:**
@@ -113,9 +114,9 @@ ChecklistState tracks the completion status of individual checklist items within
 - In the `current` section: `state` records actual completion — `"complete"` or `"not complete"`
 - In the `target` section: `state` indicates requirement — `"not required"` marks checklist items explicitly excluded from this project's goals, while `"complete"` marks items that must be achieved
 
-#### 12.5.1 Priority Threshold
+#### 12.5.1 Priority threshold
 
-The `priorityThreshold` property on Project and ProjectCycle enables teams to scope which checklist items are active based on their `priority` level (see [Section 5.2.2](practice-elements.md#522-checklist-priority)). Items at or above the threshold are in scope; items below it are implicitly not required.
+Set `assessmentPolicy.priorityThreshold` on a Project or cycle to scope which checklist items apply based on their [priority](practice-elements.md#522-checklist-priority). Items at or above the threshold are in scope. Explicit checklist requirements and exclusions take precedence.
 
 **Threshold Semantics:**
 
@@ -152,13 +153,13 @@ Three mechanisms interact to determine whether a checklist item is active in a g
   "name": "Platform Modernisation",
   "projectId": "1fe5263b-ef19-4d3f-bb72-2631c7a86944",
   "practiceName": "Cloud Platform Engineering",
-  "priorityThreshold": "should",
+  "assessmentPolicy": { "priorityThreshold": "should" },
   "currentCycleName": "Sprint 3",
   "cycles": [
     {
       "name": "Sprint 3",
       "description": "Fast-track infrastructure provisioning",
-      "priorityThreshold": "must",
+      "assessmentPolicy": { "priorityThreshold": "must" },
       "startedAt": "2026-08-01T00:00:00Z",
       "alphaInstances": [
         {
@@ -176,6 +177,25 @@ Three mechanisms interact to determine whether a checklist item is active in a g
 ```
 
 In this example, the project-level threshold is `"should"` — across the project, `must` and `should` items are in scope while `could` items are implicitly excluded. Sprint 3 tightens this to `"must"` only, focusing the team on essential verification criteria during a time-pressured cycle.
+
+#### 12.5.2 Assessment rigour
+
+`Project.assessmentPolicy.rigour` defines what supports an attainment claim. It applies to the whole project, including its cycles. An omitted rigour preserves the existing assessment rules. In attainment reports, those rules require evidence for applicable checklist items.
+
+| Rigour | Requirement for attainment |
+|---|---|
+| `team-reported` | The assessed instance records `assessmentConfirmation` with a named person and a date and time. |
+| `source-supported` | The assessed instance records `assessmentEvidence` with a source name and a description of what supports the assessment. |
+| `evidence-per-item` | The assessment records each applicable item as complete and cites evidence that describes how the criterion was met. Any work product or level of detail required by the Method still applies. |
+| `evidence-and-sign-off` | Each applicable item meets the evidence rule and records a named reviewer's confirmation of that evidence, with a date and time. |
+
+At either item-level setting, a resolved assessment with zero applicable items follows the source-supported rule. A later state can establish that the project reached an earlier state. Its checklist records are scoped to the later state, so item-level attainment for the earlier state remains pending if it has applicable criteria.
+
+`assessmentEvidence` and checklist evidence use ExternalLink. When possible, record a source URI and the specific location within the source. A single artifact can support several items. Describe the link to each criterion separately. The validator checks recorded coverage. Source relevance is a judgement for the assessor or reviewer.
+
+An item confirmation stores `confirmedBy`, `confirmedAt` and `reviewedEvidence`, a copy of the evidence link at review time. If a link field changes, attainment stays pending until a reviewer confirms the replacement. When the underlying content changes at the same address, update its evidence link to identify the revised content and record fresh confirmation. A mapped assessment transferred across Methods keeps its evidence and awaits fresh confirmation.
+
+The team can record a reached state or level of detail with evidence or review still pending. Target and cycle objective rows express what the team aims to attain. Attainment reports use the current assessed instance as the source of confirmation and evidence, and report the configured level in `assessmentRigour`.
 
 ### 12.6 Notes, External Links, and Automated Journaling
 

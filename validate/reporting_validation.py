@@ -19,6 +19,10 @@ def report_key(reference):
     return project_key(reference['projectId']), reference['reportName']
 
 
+def describes_evidence(link):
+    return bool(link and link['name'].strip() and link.get('description', '').strip())
+
+
 class ReportingValidator:
     def __init__(self, catalogue, results=(), now=None):
         self.catalogue = catalogue
@@ -207,7 +211,11 @@ class ReportingValidator:
                     continue
                 if target:
                     attained, evidence = self.attainment(project, item, target, binding, issue)
-                    fact = self.fact(project, report, binding, source, item, attained=attained, evidence=evidence)
+                    values = {'attained': attained, 'evidence': evidence}
+                    rigour = project.get('assessmentPolicy', {}).get('rigour')
+                    if rigour:
+                        values['assessmentRigour'] = rigour
+                    fact = self.fact(project, report, binding, source, item, **values)
                     if fact:
                         facts.append(fact)
         self.facts[key] = facts
@@ -324,31 +332,50 @@ class ReportingValidator:
         goal, actual = phases[target[phase_field]], phases[current[phase_field]]
         reached = current[phase_field] == target[phase_field] or (
             not any(p.get('loopsBackTo') for p in phases.values()) and actual['seq'] >= goal['seq'])
+        policy = project.get('assessmentPolicy', {})
+        rigour = policy.get('rigour')
+        if rigour == 'team-reported':
+            return reached and bool(current.get('assessmentConfirmation')), []
+        source = current.get('assessmentEvidence')
+        source_evidence = [source] if describes_evidence(source) else []
+        if rigour == 'source-supported':
+            return reached and bool(source_evidence), source_evidence
+
         target_flags = {c['checklistName']: c['state'] for c in target.get('checklistStates', [])}
         current_flags = {c['checklistName']: c for c in current.get('checklistStates', [])}
-        threshold = project.get('priorityThreshold', 'could')
+        threshold = policy.get('priorityThreshold', 'could')
         if binding['target'].get('cycleName'):
             cycle = next(c for c in project['cycles'] if c['name'] == binding['target']['cycleName'])
-            threshold = cycle.get('priorityThreshold', threshold)
+            threshold = cycle.get('assessmentPolicy', {}).get('priorityThreshold', threshold)
         priorities = {'must': 0, 'should': 1, 'could': 2}
         evidence = []
+        has_required_items = False
         for checklist in goal['checklist']:
             name = checklist['name']
             flag = target_flags.get(name)
             required = flag != 'not required' and (flag is not None or priorities[checklist.get('priority', 'must')] <= priorities[threshold])
             if not required:
                 continue
+            has_required_items = True
+            if rigour and actual is not goal:
+                # Checklist records belong to the assessed phase. A reused name does not establish earlier coverage.
+                return False, []
             record = current_flags.get(name, {})
-            if record.get('state') != 'complete' or not record.get('evidence'):
+            cited = record.get('evidence')
+            if record.get('state') != 'complete' or not cited or (rigour and not describes_evidence(cited)):
                 reached = False
             else:
-                evidence.append(record['evidence'])
+                evidence.append(cited)
+                if rigour == 'evidence-and-sign-off' and record.get('confirmation', {}).get('reviewedEvidence') != cited:
+                    reached = False
             for requirement in checklist.get('evidencedBy', []):
                 canonical = {w['name']: w for w in project.get('current', {}).get('workProductInstances', [])}
                 candidates = [canonical[w['name']] for w in current.get('evidenceBy', []) if w['name'] in canonical]
                 if not any(w['workProductName'] == requirement['workProductName'] and
                            w['levelOfDetailName'] == requirement['levelOfDetailName'] for w in candidates):
                     reached = False
+        if rigour and not has_required_items:
+            return reached and bool(source_evidence), source_evidence
         return reached, evidence
 
     def validate_coverage(self, project, report):
@@ -420,7 +447,8 @@ class ReportingValidator:
     @staticmethod
     def facts_equal(left, right):
         fields = ('origin', 'metricId', 'metricVersion', 'unit', 'inputRevision', 'valueKind',
-                  'value', 'attained', 'weight', 'rawValue', 'evidence', 'observedAt', 'synchronizedAt', 'integrationName')
+                  'value', 'attained', 'assessmentRigour', 'weight', 'rawValue', 'evidence', 'observedAt',
+                  'synchronizedAt', 'integrationName')
         return (all(left.get(f) == right.get(f) for f in fields)
                 and reference_key(left['source']) == reference_key(right['source'])
                 and reference_key(left['originalSource']) == reference_key(right['originalSource'])
