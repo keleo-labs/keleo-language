@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/schemas/practice.schema.json",
-  "$comment": "schemaVersion:5.1.0",
+  "$comment": "schemaVersion:6.0.0",
   "$defs": {
     "Test": {
       "description": "A structured verification or execution scenario using the Given/When/Then pattern. Extends PracticeElement with Gherkin-inspired properties for expressing preconditions, triggers, and expected outcomes.",
@@ -706,6 +706,13 @@
             "stateName"
           ],
           "properties": {
+            "assessmentConfirmation": {
+              "$ref": "project.schema.json#/$defs/AssessmentConfirmation",
+              "unevaluatedProperties": false
+            },
+            "assessmentEvidence": {
+              "$ref": "common.schema.json#/$defs/ExternalLink"
+            },
             "reportingSource": {
               "$ref": "project.schema.json#/$defs/ReportingSource"
             },
@@ -859,6 +866,13 @@
             "levelOfDetailName"
           ],
           "properties": {
+            "assessmentConfirmation": {
+              "$ref": "project.schema.json#/$defs/AssessmentConfirmation",
+              "unevaluatedProperties": false
+            },
+            "assessmentEvidence": {
+              "$ref": "common.schema.json#/$defs/ExternalLink"
+            },
             "reportingSource": {
               "$ref": "project.schema.json#/$defs/ReportingSource"
             },

@@ -303,12 +303,17 @@ class DelegationValidator:
                 self.issue('DELEGATION_ASSESSMENT_MAPPING_MISSING', 'Absent or ambiguous phase mappings require an unassessed target')
                 return
             expected[phase] = phases[0]
+            if not same_method:
+                expected.pop('assessmentConfirmation', None)
             flags = []
             for flag in original.get('checklistStates', []):
                 mappings = [m for m in rule.get('checklistMappings', []) if m['fromStateOrLevel'] == original[phase]
                             and m['fromChecklist'] == flag['checklistName'] and m['toStateOrLevel'] == expected[phase]]
                 if len(mappings) == 1:
-                    flags.append({**flag, 'checklistName': mappings[0]['toChecklist']})
+                    mapped = {**flag, 'checklistName': mappings[0]['toChecklist']}
+                    if not same_method:
+                        mapped.pop('confirmation', None)
+                    flags.append(mapped)
                 else:
                     self.issue('DELEGATION_CHECKLIST_MAPPING_AMBIGUOUS', 'Missing or ambiguous checklist mappings require an unassessed target')
                     return

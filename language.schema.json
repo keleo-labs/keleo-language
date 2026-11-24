@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/keleo-studio/language.schema.json",
-  "$comment": "schemaVersion:5.1.0",
+  "$comment": "schemaVersion:6.0.0",
   "title": "Practice language (from language.mmd)",
   "description": "Practice Language definitions, UUID-identified projects, integration mappings, signal journals and change documents. Methodology identity is by name; project identity is a persistent UUID. Methods support embedded documents, named references or a mix.",
   "if": {
@@ -3633,6 +3633,13 @@
             "stateName"
           ],
           "properties": {
+            "assessmentConfirmation": {
+              "$ref": "#/$defs/AssessmentConfirmation",
+              "unevaluatedProperties": false
+            },
+            "assessmentEvidence": {
+              "$ref": "#/$defs/ExternalLink"
+            },
             "reportingSource": {
               "$ref": "#/$defs/ReportingSource"
             },
@@ -3786,6 +3793,13 @@
             "levelOfDetailName"
           ],
           "properties": {
+            "assessmentConfirmation": {
+              "$ref": "#/$defs/AssessmentConfirmation",
+              "unevaluatedProperties": false
+            },
+            "assessmentEvidence": {
+              "$ref": "#/$defs/ExternalLink"
+            },
             "reportingSource": {
               "$ref": "#/$defs/ReportingSource"
             },
@@ -6039,6 +6053,9 @@
         "attained": {
           "type": "boolean"
         },
+        "assessmentRigour": {
+          "$ref": "#/$defs/AssessmentRigour"
+        },
         "rawValue": {
           "type": "number"
         },
@@ -6079,8 +6096,17 @@
             "valueKind"
           ],
           "not": {
-            "required": [
-              "attained"
+            "anyOf": [
+              {
+                "required": [
+                  "attained"
+                ]
+              },
+              {
+                "required": [
+                  "assessmentRigour"
+                ]
+              }
             ]
           }
         },
@@ -7268,6 +7294,62 @@
       },
       "additionalProperties": false
     },
+    "ChecklistPriorityThreshold": {
+      "enum": [
+        "must",
+        "should",
+        "could"
+      ]
+    },
+    "AssessmentRigour": {
+      "enum": [
+        "team-reported",
+        "source-supported",
+        "evidence-per-item",
+        "evidence-and-sign-off"
+      ]
+    },
+    "AssessmentPolicy": {
+      "type": "object",
+      "properties": {
+        "priorityThreshold": {
+          "$ref": "#/$defs/ChecklistPriorityThreshold",
+          "description": "Minimum priority for checklist scope. Defaults to could. Explicit checklist requirements and exclusions take precedence."
+        },
+        "rigour": {
+          "$ref": "#/$defs/AssessmentRigour",
+          "description": "Project-wide requirements for assessed attainment. Omit to preserve existing assessment behaviour."
+        }
+      },
+      "additionalProperties": false
+    },
+    "CycleAssessmentPolicy": {
+      "type": "object",
+      "properties": {
+        "priorityThreshold": {
+          "$ref": "#/$defs/ChecklistPriorityThreshold",
+          "description": "Overrides the project threshold for this cycle. Omit to inherit the project threshold."
+        }
+      },
+      "additionalProperties": false
+    },
+    "AssessmentConfirmation": {
+      "type": "object",
+      "required": [
+        "confirmedBy",
+        "confirmedAt"
+      ],
+      "properties": {
+        "confirmedBy": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "confirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
     "ChecklistState": {
       "type": "object",
       "description": "Tracks the completion status of an individual checklist item within a project context. Co-located on AlphaInstance or WorkProductInstance; the parent instance provides the alpha/state or workProduct/levelOfDetail context.",
@@ -7292,6 +7374,19 @@
         "evidence": {
           "$ref": "#/$defs/ExternalLink",
           "description": "Optional reference to external evidence supporting the checklist item's state (e.g. a document, test result, approval record, or audit artifact)."
+        },
+        "confirmation": {
+          "$ref": "#/$defs/AssessmentConfirmation",
+          "required": [
+            "reviewedEvidence"
+          ],
+          "properties": {
+            "reviewedEvidence": {
+              "$ref": "#/$defs/ExternalLink",
+              "description": "Evidence as reviewed. Sign-off is pending if the current evidence no longer matches."
+            }
+          },
+          "unevaluatedProperties": false
         },
         "notes": {
           "type": "array",
@@ -7587,14 +7682,8 @@
               "type": "string",
               "description": "Symbolic link to a PatternView.name within the project plan's Pattern. Identifies which phase of the overarching plan this cycle is contributing to."
             },
-            "priorityThreshold": {
-              "type": "string",
-              "enum": [
-                "must",
-                "should",
-                "could"
-              ],
-              "description": "Minimum checklist priority to include in scope for this cycle. Items below this threshold are implicitly not required unless explicitly overridden via ChecklistState. Overrides the project-level priorityThreshold for this cycle. When omitted, inherits the project-level threshold."
+            "assessmentPolicy": {
+              "$ref": "#/$defs/CycleAssessmentPolicy"
             },
             "outcomes": {
               "type": "array",
@@ -7710,14 +7799,8 @@
               "type": "string",
               "description": "Name of the currently active cycle within the cycles array. Identifies which cycle is tracking current work. Absent when no cycle is active."
             },
-            "priorityThreshold": {
-              "type": "string",
-              "enum": [
-                "must",
-                "should",
-                "could"
-              ],
-              "description": "Minimum checklist priority to include in project scope. Items below this threshold are implicitly not required unless explicitly overridden via ChecklistState. Individual cycles can override this with their own priorityThreshold. When omitted, defaults to \"could\" (all items in scope)."
+            "assessmentPolicy": {
+              "$ref": "#/$defs/AssessmentPolicy"
             },
             "outcomes": {
               "type": "array",

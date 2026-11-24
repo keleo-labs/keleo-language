@@ -379,13 +379,13 @@ class ProjectValidator:
 
     def validate_priority_thresholds(self) -> bool:
         has_errors = False
-        project_threshold = self.project.get('priorityThreshold')
+        project_threshold = self.project.get('assessmentPolicy', {}).get('priorityThreshold')
 
         if project_threshold and project_threshold not in self.PRIORITY_RANK:
             self.errors.append({
                 "category": "integrity",
                 "severity": "error",
-                "path": "priorityThreshold",
+                "path": "assessmentPolicy.priorityThreshold",
                 "issue": f"Invalid priorityThreshold value: '{project_threshold}'",
                 "expected": "One of: must, should, could",
                 "actual": project_threshold,
@@ -395,7 +395,7 @@ class ProjectValidator:
             return not has_errors
 
         for idx, cycle in enumerate(self.project.get('cycles', [])):
-            cycle_threshold = cycle.get('priorityThreshold')
+            cycle_threshold = cycle.get('assessmentPolicy', {}).get('priorityThreshold')
             if not cycle_threshold:
                 continue
 
@@ -403,7 +403,7 @@ class ProjectValidator:
                 self.errors.append({
                     "category": "integrity",
                     "severity": "error",
-                    "path": f"cycles[{idx}].priorityThreshold",
+                    "path": f"cycles[{idx}].assessmentPolicy.priorityThreshold",
                     "issue": f"Invalid priorityThreshold value: '{cycle_threshold}'",
                     "expected": "One of: must, should, could",
                     "actual": cycle_threshold,
@@ -417,7 +417,7 @@ class ProjectValidator:
                 self.warnings.append({
                     "category": "integrity",
                     "severity": "warning",
-                    "path": f"cycles[{idx}].priorityThreshold",
+                    "path": f"cycles[{idx}].assessmentPolicy.priorityThreshold",
                     "issue": f"Cycle '{cycle.get('name', '')}' threshold '{cycle_threshold}' is less restrictive than project threshold '{effective_project}'",
                     "expected": f"Threshold at or above project level: '{effective_project}'",
                     "actual": cycle_threshold,

@@ -275,7 +275,7 @@ Defines declarative asset references for diagrams, templates, icons, and other v
 
 ## 12 Project Execution Tracking
 
-Defines the Project type — an execution instance of a Practice or Method that tracks real-world progress. Covers project purpose and root discrimination (12.1), team structure and Team API principles (12.2), plan section and pattern ownership (12.3), current and target state sections (12.4), ChecklistState and evidence tracking with priority thresholds (12.5), notes, external links, and automated journaling (12.6), cycles and operational work tracking (12.7), outcome instances with value tracking (12.8), actions and team work tracking with structured acceptance criteria (12.9), and the project-level action backlog for candidate work items (12.9.1). Read when working with project documents, tracking execution state, or designing team structures.
+Defines the Project type — an execution instance of a Practice or Method that tracks real-world progress. Covers project purpose and root discrimination (12.1), team structure and Team API principles (12.2), plan section and pattern ownership (12.3), current and target state sections (12.4), ChecklistState, priority scope and assessment rigour (12.5), notes, external links, and automated journaling (12.6), cycles and operational work tracking (12.7), outcome instances with value tracking (12.8), actions and team work tracking with structured acceptance criteria (12.9), and the project-level action backlog for candidate work items (12.9.1). Read when working with project documents, tracking execution state, or designing team structures.
 
 **Full guidance:** [semantics/project-tracking.md](semantics/project-tracking.md)
 

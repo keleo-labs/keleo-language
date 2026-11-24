@@ -14,6 +14,8 @@ Read the [migration guide](references/semantics/project-hierarchy.md#migration-f
 before upgrading consumers. The project validator accepts catalogue snapshots,
 report results and creation previews without applying writes.
 
+Schema **6.0.0** and npm package **7.0.0** move project and cycle checklist priority thresholds into an assessment policy and add optional project-wide rigour. Read the [v6 migration guide](references/semantics/project-v6-migration.md) before adopting the new schema.
+
 ### Additional metadata
 
 Four `1.0.0` schemas describe local authoring catalogs:

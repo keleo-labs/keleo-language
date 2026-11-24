@@ -183,6 +183,12 @@ The `current`, `target`, and `cycles` sections serve complementary purposes:
 
 `current` is a point-in-time snapshot. `target` is a destination. Cycles are the journey — they record *what work was undertaken* to move from current toward target.
 
+#### Assessment policy
+
+Given a project sets a checklist priority threshold and a cycle supplies its own threshold, when a report assesses that cycle's objective, then the cycle's threshold determines the default checklist scope. Explicit requirements and exclusions still apply, and the project sets the rigour for every cycle.
+
+Given a project requires evidence and sign-off and a reached assessment has evidence for all applicable criteria, when a report evaluates attainment before a reviewer confirms each item, then attainment stays pending. When the evidence and confirmation records match, the report can count the assessment as attained. See [assessment policy scenarios](project-assessment-policy.feature).
+
 #### Cycle Lifecycle
 
 A cycle progresses through three phases:
